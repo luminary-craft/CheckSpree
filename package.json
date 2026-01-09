@@ -1,0 +1,24 @@
+{
+  "name": "checkspree2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CheckSpree2 - physical-units-first check printing and calibration (Electron + React)",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "electron": "electron ."
+  },
+  "dependencies": {
+    "electron": "^33.4.11",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.2",
+    "electron-vite": "^5.0.0",
+    "vite": "^7.3.1"
+  }
+}
+

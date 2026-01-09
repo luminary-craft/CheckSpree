@@ -1,0 +1,1444 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { numberToWords } from '../shared/numberToWords'
+
+const PX_PER_IN = 96
+
+// Available fonts for check printing
+const AVAILABLE_FONTS = [
+  { id: 'courier', name: 'Courier New', family: '"Courier New", Courier, monospace' },
+  { id: 'arial', name: 'Arial', family: 'Arial, Helvetica, sans-serif' },
+  { id: 'times', name: 'Times New Roman', family: '"Times New Roman", Times, serif' },
+  { id: 'georgia', name: 'Georgia', family: 'Georgia, serif' },
+  { id: 'verdana', name: 'Verdana', family: 'Verdana, Geneva, sans-serif' },
+  { id: 'trebuchet', name: 'Trebuchet MS', family: '"Trebuchet MS", sans-serif' },
+  { id: 'lucida', name: 'Lucida Console', family: '"Lucida Console", Monaco, monospace' },
+  { id: 'consolas', name: 'Consolas', family: 'Consolas, "Courier New", monospace' },
+  { id: 'palatino', name: 'Palatino', family: '"Palatino Linotype", "Book Antiqua", Palatino, serif' },
+  { id: 'garamond', name: 'Garamond', family: 'Garamond, Baskerville, serif' }
+]
+
+const DEFAULT_LAYOUT = {
+  widthIn: 8.5,
+  checkHeightIn: 3.0,
+  stub1Enabled: false,
+  stub1HeightIn: 3.0,
+  stub2Enabled: false,
+  stub2HeightIn: 3.0
+}
+
+const DEFAULT_FIELDS = {
+  date: { x: 6.65, y: 0.50, w: 1.6, h: 0.40, fontIn: 0.28, label: 'Date' },
+  payee: { x: 0.75, y: 1.05, w: 6.2, h: 0.45, fontIn: 0.32, label: 'Pay to the Order of' },
+  amount: { x: 6.95, y: 1.05, w: 1.25, h: 0.45, fontIn: 0.32, label: 'Amount ($)' },
+  amountWords: { x: 0.75, y: 1.55, w: 7.5, h: 0.45, fontIn: 0.30, label: 'Amount in Words' },
+  memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' }
+}
+
+const DEFAULT_PROFILE = {
+  id: 'default',
+  name: 'Standard Check',
+  layout: DEFAULT_LAYOUT,
+  fields: DEFAULT_FIELDS,
+  template: { path: null, opacity: 0, fit: 'cover' },
+  placement: { offsetXIn: 0, offsetYIn: 0 }
+}
+
+const DEFAULT_PREFERENCES = {
+  fontScale: 1.0,
+  labelSize: 9,
+  fontFamily: 'courier'
+}
+
+const DEFAULT_MODEL = {
+  page: { size: 'Letter', widthIn: 8.5, heightIn: 11 },
+  placement: { offsetXIn: 0, offsetYIn: 0 },
+  layout: DEFAULT_LAYOUT,
+  view: { zoom: 0.9 },
+  template: { path: null, opacity: 0, fit: 'cover' },
+  fields: DEFAULT_FIELDS
+}
+
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n))
+}
+
+function roundTo(n, step) {
+  const s = step || 1
+  return Math.round(n / s) * s
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(amount)
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function normalizeModel(maybeModel) {
+  const m = maybeModel || {}
+  const layout =
+    m.layout ||
+    (m.check
+      ? {
+          widthIn: m.check.widthIn ?? DEFAULT_LAYOUT.widthIn,
+          checkHeightIn: m.check.heightIn ?? DEFAULT_LAYOUT.checkHeightIn,
+          stub1Enabled: false,
+          stub1HeightIn: DEFAULT_LAYOUT.stub1HeightIn,
+          stub2Enabled: false,
+          stub2HeightIn: DEFAULT_LAYOUT.stub2HeightIn
+        }
+      : DEFAULT_LAYOUT)
+
+  const template = {
+    ...DEFAULT_MODEL.template,
+    ...(m.template || {})
+  }
+
+  return {
+    ...DEFAULT_MODEL,
+    ...m,
+    layout,
+    template
+  }
+}
+
+// Parse CSV content into array of check data objects
+function parseCSV(content, delimiter = ',') {
+  const lines = content.trim().split(/\r?\n/)
+  if (lines.length < 2) return []
+
+  // Parse header row
+  const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/['"]/g, ''))
+
+  // Map common header variations
+  const fieldMap = {
+    date: ['date', 'check date', 'checkdate', 'dt'],
+    payee: ['payee', 'pay to', 'payto', 'recipient', 'name', 'to'],
+    amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total'],
+    memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose']
+  }
+
+  // Find column indices
+  const columnIndices = {}
+  for (const [field, variations] of Object.entries(fieldMap)) {
+    const idx = headers.findIndex(h => variations.includes(h))
+    if (idx !== -1) columnIndices[field] = idx
+  }
+
+  // Parse data rows
+  const results = []
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+
+    // Handle quoted values
+    const values = []
+    let current = ''
+    let inQuotes = false
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j]
+      if (char === '"') {
+        inQuotes = !inQuotes
+      } else if (char === delimiter && !inQuotes) {
+        values.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    values.push(current.trim())
+
+    const entry = {
+      date: columnIndices.date !== undefined ? values[columnIndices.date] || '' : '',
+      payee: columnIndices.payee !== undefined ? values[columnIndices.payee] || '' : '',
+      amount: columnIndices.amount !== undefined ? values[columnIndices.amount]?.replace(/[$,]/g, '') || '' : '',
+      memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : ''
+    }
+
+    // Only include if we have at least payee or amount
+    if (entry.payee || entry.amount) {
+      results.push(entry)
+    }
+  }
+
+  return results
+}
+
+async function readTemplateDataUrl(path) {
+  if (!path) return null
+  const res = await window.cs2.readFileAsDataURL(path)
+  if (!res?.success) return { url: null, error: res?.error || 'Failed to read template image' }
+  return { url: res.dataUrl, error: null, mime: res.mime, byteLength: res.byteLength }
+}
+
+// Icon components
+function ChevronIcon({ open }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+      style={{ transition: 'transform 200ms ease', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1.5 3.5H12.5M5.5 1.5H8.5M5.5 6V10.5M8.5 6V10.5M2.5 3.5L3 11.5C3 12.0523 3.44772 12.5 4 12.5H10C10.5523 12.5 11 12.0523 11 11.5L11.5 3.5" 
+        stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 1V9M7 9L4 6M7 9L10 6M2 11V12C2 12.5523 2.44772 13 3 13H11C11.5523 13 12 12.5523 12 12V11" 
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function UploadIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 9V1M7 1L4 4M7 1L10 4M2 11V12C2 12.5523 2.44772 13 3 13H11C11.5523 13 12 12.5523 12 12V11" 
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+export default function App() {
+  const [model, setModel] = useState(DEFAULT_MODEL)
+  const [editMode, setEditMode] = useState(false)
+  const [selected, setSelected] = useState('payee')
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [templateDataUrl, setTemplateDataUrl] = useState(null)
+  const [templateLoadError, setTemplateLoadError] = useState(null)
+  const [templateMeta, setTemplateMeta] = useState(null)
+  const [templateDecodeError, setTemplateDecodeError] = useState(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // Preferences
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES)
+
+  // Profile system
+  const [profiles, setProfiles] = useState([DEFAULT_PROFILE])
+  const [activeProfileId, setActiveProfileId] = useState('default')
+  const [editingProfileName, setEditingProfileName] = useState(null)
+  const [showProfileManager, setShowProfileManager] = useState(false)
+
+  // Ledger system
+  const [ledgerBalance, setLedgerBalance] = useState(0)
+  const [checkHistory, setCheckHistory] = useState([])
+  const [showLedger, setShowLedger] = useState(false)
+  const [editingBalance, setEditingBalance] = useState(false)
+  const [tempBalance, setTempBalance] = useState('')
+
+  // Import queue
+  const [importQueue, setImportQueue] = useState([])
+  const [showImportQueue, setShowImportQueue] = useState(false)
+
+  const [data, setData] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    payee: '',
+    amount: '',
+    amountWords: '',
+    memo: ''
+  })
+
+  // Load settings from disk on launch
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const persisted = await window.cs2.settingsGet()
+      if (cancelled) return
+      if (persisted?.model) setModel(normalizeModel(persisted.model))
+      if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
+      if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
+      if (persisted?.profiles?.length) setProfiles(persisted.profiles)
+      if (persisted?.activeProfileId) setActiveProfileId(persisted.activeProfileId)
+      if (persisted?.ledgerBalance != null) setLedgerBalance(persisted.ledgerBalance)
+      if (persisted?.checkHistory) setCheckHistory(persisted.checkHistory)
+      if (persisted?.preferences) setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences })
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // Persist settings (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      window.cs2.settingsSet({
+        model,
+        data,
+        editMode,
+        profiles,
+        activeProfileId,
+        ledgerBalance,
+        checkHistory,
+        preferences
+      })
+    }, 250)
+    return () => clearTimeout(t)
+  }, [model, data, editMode, profiles, activeProfileId, ledgerBalance, checkHistory, preferences])
+
+  // Auto-generate amount words
+  useEffect(() => {
+    if (!data.amount) {
+      setData((p) => ({ ...p, amountWords: '' }))
+      return
+    }
+    setData((p) => ({ ...p, amountWords: numberToWords(p.amount) }))
+  }, [data.amount])
+
+  // Load template dataURL when template path changes
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!model.template?.path) {
+        if (!cancelled) {
+          setTemplateDataUrl(null)
+          setTemplateLoadError(null)
+          setTemplateMeta(null)
+          setTemplateDecodeError(null)
+        }
+        return
+      }
+
+      const res = await readTemplateDataUrl(model.template?.path)
+      if (cancelled) return
+      setTemplateDataUrl(res?.url || null)
+      setTemplateLoadError(res?.error || null)
+      setTemplateMeta(res?.url ? { mime: res?.mime, byteLength: res?.byteLength } : null)
+      setTemplateDecodeError(null)
+    })()
+    return () => { cancelled = true }
+  }, [model.template?.path])
+
+  // Get active font family
+  const activeFontFamily = AVAILABLE_FONTS.find(f => f.id === preferences.fontFamily)?.family || AVAILABLE_FONTS[0].family
+
+  // Profile helpers
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0]
+
+  const createNewProfile = () => {
+    const newProfile = {
+      id: generateId(),
+      name: `Check Profile ${profiles.length + 1}`,
+      layout: { ...model.layout },
+      fields: JSON.parse(JSON.stringify(model.fields)),
+      template: { ...model.template },
+      placement: { ...model.placement }
+    }
+    setProfiles([...profiles, newProfile])
+    setActiveProfileId(newProfile.id)
+  }
+
+  const saveCurrentProfile = () => {
+    setProfiles(profiles.map(p =>
+      p.id === activeProfileId
+        ? {
+            ...p,
+            layout: { ...model.layout },
+            fields: JSON.parse(JSON.stringify(model.fields)),
+            template: { ...model.template },
+            placement: { ...model.placement }
+          }
+        : p
+    ))
+  }
+
+  const loadProfile = (profileId) => {
+    const profile = profiles.find(p => p.id === profileId)
+    if (!profile) return
+    setActiveProfileId(profileId)
+    setModel(m => ({
+      ...m,
+      layout: { ...profile.layout },
+      fields: JSON.parse(JSON.stringify(profile.fields)),
+      template: { ...profile.template },
+      placement: { ...profile.placement }
+    }))
+  }
+
+  const deleteProfile = (profileId) => {
+    if (profiles.length <= 1) return
+    if (!confirm('Delete this profile?')) return
+    const newProfiles = profiles.filter(p => p.id !== profileId)
+    setProfiles(newProfiles)
+    if (activeProfileId === profileId) {
+      loadProfile(newProfiles[0].id)
+    }
+  }
+
+  const renameProfile = (profileId, newName) => {
+    setProfiles(profiles.map(p =>
+      p.id === profileId ? { ...p, name: newName } : p
+    ))
+    setEditingProfileName(null)
+  }
+
+  // Ledger helpers
+  const recordCheck = (checkData = data) => {
+    const amount = parseFloat(checkData.amount) || 0
+    if (amount <= 0) return false
+    if (!checkData.payee?.trim()) return false
+
+    const checkEntry = {
+      id: generateId(),
+      date: checkData.date || new Date().toISOString().slice(0, 10),
+      payee: checkData.payee,
+      amount: amount,
+      memo: checkData.memo || '',
+      timestamp: Date.now(),
+      balanceAfter: ledgerBalance - amount
+    }
+
+    setCheckHistory(prev => [checkEntry, ...prev])
+    setLedgerBalance(prev => prev - amount)
+    return true
+  }
+
+  const deleteHistoryEntry = (entryId) => {
+    const entry = checkHistory.find(e => e.id === entryId)
+    if (!entry) return
+    if (!confirm(`Delete check to "${entry.payee}" for ${formatCurrency(entry.amount)}? This will restore the amount to your balance.`)) return
+
+    setCheckHistory(checkHistory.filter(e => e.id !== entryId))
+    setLedgerBalance(ledgerBalance + entry.amount)
+  }
+
+  const updateBalance = () => {
+    const newBal = parseFloat(tempBalance) || 0
+    setLedgerBalance(newBal)
+    setEditingBalance(false)
+  }
+
+  // Import/Export handlers
+  const handleImport = async () => {
+    const res = await window.cs2.importSelect()
+    if (!res?.success) return
+
+    const fileRes = await window.cs2.importRead(res.path)
+    if (!fileRes?.success) {
+      alert(`Failed to read file: ${fileRes.error}`)
+      return
+    }
+
+    const delimiter = fileRes.ext === '.tsv' ? '\t' : ','
+    const parsed = parseCSV(fileRes.content, delimiter)
+
+    if (parsed.length === 0) {
+      alert('No valid check data found in file. Make sure your file has columns for: Date, Payee, Amount, Memo')
+      return
+    }
+
+    setImportQueue(parsed.map((item, idx) => ({ ...item, id: generateId(), index: idx })))
+    setShowImportQueue(true)
+  }
+
+  const handleExport = async () => {
+    if (checkHistory.length === 0) {
+      alert('No check history to export')
+      return
+    }
+
+    const res = await window.cs2.exportHistory(checkHistory)
+    if (res?.success) {
+      // File saved and folder opened
+    } else if (res?.error) {
+      alert(`Export failed: ${res.error}`)
+    }
+  }
+
+  const loadFromQueue = (queueItem) => {
+    setData({
+      date: queueItem.date || new Date().toISOString().slice(0, 10),
+      payee: queueItem.payee || '',
+      amount: queueItem.amount || '',
+      amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
+      memo: queueItem.memo || ''
+    })
+    // Remove from queue
+    setImportQueue(prev => prev.filter(item => item.id !== queueItem.id))
+  }
+
+  const processAllQueue = async () => {
+    if (importQueue.length === 0) return
+    if (!confirm(`Record ${importQueue.length} checks from import queue? This will deduct from your ledger balance.`)) return
+
+    let processed = 0
+    let newBalance = ledgerBalance
+    const newHistory = [...checkHistory]
+
+    for (const item of importQueue) {
+      const amount = parseFloat(item.amount) || 0
+      if (amount > 0 && item.payee?.trim()) {
+        newBalance -= amount
+        newHistory.unshift({
+          id: generateId(),
+          date: item.date || new Date().toISOString().slice(0, 10),
+          payee: item.payee,
+          amount: amount,
+          memo: item.memo || '',
+          timestamp: Date.now(),
+          balanceAfter: newBalance
+        })
+        processed++
+      }
+    }
+
+    setLedgerBalance(newBalance)
+    setCheckHistory(newHistory)
+    setImportQueue([])
+    setShowImportQueue(false)
+    alert(`Recorded ${processed} checks`)
+  }
+
+  const clearQueue = () => {
+    setImportQueue([])
+  }
+
+  const paperStyle = useMemo(() => {
+    return {
+      transform: isPrinting ? 'none' : `scale(${model.view.zoom})`
+    }
+  }, [isPrinting, model.view.zoom])
+
+  const stageHeightIn = useMemo(() => {
+    const l = model.layout
+    return (
+      l.checkHeightIn +
+      (l.stub1Enabled ? l.stub1HeightIn : 0) +
+      (l.stub2Enabled ? l.stub2HeightIn : 0)
+    )
+  }, [model.layout])
+
+  const stageVars = useMemo(() => {
+    return {
+      '--stage-w': `${model.layout.widthIn}in`,
+      '--stage-h': `${stageHeightIn}in`
+    }
+  }, [model.layout.widthIn, stageHeightIn])
+
+  const checkPlacementStyle = useMemo(() => {
+    return {
+      transform: `translate(${model.placement.offsetXIn}in, ${model.placement.offsetYIn}in)`
+    }
+  }, [model.placement.offsetXIn, model.placement.offsetYIn])
+
+  const snapStepIn = 0.01
+  const dragRef = useRef(null)
+
+  const setField = (key, patch) => {
+    setModel((m) => ({
+      ...m,
+      fields: { ...m.fields, [key]: { ...m.fields[key], ...patch } }
+    }))
+  }
+
+  const ensureStub = (which, enabled) => {
+    setModel((m) => {
+      const l = m.layout
+      const nextLayout =
+        which === 'stub1'
+          ? { ...l, stub1Enabled: enabled }
+          : which === 'stub2'
+            ? { ...l, stub2Enabled: enabled }
+            : l
+
+      if (!enabled) return { ...m, layout: nextLayout }
+
+      const checkY = nextLayout.checkHeightIn
+      const stub1Y = checkY
+      const stub2Y = checkY + (nextLayout.stub1Enabled ? nextLayout.stub1HeightIn : 0)
+      const baseY = which === 'stub1' ? stub1Y : stub2Y
+      const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
+
+      const defaults = {
+        [`${prefix}date`]: { x: 0.55, y: baseY + 0.35, w: 1.4, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Date` },
+        [`${prefix}payee`]: { x: 2.1, y: baseY + 0.35, w: 3.7, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Payee` },
+        [`${prefix}amount`]: { x: nextLayout.widthIn - 1.85, y: baseY + 0.35, w: 1.30, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Amount` },
+        [`${prefix}memo`]: { x: 0.55, y: baseY + 0.90, w: 4.8, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Memo` }
+      }
+
+      const nextFields = { ...m.fields }
+      for (const [k, v] of Object.entries(defaults)) {
+        if (!nextFields[k]) nextFields[k] = v
+      }
+
+      return { ...m, layout: nextLayout, fields: nextFields }
+    })
+
+    if (enabled) {
+      const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
+      setData((d) => ({
+        ...d,
+        [`${prefix}date`]: d[`${prefix}date`] ?? d.date ?? '',
+        [`${prefix}payee`]: d[`${prefix}payee`] ?? d.payee ?? '',
+        [`${prefix}amount`]: d[`${prefix}amount`] ?? d.amount ?? '',
+        [`${prefix}memo`]: d[`${prefix}memo`] ?? d.memo ?? ''
+      }))
+    }
+  }
+
+  const onPointerDownField = (e, key) => {
+    if (!editMode) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    setSelected(key)
+    const f = model.fields[key]
+    dragRef.current = {
+      key,
+      mode: 'move',
+      startX: e.clientX,
+      startY: e.clientY,
+      startField: { ...f }
+    }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  const onPointerDownHandle = (e, key) => {
+    if (!editMode) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    setSelected(key)
+    const f = model.fields[key]
+    dragRef.current = {
+      key,
+      mode: 'resize',
+      startX: e.clientX,
+      startY: e.clientY,
+      startField: { ...f }
+    }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  const onPointerMove = (e) => {
+    const d = dragRef.current
+    if (!d) return
+    const dxIn = (e.clientX - d.startX) / (PX_PER_IN * model.view.zoom)
+    const dyIn = (e.clientY - d.startY) / (PX_PER_IN * model.view.zoom)
+
+    if (d.mode === 'move') {
+      const nx = roundTo(d.startField.x + dxIn, snapStepIn)
+      const ny = roundTo(d.startField.y + dyIn, snapStepIn)
+      setField(d.key, {
+        x: clamp(nx, 0, model.layout.widthIn - 0.2),
+        y: clamp(ny, 0, stageHeightIn - 0.2)
+      })
+    } else if (d.mode === 'resize') {
+      const nw = roundTo(d.startField.w + dxIn, snapStepIn)
+      const nh = roundTo(d.startField.h + dyIn, snapStepIn)
+      setField(d.key, {
+        w: clamp(nw, 0.2, model.layout.widthIn - d.startField.x),
+        h: clamp(nh, 0.18, stageHeightIn - d.startField.y)
+      })
+    }
+  }
+
+  const onPointerUp = () => {
+    dragRef.current = null
+  }
+
+  const handleSelectTemplate = async () => {
+    const res = await window.cs2.selectTemplate()
+    if (!res?.success) return
+    setModel((m) => ({ ...m, template: { ...m.template, path: res.path } }))
+  }
+
+  const handlePreviewPdf = async () => {
+    setIsPrinting(true)
+    setTimeout(async () => {
+      const res = await window.cs2.previewPdf()
+      if (res?.success === false) alert(`Preview failed: ${res.error || 'Unknown error'}`)
+      setIsPrinting(false)
+    }, 250)
+  }
+
+  const handlePrint = async () => {
+    setIsPrinting(true)
+    setTimeout(async () => {
+      const res = await window.cs2.printDialog()
+      if (res?.success === false) alert(`Print failed: ${res.error || 'Unknown error'}`)
+      setIsPrinting(false)
+    }, 250)
+  }
+
+  const handlePrintAndRecord = async () => {
+    const amount = parseFloat(data.amount) || 0
+    if (amount <= 0) {
+      alert('Please enter a valid amount')
+      return
+    }
+    if (!data.payee.trim()) {
+      alert('Please enter a payee')
+      return
+    }
+
+    setIsPrinting(true)
+    setTimeout(async () => {
+      const res = await window.cs2.printDialog()
+      setIsPrinting(false)
+      if (res?.success !== false) {
+        recordCheck()
+        // Clear form for next check
+        setData({
+          date: new Date().toISOString().slice(0, 10),
+          payee: '',
+          amount: '',
+          amountWords: '',
+          memo: ''
+        })
+      } else {
+        alert(`Print failed: ${res.error || 'Unknown error'}`)
+      }
+    }, 250)
+  }
+
+  const resetModel = () => {
+    if (!confirm('Reset all settings to defaults?')) return
+    setModel(DEFAULT_MODEL)
+  }
+
+  const templateName = useMemo(() => {
+    const p = model.template?.path
+    if (!p) return null
+    const parts = String(p).split(/[\\/]/)
+    return parts[parts.length - 1] || p
+  }, [model.template?.path])
+
+  const templateFit = model.template?.fit || 'cover'
+  const templateObjectFit = templateFit === 'cover' ? 'cover' : templateFit === 'contain' ? 'contain' : 'fill'
+  const templateBgSize = templateFit === 'cover' ? 'cover' : templateFit === 'contain' ? 'contain' : '100% 100%'
+
+  // Calculate if balance will go negative
+  const pendingAmount = parseFloat(data.amount) || 0
+  const projectedBalance = ledgerBalance - pendingAmount
+  const isOverdrawn = pendingAmount > 0 && projectedBalance < 0
+
+  return (
+    <div
+      className={`app ${isPrinting ? 'printing' : ''}`}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      <div className="topbar">
+        <div className="brand">
+          <span className="logo">✓</span>
+          <span>CheckSpree</span>
+        </div>
+
+        {/* Ledger Balance Display */}
+        <button className="ledger-badge" onClick={() => setShowLedger(!showLedger)}>
+          <span className="ledger-label">Balance</span>
+          <span className={`ledger-amount ${ledgerBalance < 0 ? 'negative' : ''}`}>
+            {formatCurrency(ledgerBalance)}
+          </span>
+        </button>
+
+        <div className="topbar-actions">
+          <button className="btn ghost" onClick={handleImport} title="Import checks from CSV">
+            <UploadIcon /> Import
+          </button>
+          <button className="btn ghost" onClick={handleExport} title="Export check history">
+            <DownloadIcon /> Export
+          </button>
+          <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
+            <span className={`status-dot ${editMode ? 'active' : ''}`} />
+            Edit Layout
+          </button>
+          <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
+          <button className="btn primary" onClick={handlePrintAndRecord}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Print & Record
+          </button>
+        </div>
+      </div>
+
+      <div className="layout">
+        <div className="side">
+          {/* Import Queue Panel */}
+          {showImportQueue && importQueue.length > 0 && (
+            <section className="section-import">
+              <div className="card card-import">
+                <div className="import-header">
+                  <h2>Import Queue ({importQueue.length})</h2>
+                  <button className="btn-icon" onClick={() => setShowImportQueue(false)}>×</button>
+                </div>
+
+                <div className="import-actions">
+                  <button className="btn btn-sm" onClick={processAllQueue}>
+                    <CheckIcon /> Record All
+                  </button>
+                  <button className="btn btn-sm danger" onClick={clearQueue}>
+                    <TrashIcon /> Clear
+                  </button>
+                </div>
+
+                <div className="import-list">
+                  {importQueue.map(item => (
+                    <div key={item.id} className="import-item" onClick={() => loadFromQueue(item)}>
+                      <div className="import-main">
+                        <span className="import-payee">{item.payee || '(no payee)'}</span>
+                        <span className="import-amount">{item.amount ? formatCurrency(parseFloat(item.amount)) : '-'}</span>
+                      </div>
+                      <div className="import-meta">
+                        {item.date && <span>{item.date}</span>}
+                        {item.memo && <span>{item.memo}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="hint">Click an item to load it into the form</p>
+              </div>
+            </section>
+          )}
+
+          {/* Ledger Panel */}
+          {showLedger && (
+            <section className="section-ledger">
+              <div className="card card-ledger">
+                <div className="ledger-header">
+                  <h2>Ledger</h2>
+                  <button className="btn-icon" onClick={() => setShowLedger(false)}>×</button>
+                </div>
+
+                <div className="balance-display">
+                  {editingBalance ? (
+                    <div className="balance-edit">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={tempBalance}
+                        onChange={(e) => setTempBalance(e.target.value)}
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && updateBalance()}
+                      />
+                      <button className="btn-sm" onClick={updateBalance}><CheckIcon /></button>
+                    </div>
+                  ) : (
+                    <div className="balance-view" onClick={() => { setTempBalance(ledgerBalance.toString()); setEditingBalance(true) }}>
+                      <div className="balance-label">Current Balance</div>
+                      <div className={`balance-value ${ledgerBalance < 0 ? 'negative' : ''}`}>
+                        {formatCurrency(ledgerBalance)}
+                      </div>
+                      <div className="balance-hint">Click to edit</div>
+                    </div>
+                  )}
+                </div>
+
+                {pendingAmount > 0 && (
+                  <div className={`pending-deduction ${isOverdrawn ? 'overdrawn' : ''}`}>
+                    <span>After this check:</span>
+                    <span>{formatCurrency(projectedBalance)}</span>
+                  </div>
+                )}
+
+                <div className="history-section">
+                  <div className="history-header">
+                    <h3>Check History</h3>
+                    {checkHistory.length > 0 && (
+                      <button className="btn btn-sm" onClick={handleExport}>
+                        <DownloadIcon /> Export
+                      </button>
+                    )}
+                  </div>
+                  {checkHistory.length === 0 ? (
+                    <div className="history-empty">No checks recorded yet</div>
+                  ) : (
+                    <div className="history-list">
+                      {checkHistory.map(entry => (
+                        <div key={entry.id} className="history-item">
+                          <div className="history-main">
+                            <div className="history-payee">{entry.payee}</div>
+                            <div className="history-amount">-{formatCurrency(entry.amount)}</div>
+                          </div>
+                          <div className="history-meta">
+                            <span>{formatDate(entry.date)}</span>
+                            {entry.memo && <span className="history-memo">{entry.memo}</span>}
+                          </div>
+                          <button className="history-delete" onClick={() => deleteHistoryEntry(entry.id)} title="Delete and restore amount">
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Profile Selector */}
+          <section className="section">
+            <div className="profile-bar">
+              <select
+                className="profile-select"
+                value={activeProfileId}
+                onChange={(e) => loadProfile(e.target.value)}
+              >
+                {profiles.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <button className="btn-icon" onClick={() => setShowProfileManager(!showProfileManager)} title="Manage profiles">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
+                  <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                  <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
+                </svg>
+              </button>
+            </div>
+
+            {showProfileManager && (
+              <div className="profile-manager">
+                <div className="profile-list">
+                  {profiles.map(p => (
+                    <div key={p.id} className={`profile-item ${p.id === activeProfileId ? 'active' : ''}`}>
+                      {editingProfileName === p.id ? (
+                        <input
+                          className="profile-name-input"
+                          defaultValue={p.name}
+                          autoFocus
+                          onBlur={(e) => renameProfile(p.id, e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && renameProfile(p.id, e.target.value)}
+                        />
+                      ) : (
+                        <span
+                          className="profile-name"
+                          onDoubleClick={() => setEditingProfileName(p.id)}
+                          onClick={() => loadProfile(p.id)}
+                        >
+                          {p.name}
+                        </span>
+                      )}
+                      <div className="profile-actions">
+                        {profiles.length > 1 && (
+                          <button className="btn-icon-sm danger" onClick={() => deleteProfile(p.id)} title="Delete">
+                            <TrashIcon />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="profile-footer">
+                  <button className="btn btn-sm" onClick={createNewProfile}>
+                    <PlusIcon /> New Profile
+                  </button>
+                  <button className="btn btn-sm" onClick={saveCurrentProfile}>
+                    <CheckIcon /> Save Current
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Check Data - Main focus */}
+          <section className="section-main">
+            <h2>Check Details</h2>
+            <div className="card card-main">
+              <div className="field">
+                <label>Date</label>
+                <input
+                  type="date"
+                  value={data.date}
+                  onChange={(e) => setData((p) => ({ ...p, date: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label>Pay to the Order of</label>
+                <input
+                  value={data.payee}
+                  onChange={(e) => setData((p) => ({ ...p, payee: e.target.value }))}
+                  placeholder="Recipient name"
+                />
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>Amount</label>
+                  <div className={`input-prefix ${isOverdrawn ? 'warning' : ''}`}>
+                    <span>$</span>
+                    <input
+                      value={data.amount}
+                      onChange={(e) => setData((p) => ({ ...p, amount: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+              {isOverdrawn && (
+                <div className="overdraft-warning">
+                  ⚠️ This will overdraw your account
+                </div>
+              )}
+              <div className="field">
+                <label>Amount in Words</label>
+                <input value={data.amountWords} readOnly className="readonly" />
+              </div>
+              <div className="field">
+                <label>Memo</label>
+                <input
+                  value={data.memo}
+                  onChange={(e) => setData((p) => ({ ...p, memo: e.target.value }))}
+                  placeholder="Optional note"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Text & Font Settings */}
+          <section className="section">
+            <h3>Text Settings</h3>
+            <div className="card">
+              <div className="field">
+                <label>Font Family</label>
+                <select
+                  value={preferences.fontFamily}
+                  onChange={(e) => setPreferences(p => ({ ...p, fontFamily: e.target.value }))}
+                >
+                  {AVAILABLE_FONTS.map(font => (
+                    <option key={font.id} value={font.id}>{font.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Text Size Scale: {Math.round(preferences.fontScale * 100)}%</label>
+                <input
+                  type="range"
+                  min="0.7"
+                  max="1.5"
+                  step="0.05"
+                  value={preferences.fontScale}
+                  onChange={(e) => setPreferences(p => ({ ...p, fontScale: parseFloat(e.target.value) }))}
+                />
+              </div>
+              <div className="field">
+                <label>Label Size: {preferences.labelSize}px</label>
+                <input
+                  type="range"
+                  min="7"
+                  max="14"
+                  step="1"
+                  value={preferences.labelSize}
+                  onChange={(e) => setPreferences(p => ({ ...p, labelSize: parseInt(e.target.value) }))}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Stub Data - only if enabled */}
+          {(model.layout.stub1Enabled || model.layout.stub2Enabled) && (
+            <section className="section">
+              <h3>Stub Details</h3>
+              <div className="card">
+                {model.layout.stub1Enabled && (
+                  <div className="stub-group">
+                    <div className="stub-label">Stub 1</div>
+                    <div className="field-row">
+                      <div className="field">
+                        <label>Date</label>
+                        <input value={data.stub1_date || ''} onChange={(e) => setData((p) => ({ ...p, stub1_date: e.target.value }))} />
+                      </div>
+                      <div className="field">
+                        <label>Amount</label>
+                        <input value={data.stub1_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub1_amount: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Payee</label>
+                      <input value={data.stub1_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub1_payee: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Memo</label>
+                      <input value={data.stub1_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub1_memo: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
+                {model.layout.stub2Enabled && (
+                  <div className="stub-group">
+                    <div className="stub-label">Stub 2</div>
+                    <div className="field-row">
+                      <div className="field">
+                        <label>Date</label>
+                        <input value={data.stub2_date || ''} onChange={(e) => setData((p) => ({ ...p, stub2_date: e.target.value }))} />
+                      </div>
+                      <div className="field">
+                        <label>Amount</label>
+                        <input value={data.stub2_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub2_amount: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Payee</label>
+                      <input value={data.stub2_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub2_payee: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Memo</label>
+                      <input value={data.stub2_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub2_memo: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Template - compact */}
+          <section className="section">
+            <h3>Check Template</h3>
+            <div className="card">
+              <button className="btn-template" onClick={handleSelectTemplate}>
+                {templateName ? (
+                  <>
+                    <span className="template-icon">🖼</span>
+                    <span className="template-name">{templateName}</span>
+                    <span className="template-change">Change</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="template-icon">+</span>
+                    <span>Load check template image</span>
+                  </>
+                )}
+              </button>
+              {templateLoadError && (
+                <div className="error-msg">{templateLoadError}</div>
+              )}
+              {templateDecodeError && (
+                <div className="error-msg">{templateDecodeError}</div>
+              )}
+            </div>
+          </section>
+
+          {/* Advanced Settings - Collapsible */}
+          <section className="section">
+            <button className="accordion-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
+              <span>Advanced Settings</span>
+              <ChevronIcon open={showAdvanced} />
+            </button>
+
+            {showAdvanced && (
+              <div className="accordion-content">
+                {/* Template Display */}
+                <div className="card">
+                  <h4>Template Display</h4>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Fit Mode</label>
+                      <select
+                        value={model.template.fit || 'cover'}
+                        onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, fit: e.target.value } }))}
+                      >
+                        <option value="stretch">Stretch</option>
+                        <option value="contain">Contain</option>
+                        <option value="cover">Cover</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Opacity</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={model.template.opacity ?? 0}
+                        onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Calibration */}
+                <div className="card">
+                  <h4>Print Calibration</h4>
+                  <p className="hint">Adjust if print doesn't align with your check stock.</p>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Offset X (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={model.placement.offsetXIn}
+                        onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetXIn: parseFloat(e.target.value) || 0 } }))}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Offset Y (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={model.placement.offsetYIn}
+                        onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetYIn: parseFloat(e.target.value) || 0 } }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Layout */}
+                <div className="card">
+                  <h4>Check Dimensions</h4>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Width (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={model.layout.widthIn}
+                        onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, widthIn: clamp(parseFloat(e.target.value) || 0, 4, 8.5) } }))}
+                      />
+                    </div>
+                    <div className="field">
+                      <label>Height (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={model.layout.checkHeightIn}
+                        onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, checkHeightIn: clamp(parseFloat(e.target.value) || 0, 1, 6) } }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stubs */}
+                <div className="card">
+                  <h4>Check Stubs</h4>
+                  <div className="field-row">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={!!model.layout.stub1Enabled}
+                        onChange={(e) => ensureStub('stub1', e.target.checked)}
+                      />
+                      <span>Stub 1</span>
+                    </label>
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={!!model.layout.stub2Enabled}
+                        onChange={(e) => ensureStub('stub2', e.target.checked)}
+                      />
+                      <span>Stub 2</span>
+                    </label>
+                  </div>
+                  {model.layout.stub1Enabled && (
+                    <div className="field" style={{ marginTop: 12 }}>
+                      <label>Stub 1 Height (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.5"
+                        value={model.layout.stub1HeightIn}
+                        onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub1HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
+                      />
+                    </div>
+                  )}
+                  {model.layout.stub2Enabled && (
+                    <div className="field" style={{ marginTop: 12 }}>
+                      <label>Stub 2 Height (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.5"
+                        value={model.layout.stub2HeightIn}
+                        onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub2HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Zoom */}
+                <div className="card">
+                  <h4>Preview Zoom</h4>
+                  <div className="field">
+                    <input
+                      type="range"
+                      min="0.4"
+                      max="1.5"
+                      step="0.05"
+                      value={model.view.zoom}
+                      onChange={(e) => setModel((m) => ({ ...m, view: { ...m.view, zoom: parseFloat(e.target.value) } }))}
+                    />
+                    <div className="range-value">{Math.round(model.view.zoom * 100)}%</div>
+                  </div>
+                </div>
+
+                {/* Selected Field - only in edit mode */}
+                {editMode && (
+                  <div className="card">
+                    <h4>Selected Field</h4>
+                    <div className="field">
+                      <label>Field</label>
+                      <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+                        {Object.keys(model.fields).map((k) => (
+                          <option value={k} key={k}>{model.fields[k].label || k}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field-row">
+                      <div className="field">
+                        <label>X (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={model.fields[selected].x}
+                          onChange={(e) => setField(selected, { x: parseFloat(e.target.value) || 0 })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Y (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={model.fields[selected].y}
+                          onChange={(e) => setField(selected, { y: parseFloat(e.target.value) || 0 })}
+                        />
+                      </div>
+                    </div>
+                    <div className="field-row">
+                      <div className="field">
+                        <label>Width (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={model.fields[selected].w}
+                          onChange={(e) => setField(selected, { w: parseFloat(e.target.value) || 0.2 })}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Height (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={model.fields[selected].h}
+                          onChange={(e) => setField(selected, { h: parseFloat(e.target.value) || 0.18 })}
+                        />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Font Size (in)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={model.fields[selected].fontIn}
+                        onChange={(e) => setField(selected, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Reset */}
+                <button className="btn danger full-width" onClick={resetModel}>
+                  Reset All Settings
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="workspace">
+          <div className="paperWrap">
+            <div className="paper" style={paperStyle}>
+              <div
+                className="checkStage"
+                style={{
+                  ...checkPlacementStyle,
+                  ...stageVars,
+                  ...(templateDataUrl
+                    ? {
+                        backgroundImage: `url(${templateDataUrl})`,
+                        backgroundRepeat: 'no-repeat',
+                        backgroundPosition: 'top left',
+                        backgroundSize: templateBgSize
+                      }
+                    : {})
+                }}
+              >
+                {templateDataUrl && (
+                  <img
+                    className="templateImg"
+                    src={templateDataUrl}
+                    alt="Template"
+                    draggable="false"
+                    onError={() => setTemplateDecodeError('Template image failed to load.')}
+                    style={{
+                      opacity: model.template.opacity ?? 0,
+                      objectFit: templateObjectFit
+                    }}
+                  />
+                )}
+
+                {Object.entries(model.fields).map(([key, f]) => {
+                  const value = data[key] ?? ''
+                  const isSelected = editMode && selected === key
+                  const scaledFontIn = f.fontIn * preferences.fontScale
+                  return (
+                    <div
+                      key={key}
+                      className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
+                      style={{
+                        left: `${f.x}in`,
+                        top: `${f.y}in`,
+                        width: `${f.w}in`,
+                        height: `${f.h}in`
+                      }}
+                      onPointerDown={(e) => onPointerDownField(e, key)}
+                    >
+                      {editMode && (
+                        <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                          {f.label}
+                        </div>
+                      )}
+                      <input
+                        value={value}
+                        readOnly={editMode ? true : key === 'amountWords'}
+                        onChange={(e) => setData((p) => ({ ...p, [key]: e.target.value }))}
+                        style={{
+                          fontSize: `${scaledFontIn}in`,
+                          fontFamily: activeFontFamily
+                        }}
+                      />
+                      {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
