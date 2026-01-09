@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /S /B c:CodeCheckSpreesrc*.tsx c:CodeCheckSpreesrc*.ts)"
+    ]
+  }
+}

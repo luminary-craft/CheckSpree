@@ -47,8 +47,20 @@ const DEFAULT_PREFERENCES = {
   fontScale: 1.0,
   checkFontScale: 1.0,
   stubFontScale: 1.0,
+  checkFontSizePt: 12,
+  stubFontSizePt: 10,
   labelSize: 9,
-  fontFamily: 'courier'
+  fontFamily: 'courier',
+  dateSlot1: 'MM',
+  dateSlot2: 'DD',
+  dateSlot3: 'YYYY',
+  dateSeparator: '/',
+  useLongDate: false,
+  stub2ShowLedger: true,
+  stub2ShowApproved: true,
+  stub2ShowGLCode: true,
+  adminLocked: true,
+  adminPin: '0000'
 }
 
 const DEFAULT_MODEL = {
@@ -80,10 +92,64 @@ function formatCurrency(amount) {
   }).format(amount)
 }
 
+// Sanitize currency input by stripping commas and other non-numeric characters (except decimal point)
+function sanitizeCurrencyInput(value) {
+  if (value === null || value === undefined || value === '') return 0
+  // Remove commas, dollar signs, and spaces, but keep digits and decimal point
+  const cleaned = String(value).replace(/[$,\s]/g, '')
+  const num = parseFloat(cleaned)
+  return isNaN(num) ? 0 : num
+}
+
+// Format a number for display with 2 decimal places
+function formatAmountForDisplay(value) {
+  const num = sanitizeCurrencyInput(value)
+  return num.toFixed(2)
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Format date based on user preference using date builder
+function formatDateByPreference(dateStr, prefs) {
+  if (!dateStr) return ''
+
+  // If long date is enabled, use full written format
+  if (prefs.useLongDate) {
+    const d = new Date(dateStr + 'T00:00:00')
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
+  // Build date using slots and separator
+  const d = new Date(dateStr + 'T00:00:00') // Force local timezone
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const year = d.getFullYear()
+  const yearShort = String(year).slice(-2)
+
+  // Map slot values to actual date parts
+  const slotMap = {
+    'MM': month,
+    'DD': day,
+    'YY': yearShort,
+    'YYYY': String(year),
+    'Empty': ''
+  }
+
+  // Build the date string from slots
+  const parts = [
+    slotMap[prefs.dateSlot1] || '',
+    slotMap[prefs.dateSlot2] || '',
+    slotMap[prefs.dateSlot3] || ''
+  ].filter(part => part !== '')
+
+  // Get separator (empty string if 'Empty' selected)
+  const separator = prefs.dateSeparator === 'Empty' ? '' : (prefs.dateSeparator || '/')
+
+  return parts.join(separator)
 }
 
 function formatLineItems(lineItems, maxLines = 5) {
@@ -94,7 +160,7 @@ function formatLineItems(lineItems, maxLines = 5) {
 
   let text = displayItems.map((item, idx) => {
     const desc = item.description || item.desc || ''
-    const amt = item.amount ? formatCurrency(parseFloat(item.amount)) : ''
+    const amt = item.amount ? formatCurrency(sanitizeCurrencyInput(item.amount)) : ''
     return `${idx + 1}. ${desc}${amt ? ' - ' + amt : ''}`
   }).join('\n')
 
@@ -115,6 +181,80 @@ function formatLedgerSnapshot(snapshot) {
   const remaining = formatCurrency(snapshot.new_balance || 0)
 
   return `Previous Balance: ${prev}\nCheck Amount:     ${amt}\nRemaining Balance: ${remaining}`
+}
+
+// Calculate date range for export filtering
+function getDateRangeForFilter(rangeType, customStart = null, customEnd = null) {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  switch (rangeType) {
+    case 'all':
+      return { start: null, end: null }
+
+    case 'custom':
+      return {
+        start: customStart ? new Date(customStart + 'T00:00:00') : null,
+        end: customEnd ? new Date(customEnd + 'T23:59:59') : null
+      }
+
+    case 'thisWeek': {
+      const dayOfWeek = today.getDay()
+      const start = new Date(today)
+      start.setDate(today.getDate() - dayOfWeek) // Sunday
+      const end = new Date(today)
+      end.setDate(today.getDate() + (6 - dayOfWeek)) // Saturday
+      end.setHours(23, 59, 59, 999)
+      return { start, end }
+    }
+
+    case 'lastWeek': {
+      const dayOfWeek = today.getDay()
+      const start = new Date(today)
+      start.setDate(today.getDate() - dayOfWeek - 7) // Last Sunday
+      const end = new Date(today)
+      end.setDate(today.getDate() - dayOfWeek - 1) // Last Saturday
+      end.setHours(23, 59, 59, 999)
+      return { start, end }
+    }
+
+    case 'thisMonth': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1)
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)
+      return { start, end }
+    }
+
+    case 'lastMonth': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const end = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999)
+      return { start, end }
+    }
+
+    case 'thisQuarter': {
+      const quarter = Math.floor(today.getMonth() / 3)
+      const start = new Date(today.getFullYear(), quarter * 3, 1)
+      const end = new Date(today.getFullYear(), quarter * 3 + 3, 0, 23, 59, 59, 999)
+      return { start, end }
+    }
+
+    case 'ytd': {
+      const start = new Date(today.getFullYear(), 0, 1)
+      const end = new Date(today)
+      end.setHours(23, 59, 59, 999)
+      return { start, end }
+    }
+
+    case 'last60': {
+      const start = new Date(today)
+      start.setDate(today.getDate() - 60)
+      const end = new Date(today)
+      end.setHours(23, 59, 59, 999)
+      return { start, end }
+    }
+
+    default:
+      return { start: null, end: null }
+  }
 }
 
 function normalizeModel(maybeModel) {
@@ -291,6 +431,7 @@ export default function App() {
   const [editingProfileName, setEditingProfileName] = useState(null)
   const [showProfileManager, setShowProfileManager] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Multi-Ledger system
   const [ledgers, setLedgers] = useState([
@@ -305,6 +446,9 @@ export default function App() {
   const [editingLedgerName, setEditingLedgerName] = useState(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [selectedLedgersForExport, setSelectedLedgersForExport] = useState([])
+  const [exportDateRange, setExportDateRange] = useState('all')
+  const [exportStartDate, setExportStartDate] = useState('')
+  const [exportEndDate, setExportEndDate] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
 
@@ -316,6 +460,11 @@ export default function App() {
   const [showStub1Labels, setShowStub1Labels] = useState(false)
   const [showStub2Labels, setShowStub2Labels] = useState(false)
 
+  // Admin PIN modal
+  const [showPinModal, setShowPinModal] = useState(false)
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState('')
+
   const [data, setData] = useState({
     date: new Date().toISOString().slice(0, 10),
     payee: '',
@@ -325,6 +474,7 @@ export default function App() {
     external_memo: '',
     internal_memo: '',
     line_items: [],
+    line_items_text: '',
     ledger_snapshot: null
   })
 
@@ -458,6 +608,23 @@ export default function App() {
   // Profile helpers
   const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0]
 
+  // Detect unsaved changes by comparing current model with saved profile
+  useEffect(() => {
+    if (!activeProfile) {
+      setHasUnsavedChanges(false)
+      return
+    }
+
+    // Deep comparison of layout, fields, template, and placement
+    const hasChanges =
+      JSON.stringify(model.layout) !== JSON.stringify(activeProfile.layout) ||
+      JSON.stringify(model.fields) !== JSON.stringify(activeProfile.fields) ||
+      JSON.stringify(model.template) !== JSON.stringify(activeProfile.template) ||
+      JSON.stringify(model.placement) !== JSON.stringify(activeProfile.placement)
+
+    setHasUnsavedChanges(hasChanges)
+  }, [model.layout, model.fields, model.template, model.placement, activeProfile])
+
   const createNewProfile = () => {
     const newProfile = {
       id: generateId(),
@@ -478,6 +645,9 @@ export default function App() {
       template: { path: null, opacity: 0, fit: 'cover' },
       placement: { offsetXIn: 0, offsetYIn: 0 }
     }))
+
+    // Reset dirty state for new profile
+    setHasUnsavedChanges(false)
   }
 
   const saveCurrentProfile = () => {
@@ -493,7 +663,8 @@ export default function App() {
         : p
     ))
 
-    // Show save feedback
+    // Reset dirty state and show save feedback
+    setHasUnsavedChanges(false)
     setProfileSaved(true)
     setTimeout(() => setProfileSaved(false), 2000)
   }
@@ -578,7 +749,7 @@ export default function App() {
 
   // Ledger helpers
   const recordCheck = (checkData = data) => {
-    const amount = parseFloat(checkData.amount) || 0
+    const amount = sanitizeCurrencyInput(checkData.amount)
     if (amount <= 0) return false
     if (!checkData.payee?.trim()) return false
 
@@ -594,6 +765,7 @@ export default function App() {
       external_memo: checkData.external_memo || '',
       internal_memo: checkData.internal_memo || '',
       line_items: checkData.line_items || [],
+      line_items_text: checkData.line_items_text || '',
       ledgerId: activeLedgerId,
       profileId: activeProfileId,
       ledger_snapshot: {
@@ -629,6 +801,39 @@ export default function App() {
     setEditingBalance(false)
   }
 
+  // Admin PIN authentication
+  const handleUnlockRequest = () => {
+    setPinInput('')
+    setPinError('')
+    setShowPinModal(true)
+  }
+
+  const handlePinSubmit = () => {
+    if (pinInput === preferences.adminPin) {
+      setPreferences(p => ({ ...p, adminLocked: false }))
+      setShowPinModal(false)
+      setPinInput('')
+      setPinError('')
+    } else {
+      setPinError('Incorrect PIN')
+      setPinInput('')
+    }
+  }
+
+  const handleLock = () => {
+    setPreferences(p => ({ ...p, adminLocked: true }))
+  }
+
+  const handleChangePinRequest = () => {
+    const newPin = prompt('Enter new 4-digit PIN:', preferences.adminPin)
+    if (newPin && /^\d{4}$/.test(newPin)) {
+      setPreferences(p => ({ ...p, adminPin: newPin }))
+      alert('PIN updated successfully')
+    } else if (newPin !== null) {
+      alert('PIN must be exactly 4 digits')
+    }
+  }
+
   // Import/Export handlers
   const handleImport = async () => {
     const res = await window.cs2.importSelect()
@@ -657,8 +862,11 @@ export default function App() {
       alert('No check history to export')
       return
     }
-    // Initialize with all ledgers selected
+    // Initialize with all ledgers selected and default date range
     setSelectedLedgersForExport(ledgers.map(l => l.id))
+    setExportDateRange('all')
+    setExportStartDate('')
+    setExportEndDate('')
     setShowExportDialog(true)
   }
 
@@ -668,13 +876,26 @@ export default function App() {
       return
     }
 
-    // Filter checks by selected ledgers
-    const selectedChecks = checkHistory.filter(c =>
+    // Get date range for filtering
+    const dateRange = getDateRangeForFilter(exportDateRange, exportStartDate, exportEndDate)
+
+    // Filter checks by selected ledgers and date range
+    let selectedChecks = checkHistory.filter(c =>
       selectedLedgersForExport.includes(c.ledgerId)
     )
 
+    // Apply date range filter if specified
+    if (dateRange.start || dateRange.end) {
+      selectedChecks = selectedChecks.filter(check => {
+        const checkDate = new Date(check.date + 'T00:00:00')
+        if (dateRange.start && checkDate < dateRange.start) return false
+        if (dateRange.end && checkDate > dateRange.end) return false
+        return true
+      })
+    }
+
     if (selectedChecks.length === 0) {
-      alert('No checks found in the selected ledgers')
+      alert('No checks found in the selected ledgers for the specified date range')
       return
     }
 
@@ -760,6 +981,7 @@ export default function App() {
       external_memo: queueItem.external_memo || '',
       internal_memo: queueItem.internal_memo || '',
       line_items: queueItem.line_items || [],
+      line_items_text: queueItem.line_items_text || '',
       ledger_snapshot: null
     })
     // Remove from queue
@@ -775,7 +997,7 @@ export default function App() {
     const newHistory = [...checkHistory]
 
     for (const item of importQueue) {
-      const amount = parseFloat(item.amount) || 0
+      const amount = sanitizeCurrencyInput(item.amount)
       if (amount > 0 && item.payee?.trim()) {
         const previousBalance = newBalance
         newBalance -= amount
@@ -788,6 +1010,7 @@ export default function App() {
           external_memo: item.external_memo || '',
           internal_memo: item.internal_memo || '',
           line_items: item.line_items || [],
+          line_items_text: item.line_items_text || '',
           ledgerId: activeLedgerId,
           profileId: activeProfileId,
           ledger_snapshot: {
@@ -1017,7 +1240,7 @@ export default function App() {
   }
 
   const handlePrintAndRecord = async () => {
-    const amount = parseFloat(data.amount) || 0
+    const amount = sanitizeCurrencyInput(data.amount)
     if (amount <= 0) {
       alert('Please enter a valid amount')
       return
@@ -1037,6 +1260,7 @@ export default function App() {
       external_memo: data.external_memo,
       internal_memo: data.internal_memo,
       line_items: data.line_items,
+      line_items_text: data.line_items_text,
       ledger_snapshot: data.ledger_snapshot
     }
 
@@ -1101,6 +1325,7 @@ export default function App() {
           external_memo: '',
           internal_memo: '',
           line_items: [],
+          line_items_text: '',
           ledger_snapshot: null
         })
       } catch (error) {
@@ -1127,7 +1352,7 @@ export default function App() {
   const templateBgSize = templateFit === 'cover' ? 'cover' : templateFit === 'contain' ? 'contain' : '100% 100%'
 
   // Calculate if balance will go negative
-  const pendingAmount = parseFloat(data.amount) || 0
+  const pendingAmount = sanitizeCurrencyInput(data.amount)
   const projectedBalance = ledgerBalance - pendingAmount
   const isOverdrawn = pendingAmount > 0 && projectedBalance < 0
 
@@ -1171,10 +1396,19 @@ export default function App() {
           <button className="btn ghost" onClick={handleExport} title="Export check history">
             <DownloadIcon /> Export
           </button>
-          <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
-            <span className={`status-dot ${editMode ? 'active' : ''}`} />
-            Edit Layout
+          <button
+            className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}
+            onClick={preferences.adminLocked ? handleUnlockRequest : handleLock}
+            title={preferences.adminLocked ? 'Unlock admin settings' : 'Lock admin settings'}
+          >
+            {preferences.adminLocked ? '🔒' : '🔓'} Admin
           </button>
+          {!preferences.adminLocked && (
+            <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
+              <span className={`status-dot ${editMode ? 'active' : ''}`} />
+              Edit Layout
+            </button>
+          )}
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           <button className="btn primary" onClick={handlePrintAndRecord}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1212,7 +1446,7 @@ export default function App() {
                     <div key={item.id} className="import-item" onClick={() => loadFromQueue(item)}>
                       <div className="import-main">
                         <span className="import-payee">{item.payee || '(no payee)'}</span>
-                        <span className="import-amount">{item.amount ? formatCurrency(parseFloat(item.amount)) : '-'}</span>
+                        <span className="import-amount">{item.amount ? formatCurrency(sanitizeCurrencyInput(item.amount)) : '-'}</span>
                       </div>
                       <div className="import-meta">
                         {item.date && <span>{item.date}</span>}
@@ -1273,12 +1507,12 @@ export default function App() {
                 <div className="history-section">
                   <div className="history-header">
                     <h3>Check History</h3>
-                    {checkHistory.length > 0 && (
-                      <button className="btn btn-sm" onClick={handleExport}>
-                        <DownloadIcon /> Export
-                      </button>
-                    )}
                   </div>
+                  {checkHistory.length > 0 && (
+                    <button className="btn btn-sm full-width" onClick={() => { setShowHistory(true); setShowLedger(false); }} style={{ marginBottom: '12px' }}>
+                      View History
+                    </button>
+                  )}
                   {checkHistory.length === 0 ? (
                     <div className="history-empty">No checks recorded yet</div>
                   ) : (
@@ -1397,98 +1631,108 @@ export default function App() {
           </section>
 
           {/* Profile Selector */}
-          <section className="section">
-            <h3>Check Profile</h3>
-            <div className="profile-bar">
-              <select
-                className="profile-select"
-                value={activeProfileId}
-                onChange={(e) => loadProfile(e.target.value)}
-              >
-                {profiles.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <button className="btn-icon" onClick={() => setShowProfileManager(!showProfileManager)} title="Manage profiles">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
-                  <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                  <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
-                </svg>
-              </button>
-            </div>
+          {!preferences.adminLocked && (
+            <section className="section">
+              <h3>Check Profile</h3>
+              <div className="card">
+                <div className="profile-bar">
+                  <select
+                    className="profile-select"
+                    value={activeProfileId}
+                    onChange={(e) => loadProfile(e.target.value)}
+                  >
+                    {profiles.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.id === activeProfileId && hasUnsavedChanges ? '●' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="btn-icon" onClick={() => setShowProfileManager(!showProfileManager)} title="Rename or delete profiles">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
+                    </svg>
+                  </button>
+                </div>
 
-            {showProfileManager && (
-              <div className="profile-manager">
-                <div className="profile-list">
-                  {profiles.map(p => (
-                    <div key={p.id} className={`profile-item ${p.id === activeProfileId ? 'active' : ''}`}>
-                      {editingProfileName === p.id ? (
-                        <input
-                          className="profile-name-input"
-                          defaultValue={p.name}
-                          autoFocus
-                          onBlur={(e) => {
-                            if (e.target.value.trim()) {
-                              renameProfile(p.id, e.target.value.trim())
-                            } else {
-                              setEditingProfileName(null)
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              renameProfile(p.id, e.target.value.trim())
-                            } else if (e.key === 'Escape') {
-                              setEditingProfileName(null)
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="profile-name"
-                          onClick={() => loadProfile(p.id)}
-                        >
-                          {p.name}
-                        </span>
-                      )}
-                      <div className="profile-actions">
-                        <button
-                          className="btn-icon-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingProfileName(p.id)
-                          }}
-                          title="Rename"
-                        >
-                          ✎
-                        </button>
-                        {profiles.length > 1 && (
-                          <button
-                            className="btn-icon-sm danger"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteProfile(p.id)
-                            }}
-                            title="Delete"
-                          >
-                            <TrashIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="profile-footer">
+                {/* Side-by-side action buttons */}
+                <div className="profile-actions-bar">
                   <button className="btn btn-sm" onClick={createNewProfile}>
-                    <PlusIcon /> New Profile
+                    <PlusIcon /> New
                   </button>
-                  <button className="btn btn-sm" onClick={saveCurrentProfile}>
-                    <CheckIcon /> {profileSaved ? 'Saved!' : 'Save Current'}
+                  <button
+                    className={`btn btn-sm ${profileSaved ? 'success' : hasUnsavedChanges ? 'primary pulse' : 'primary'}`}
+                    onClick={saveCurrentProfile}
+                  >
+                    {hasUnsavedChanges && <span className="unsaved-dot">●</span>}
+                    <CheckIcon /> {profileSaved ? 'Saved!' : 'Save'}
                   </button>
                 </div>
+
+                {/* Collapsible profile manager for rename/delete */}
+                {showProfileManager && (
+                  <div className="profile-manager" style={{ marginTop: '12px' }}>
+                    <div className="profile-list">
+                      {profiles.map(p => (
+                        <div key={p.id} className={`profile-item ${p.id === activeProfileId ? 'active' : ''}`}>
+                          {editingProfileName === p.id ? (
+                            <input
+                              className="profile-name-input"
+                              defaultValue={p.name}
+                              autoFocus
+                              onBlur={(e) => {
+                                if (e.target.value.trim()) {
+                                  renameProfile(p.id, e.target.value.trim())
+                                } else {
+                                  setEditingProfileName(null)
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                  renameProfile(p.id, e.target.value.trim())
+                                } else if (e.key === 'Escape') {
+                                  setEditingProfileName(null)
+                                }
+                              }}
+                            />
+                          ) : (
+                            <span className="profile-name">
+                              {p.name}
+                            </span>
+                          )}
+                          <div className="profile-actions">
+                            <button
+                              className="btn-icon-sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingProfileName(p.id)
+                              }}
+                              title="Rename"
+                            >
+                              ✎
+                            </button>
+                            {profiles.length > 1 && (
+                              <button
+                                className="btn-icon-sm danger"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteProfile(p.id)
+                                }}
+                                title="Delete"
+                              >
+                                <TrashIcon />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
           {/* Check Data - Main focus */}
           <section className="section-main">
@@ -1518,6 +1762,12 @@ export default function App() {
                     <input
                       value={data.amount}
                       onChange={(e) => setData((p) => ({ ...p, amount: e.target.value }))}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        if (value && value !== '' && sanitizeCurrencyInput(value) > 0) {
+                          setData((p) => ({ ...p, amount: formatAmountForDisplay(value) }))
+                        }
+                      }}
                       placeholder="0.00"
                     />
                   </div>
@@ -1556,12 +1806,31 @@ export default function App() {
                   placeholder="Private memo for bookkeeper stub"
                 />
               </div>
+              <div className="field">
+                <label>Line Items / Detail</label>
+                <textarea
+                  value={data.line_items_text || ''}
+                  onChange={(e) => setData((p) => ({ ...p, line_items_text: e.target.value }))}
+                  placeholder="Enter line items, one per line (e.g., Item 1 - $100.00)"
+                  rows="4"
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '13px',
+                    lineHeight: '1.5',
+                    resize: 'vertical'
+                  }}
+                />
+                <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                  This will appear in the Line Items section on the check and Remittance Advice on stubs
+                </small>
+              </div>
             </div>
           </section>
 
           {/* Text & Font Settings */}
-          <section className="section">
-            <h3>Text Settings</h3>
+          {!preferences.adminLocked && (
+            <section className="section">
+              <h3>Text Settings</h3>
             <div className="card">
               <div className="field">
                 <label>Font Family</label>
@@ -1575,26 +1844,50 @@ export default function App() {
                 </select>
               </div>
               <div className="field">
-                <label>Check Text Size: {Math.round(preferences.checkFontScale * 100)}%</label>
-                <input
-                  type="range"
-                  min="0.7"
-                  max="1.5"
-                  step="0.05"
-                  value={preferences.checkFontScale}
-                  onChange={(e) => setPreferences(p => ({ ...p, checkFontScale: parseFloat(e.target.value) }))}
-                />
+                <label>Check Font Size (pt)</label>
+                <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="range"
+                    min="6"
+                    max="20"
+                    step="0.5"
+                    value={preferences.checkFontSizePt}
+                    onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) }))}
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="number"
+                    min="6"
+                    max="20"
+                    step="0.5"
+                    value={preferences.checkFontSizePt}
+                    onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) || 12 }))}
+                    style={{ width: '70px' }}
+                  />
+                </div>
               </div>
               <div className="field">
-                <label>Stub Text Size: {Math.round(preferences.stubFontScale * 100)}%</label>
-                <input
-                  type="range"
-                  min="0.7"
-                  max="1.5"
-                  step="0.05"
-                  value={preferences.stubFontScale}
-                  onChange={(e) => setPreferences(p => ({ ...p, stubFontScale: parseFloat(e.target.value) }))}
-                />
+                <label>Stub Font Size (pt)</label>
+                <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="range"
+                    min="6"
+                    max="16"
+                    step="0.5"
+                    value={preferences.stubFontSizePt}
+                    onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) }))}
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="number"
+                    min="6"
+                    max="16"
+                    step="0.5"
+                    value={preferences.stubFontSizePt}
+                    onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) || 10 }))}
+                    style={{ width: '70px' }}
+                  />
+                </div>
               </div>
               <div className="field">
                 <label>Label Size: {preferences.labelSize}px</label>
@@ -1607,8 +1900,90 @@ export default function App() {
                   onChange={(e) => setPreferences(p => ({ ...p, labelSize: parseInt(e.target.value) }))}
                 />
               </div>
+              {/* Date Builder */}
+              <div className="field">
+                <label>Date Format Builder</label>
+                <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                  <select
+                    value={preferences.dateSlot1}
+                    onChange={(e) => setPreferences(p => ({ ...p, dateSlot1: e.target.value }))}
+                    title="Slot 1"
+                    style={{ flex: 1 }}
+                  >
+                    <option value="MM">MM</option>
+                    <option value="DD">DD</option>
+                    <option value="YY">YY</option>
+                    <option value="YYYY">YYYY</option>
+                    <option value="Empty">Empty</option>
+                  </select>
+                  <select
+                    value={preferences.dateSeparator}
+                    onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
+                    title="Separator"
+                    style={{ width: '60px' }}
+                  >
+                    <option value="/">/</option>
+                    <option value="-">-</option>
+                    <option value=".">.</option>
+                    <option value="Empty">None</option>
+                  </select>
+                  <select
+                    value={preferences.dateSlot2}
+                    onChange={(e) => setPreferences(p => ({ ...p, dateSlot2: e.target.value }))}
+                    title="Slot 2"
+                    style={{ flex: 1 }}
+                  >
+                    <option value="MM">MM</option>
+                    <option value="DD">DD</option>
+                    <option value="YY">YY</option>
+                    <option value="YYYY">YYYY</option>
+                    <option value="Empty">Empty</option>
+                  </select>
+                  <select
+                    value={preferences.dateSeparator}
+                    onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
+                    title="Separator"
+                    style={{ width: '60px' }}
+                  >
+                    <option value="/">/</option>
+                    <option value="-">-</option>
+                    <option value=".">.</option>
+                    <option value="Empty">None</option>
+                  </select>
+                  <select
+                    value={preferences.dateSlot3}
+                    onChange={(e) => setPreferences(p => ({ ...p, dateSlot3: e.target.value }))}
+                    title="Slot 3"
+                    style={{ flex: 1 }}
+                  >
+                    <option value="MM">MM</option>
+                    <option value="DD">DD</option>
+                    <option value="YY">YY</option>
+                    <option value="YYYY">YYYY</option>
+                    <option value="Empty">Empty</option>
+                  </select>
+                </div>
+                <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                  Build your date format: Slot 1 + Sep + Slot 2 + Sep + Slot 3
+                </small>
+              </div>
+              <div className="field">
+                <label className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={preferences.useLongDate}
+                    onChange={(e) => setPreferences(p => ({ ...p, useLongDate: e.target.checked }))}
+                  />
+                  <span className="toggle-slider"></span>
+                  <span className="toggle-label">Use Long Written Date</span>
+                </label>
+                <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                  Enable for full format (e.g., "January 7, 2026"). Overrides date builder.
+                </small>
+              </div>
             </div>
-          </section>
+            </section>
+          )}
 
           {/* Stub Management - Payee Copy */}
           {model.layout.stub1Enabled && (
@@ -1643,7 +2018,7 @@ export default function App() {
                   <div className="field-row">
                     <div className="field">
                       <label>Date</label>
-                      <input value={data.stub1_date || ''} onChange={(e) => setData((p) => ({ ...p, stub1_date: e.target.value }))} />
+                      <input type="date" value={data.stub1_date || ''} onChange={(e) => setData((p) => ({ ...p, stub1_date: e.target.value }))} />
                     </div>
                     <div className="field">
                       <label>Amount</label>
@@ -1696,7 +2071,7 @@ export default function App() {
                   <div className="field-row">
                     <div className="field">
                       <label>Date</label>
-                      <input value={data.stub2_date || ''} onChange={(e) => setData((p) => ({ ...p, stub2_date: e.target.value }))} />
+                      <input type="date" value={data.stub2_date || ''} onChange={(e) => setData((p) => ({ ...p, stub2_date: e.target.value }))} />
                     </div>
                     <div className="field">
                       <label>Amount</label>
@@ -1712,13 +2087,57 @@ export default function App() {
                     <input value={data.stub2_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub2_memo: e.target.value }))} />
                   </div>
                 </div>
+
+                {/* Stub Preferences */}
+                {!preferences.adminLocked && (
+                  <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub2ShowLedger}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLedger: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Ledger Snapshot</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub2ShowApproved}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowApproved: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Approved By</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub2ShowGLCode}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowGLCode: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show GL Code</span>
+                    </label>
+                  </div>
+                    <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                      Toggle which administrative fields appear on the Bookkeeper Copy stub
+                    </small>
+                  </div>
+                )}
               </div>
             </section>
           )}
 
           {/* Template - compact */}
-          <section className="section">
-            <h3>Check Template</h3>
+          {!preferences.adminLocked && (
+            <section className="section">
+              <h3>Check Template</h3>
             <div className="card">
               <button className="btn-template" onClick={handleSelectTemplate}>
                 {templateName ? (
@@ -1741,10 +2160,12 @@ export default function App() {
                 <div className="error-msg">{templateDecodeError}</div>
               )}
             </div>
-          </section>
+            </section>
+          )}
 
           {/* Advanced Settings - Collapsible */}
-          <section className="section">
+          {!preferences.adminLocked && (
+            <section className="section">
             <button className="accordion-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
               <span>Advanced Settings</span>
               <ChevronIcon open={showAdvanced} />
@@ -1949,7 +2370,8 @@ export default function App() {
                 </button>
               </div>
             )}
-          </section>
+            </section>
+          )}
         </div>
 
         <div className="workspace">
@@ -1959,30 +2381,38 @@ export default function App() {
                 className="checkStage"
                 style={{
                   ...checkPlacementStyle,
-                  ...stageVars,
-                  ...(templateDataUrl
-                    ? {
-                        backgroundImage: `url(${templateDataUrl})`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'top left',
-                        backgroundSize: templateBgSize
-                      }
-                    : {})
+                  ...stageVars
                 }}
               >
-                {templateDataUrl && (
-                  <img
-                    className="templateImg"
-                    src={templateDataUrl}
-                    alt="Template"
-                    draggable="false"
-                    onError={() => setTemplateDecodeError('Template image failed to load.')}
-                    style={{
-                      opacity: model.template.opacity ?? 0,
-                      objectFit: templateObjectFit
-                    }}
-                  />
-                )}
+                {/* Rigid check face container with background image */}
+                <div
+                  className="check-face-container"
+                  style={{
+                    '--check-height': `${model.layout.checkHeightIn}in`,
+                    ...(templateDataUrl
+                      ? {
+                          backgroundImage: `url(${templateDataUrl})`,
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'top left',
+                          backgroundSize: templateBgSize
+                        }
+                      : {})
+                  }}
+                >
+                  {templateDataUrl && (
+                    <img
+                      className="templateImg"
+                      src={templateDataUrl}
+                      alt="Template"
+                      draggable="false"
+                      onError={() => setTemplateDecodeError('Template image failed to load.')}
+                      style={{
+                        opacity: model.template.opacity ?? 0,
+                        objectFit: templateObjectFit
+                      }}
+                    />
+                  )}
+                </div>
 
                 {Object.entries(model.fields).map(([key, f]) => {
                   // Check if this field belongs to a disabled stub
@@ -1993,20 +2423,30 @@ export default function App() {
                   if (isStub1Field && !model.layout.stub1Enabled) return null
                   if (isStub2Field && !model.layout.stub2Enabled) return null
 
+                  // Skip stub2 admin fields if their preferences are disabled
+                  if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
+                  if (key === 'stub2_approved' && !preferences.stub2ShowApproved) return null
+                  if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
+
                   // Smart field value handling
                   let value = data[key] ?? ''
                   let isTextarea = false
                   let isReadOnly = editMode || key === 'amountWords'
 
+                  // Special handling for date formatting (check and stubs)
+                  if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
+                    value = formatDateByPreference(value, preferences)
+                  }
+
                   // Special handling for smart stub fields
                   if (key.endsWith('_line_items')) {
-                    value = formatLineItems(data.line_items || [])
+                    value = data.line_items_text || ''
                     isTextarea = true
                     isReadOnly = true
                   } else if (key.endsWith('_ledger')) {
                     const snapshot = data.ledger_snapshot || {
-                      previous_balance: ledgerBalance + (parseFloat(data.amount) || 0),
-                      transaction_amount: parseFloat(data.amount) || 0,
+                      previous_balance: ledgerBalance + sanitizeCurrencyInput(data.amount),
+                      transaction_amount: sanitizeCurrencyInput(data.amount),
                       new_balance: ledgerBalance
                     }
                     value = formatLedgerSnapshot(snapshot)
@@ -2021,9 +2461,8 @@ export default function App() {
                   }
 
                   const isSelected = editMode && selected === key
-                  // Use stub font scale for stub fields, check font scale for others
-                  const fontScaleToUse = (isStub1Field || isStub2Field) ? preferences.stubFontScale : preferences.checkFontScale
-                  const scaledFontIn = f.fontIn * fontScaleToUse
+                  // Use stub font size for stub fields, check font size for others
+                  const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
                   const showFriendlyLabel = !editMode && (
                     (isStub1Field && showStub1Labels) ||
                     (isStub2Field && showStub2Labels)
@@ -2057,7 +2496,7 @@ export default function App() {
                           readOnly={isReadOnly}
                           onChange={(e) => !isReadOnly && setData((p) => ({ ...p, [key]: e.target.value }))}
                           style={{
-                            fontSize: `${scaledFontIn}in`,
+                            fontSize: `${fontSizePt}pt`,
                             fontFamily: activeFontFamily,
                             width: '100%',
                             height: '100%',
@@ -2074,7 +2513,7 @@ export default function App() {
                           readOnly={isReadOnly}
                           onChange={(e) => setData((p) => ({ ...p, [key]: e.target.value }))}
                           style={{
-                            fontSize: `${scaledFontIn}in`,
+                            fontSize: `${fontSizePt}pt`,
                             fontFamily: activeFontFamily,
                             paddingTop: showFriendlyLabel ? '14px' : '0'
                           }}
@@ -2179,6 +2618,70 @@ export default function App() {
         </div>
       </div>
 
+      {/* PIN Authentication Modal */}
+      {showPinModal && (
+        <div className="modal-overlay" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2>Enter Admin PIN</h2>
+              <button className="btn-icon" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>4-Digit PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength="4"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && pinInput.length === 4) {
+                      handlePinSubmit()
+                    }
+                  }}
+                  placeholder="0000"
+                  autoFocus
+                  style={{
+                    fontSize: '24px',
+                    letterSpacing: '8px',
+                    textAlign: 'center',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                {pinError && (
+                  <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
+                    {pinError}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinInput('');
+                  setPinError('');
+                  setTimeout(handleChangePinRequest, 100);
+                }}
+                style={{ marginRight: 'auto' }}
+              >
+                Change PIN
+              </button>
+              <button className="btn" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={handlePinSubmit}
+                disabled={pinInput.length !== 4}
+              >
+                Unlock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export Dialog Modal */}
       {showExportDialog && (
         <div className="modal-overlay" onClick={() => setShowExportDialog(false)}>
@@ -2215,6 +2718,49 @@ export default function App() {
                     </label>
                   )
                 })}
+              </div>
+
+              {/* Date Range Filter */}
+              <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Date Range</h3>
+                <div className="field">
+                  <select
+                    value={exportDateRange}
+                    onChange={(e) => setExportDateRange(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="all">All Time</option>
+                    <option value="custom">Custom Range</option>
+                    <option value="thisWeek">This Week</option>
+                    <option value="lastWeek">Last Week</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="lastMonth">Last Month</option>
+                    <option value="thisQuarter">This Quarter</option>
+                    <option value="ytd">Year-to-Date</option>
+                    <option value="last60">Last 60 Days</option>
+                  </select>
+                </div>
+
+                {exportDateRange === 'custom' && (
+                  <div className="field-row" style={{ marginTop: '12px', gap: '12px' }}>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>Start Date</label>
+                      <input
+                        type="date"
+                        value={exportStartDate}
+                        onChange={(e) => setExportStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="field" style={{ flex: 1 }}>
+                      <label>End Date</label>
+                      <input
+                        type="date"
+                        value={exportEndDate}
+                        onChange={(e) => setExportEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modal-footer">
