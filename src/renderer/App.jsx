@@ -84,6 +84,37 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function formatLineItems(lineItems, maxLines = 5) {
+  if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) return ''
+
+  const displayItems = lineItems.slice(0, maxLines)
+  const hasMore = lineItems.length > maxLines
+
+  let text = displayItems.map((item, idx) => {
+    const desc = item.description || item.desc || ''
+    const amt = item.amount ? formatCurrency(parseFloat(item.amount)) : ''
+    return `${idx + 1}. ${desc}${amt ? ' - ' + amt : ''}`
+  }).join('\n')
+
+  if (hasMore) {
+    const remaining = lineItems.length - maxLines
+    text += `\n\n... and ${remaining} more item${remaining > 1 ? 's' : ''}`
+    text += '\nSee Attached for Full Detail'
+  }
+
+  return text
+}
+
+function formatLedgerSnapshot(snapshot) {
+  if (!snapshot) return ''
+
+  const prev = formatCurrency(snapshot.previous_balance || 0)
+  const amt = formatCurrency(snapshot.transaction_amount || 0)
+  const remaining = formatCurrency(snapshot.new_balance || 0)
+
+  return `Previous Balance: ${prev}\nCheck Amount:     ${amt}\nRemaining Balance: ${remaining}`
+}
+
 function normalizeModel(maybeModel) {
   const m = maybeModel || {}
   const layout =
@@ -125,7 +156,9 @@ function parseCSV(content, delimiter = ',') {
     date: ['date', 'check date', 'checkdate', 'dt'],
     payee: ['payee', 'pay to', 'payto', 'recipient', 'name', 'to'],
     amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total'],
-    memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose']
+    memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
+    external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
+    internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo']
   }
 
   // Find column indices
@@ -162,7 +195,9 @@ function parseCSV(content, delimiter = ',') {
       date: columnIndices.date !== undefined ? values[columnIndices.date] || '' : '',
       payee: columnIndices.payee !== undefined ? values[columnIndices.payee] || '' : '',
       amount: columnIndices.amount !== undefined ? values[columnIndices.amount]?.replace(/[$,]/g, '') || '' : '',
-      memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : ''
+      memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
+      external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
+      internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : ''
     }
 
     // Only include if we have at least payee or amount
@@ -253,6 +288,7 @@ export default function App() {
   const [activeProfileId, setActiveProfileId] = useState('default')
   const [editingProfileName, setEditingProfileName] = useState(null)
   const [showProfileManager, setShowProfileManager] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
 
   // Ledger system
   const [ledgerBalance, setLedgerBalance] = useState(0)
@@ -270,7 +306,11 @@ export default function App() {
     payee: '',
     amount: '',
     amountWords: '',
-    memo: ''
+    memo: '',
+    external_memo: '',
+    internal_memo: '',
+    line_items: [],
+    ledger_snapshot: null
   })
 
   // Load settings from disk on launch
@@ -317,6 +357,51 @@ export default function App() {
     setData((p) => ({ ...p, amountWords: numberToWords(p.amount) }))
   }, [data.amount])
 
+  // Parent-to-child data flow: Check details (parent) ALWAYS update stub details (children)
+  // This is one-way only - stub edits don't affect parent, but parent edits always overwrite stubs
+  const parentFieldsRef = useRef({ date: '', payee: '', amount: '', memo: '', external_memo: '', internal_memo: '' })
+
+  useEffect(() => {
+    const currentParent = {
+      date: data.date,
+      payee: data.payee,
+      amount: data.amount,
+      memo: data.memo,
+      external_memo: data.external_memo,
+      internal_memo: data.internal_memo
+    }
+
+    // Check if any parent field changed
+    const parentChanged = Object.keys(currentParent).some(
+      key => parentFieldsRef.current[key] !== currentParent[key]
+    )
+
+    if (parentChanged) {
+      parentFieldsRef.current = currentParent
+
+      // Update stub fields based on parent values
+      setData((d) => {
+        const updates = {}
+
+        if (model.layout.stub1Enabled) {
+          updates.stub1_date = currentParent.date
+          updates.stub1_payee = currentParent.payee
+          updates.stub1_amount = currentParent.amount
+          updates.stub1_memo = currentParent.external_memo || currentParent.memo || ''
+        }
+
+        if (model.layout.stub2Enabled) {
+          updates.stub2_date = currentParent.date
+          updates.stub2_payee = currentParent.payee
+          updates.stub2_amount = currentParent.amount
+          updates.stub2_memo = currentParent.internal_memo || currentParent.memo || ''
+        }
+
+        return Object.keys(updates).length > 0 ? { ...d, ...updates } : d
+      })
+    }
+  }, [data.date, data.payee, data.amount, data.memo, data.external_memo, data.internal_memo, model.layout.stub1Enabled, model.layout.stub2Enabled])
+
   // Load template dataURL when template path changes
   useEffect(() => {
     let cancelled = false
@@ -351,13 +436,22 @@ export default function App() {
     const newProfile = {
       id: generateId(),
       name: `Check Profile ${profiles.length + 1}`,
-      layout: { ...model.layout },
-      fields: JSON.parse(JSON.stringify(model.fields)),
-      template: { ...model.template },
-      placement: { ...model.placement }
+      layout: { ...DEFAULT_LAYOUT },
+      fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
+      template: { path: null, opacity: 0, fit: 'cover' },
+      placement: { offsetXIn: 0, offsetYIn: 0 }
     }
     setProfiles([...profiles, newProfile])
     setActiveProfileId(newProfile.id)
+
+    // Load the clean profile immediately
+    setModel(m => ({
+      ...m,
+      layout: { ...DEFAULT_LAYOUT },
+      fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
+      template: { path: null, opacity: 0, fit: 'cover' },
+      placement: { offsetXIn: 0, offsetYIn: 0 }
+    }))
   }
 
   const saveCurrentProfile = () => {
@@ -372,6 +466,10 @@ export default function App() {
           }
         : p
     ))
+
+    // Show save feedback
+    setProfileSaved(true)
+    setTimeout(() => setProfileSaved(false), 2000)
   }
 
   const loadProfile = (profileId) => {
@@ -410,18 +508,29 @@ export default function App() {
     if (amount <= 0) return false
     if (!checkData.payee?.trim()) return false
 
+    const previousBalance = ledgerBalance
+    const newBalance = ledgerBalance - amount
+
     const checkEntry = {
       id: generateId(),
       date: checkData.date || new Date().toISOString().slice(0, 10),
       payee: checkData.payee,
       amount: amount,
       memo: checkData.memo || '',
+      external_memo: checkData.external_memo || '',
+      internal_memo: checkData.internal_memo || '',
+      line_items: checkData.line_items || [],
+      ledger_snapshot: {
+        previous_balance: previousBalance,
+        transaction_amount: amount,
+        new_balance: newBalance
+      },
       timestamp: Date.now(),
-      balanceAfter: ledgerBalance - amount
+      balanceAfter: newBalance
     }
 
     setCheckHistory(prev => [checkEntry, ...prev])
-    setLedgerBalance(prev => prev - amount)
+    setLedgerBalance(newBalance)
     return true
   }
 
@@ -483,7 +592,11 @@ export default function App() {
       payee: queueItem.payee || '',
       amount: queueItem.amount || '',
       amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
-      memo: queueItem.memo || ''
+      memo: queueItem.memo || '',
+      external_memo: queueItem.external_memo || '',
+      internal_memo: queueItem.internal_memo || '',
+      line_items: queueItem.line_items || [],
+      ledger_snapshot: null
     })
     // Remove from queue
     setImportQueue(prev => prev.filter(item => item.id !== queueItem.id))
@@ -500,6 +613,7 @@ export default function App() {
     for (const item of importQueue) {
       const amount = parseFloat(item.amount) || 0
       if (amount > 0 && item.payee?.trim()) {
+        const previousBalance = newBalance
         newBalance -= amount
         newHistory.unshift({
           id: generateId(),
@@ -507,6 +621,14 @@ export default function App() {
           payee: item.payee,
           amount: amount,
           memo: item.memo || '',
+          external_memo: item.external_memo || '',
+          internal_memo: item.internal_memo || '',
+          line_items: item.line_items || [],
+          ledger_snapshot: {
+            previous_balance: previousBalance,
+            transaction_amount: amount,
+            new_balance: newBalance
+          },
           timestamp: Date.now(),
           balanceAfter: newBalance
         })
@@ -581,12 +703,28 @@ export default function App() {
       const baseY = which === 'stub1' ? stub1Y : stub2Y
       const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
 
-      const defaults = {
-        [`${prefix}date`]: { x: 0.55, y: baseY + 0.35, w: 1.4, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Date` },
-        [`${prefix}payee`]: { x: 2.1, y: baseY + 0.35, w: 3.7, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Payee` },
-        [`${prefix}amount`]: { x: nextLayout.widthIn - 1.85, y: baseY + 0.35, w: 1.30, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Amount` },
-        [`${prefix}memo`]: { x: 0.55, y: baseY + 0.90, w: 4.8, h: 0.35, fontIn: 0.24, label: `${which.toUpperCase()} Memo` }
-      }
+      // Stub 1 (Payee Copy) - External memo and line items
+      // Stub 2 (Bookkeeper Copy) - Internal memo, ledger snapshot, and admin fields
+      const isPayeeCopy = which === 'stub1'
+      const defaults = isPayeeCopy
+        ? {
+            // PAYEE COPY (Stub 1) - External Memo & Line Items
+            [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+            [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+            [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+            [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
+            [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' }
+          }
+        : {
+            // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
+            [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+            [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+            [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+            [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
+            [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+            [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+            [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+          }
 
       const nextFields = { ...m.fields }
       for (const [k, v] of Object.entries(defaults)) {
@@ -598,13 +736,22 @@ export default function App() {
 
     if (enabled) {
       const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
-      setData((d) => ({
-        ...d,
-        [`${prefix}date`]: d[`${prefix}date`] ?? d.date ?? '',
-        [`${prefix}payee`]: d[`${prefix}payee`] ?? d.payee ?? '',
-        [`${prefix}amount`]: d[`${prefix}amount`] ?? d.amount ?? '',
-        [`${prefix}memo`]: d[`${prefix}memo`] ?? d.memo ?? ''
-      }))
+      setData((d) => {
+        // Parent-to-child flow: When stub is enabled, sync from parent check fields
+        // Stub 1 (Payee Copy) gets external_memo by default
+        // Stub 2 (Bookkeeper Copy) gets internal_memo by default
+        const defaultMemo = which === 'stub1'
+          ? (d.external_memo || d.memo || '')
+          : (d.internal_memo || d.memo || '')
+
+        return {
+          ...d,
+          [`${prefix}date`]: d.date,
+          [`${prefix}payee`]: d.payee,
+          [`${prefix}amount`]: d.amount,
+          [`${prefix}memo`]: defaultMemo
+        }
+      })
     }
   }
 
@@ -704,22 +851,85 @@ export default function App() {
       return
     }
 
+    // Capture the current check data BEFORE any async operations
+    const checkDataSnapshot = {
+      date: data.date,
+      payee: data.payee,
+      amount: data.amount,
+      amountWords: data.amountWords,
+      memo: data.memo,
+      external_memo: data.external_memo,
+      internal_memo: data.internal_memo,
+      line_items: data.line_items,
+      ledger_snapshot: data.ledger_snapshot
+    }
+
     setIsPrinting(true)
+
+    // Small delay to ensure DOM is ready for printing
     setTimeout(async () => {
-      const res = await window.cs2.printDialog()
-      setIsPrinting(false)
-      if (res?.success !== false) {
-        recordCheck()
+      try {
+        // Set up afterprint handler BEFORE opening print dialog
+        let afterPrintFired = false
+        const handleAfterPrint = () => {
+          afterPrintFired = true
+          window.removeEventListener('afterprint', handleAfterPrint)
+        }
+        window.addEventListener('afterprint', handleAfterPrint)
+
+        // Open print dialog and wait for it to close
+        const res = await window.cs2.printDialog()
+
+        // Remove the event listener if dialog failed
+        if (res?.success === false) {
+          window.removeEventListener('afterprint', handleAfterPrint)
+          setIsPrinting(false)
+          alert(`Print failed: ${res.error || 'Unknown error'}`)
+          return
+        }
+
+        // Give afterprint a chance to fire (Electron may fire it synchronously or async)
+        // Wait up to 2 seconds for afterprint, or continue if it already fired
+        if (!afterPrintFired) {
+          await new Promise(resolve => {
+            const checkInterval = setInterval(() => {
+              if (afterPrintFired) {
+                clearInterval(checkInterval)
+                clearTimeout(fallbackTimeout)
+                resolve()
+              }
+            }, 50)
+
+            // Fallback after 2 seconds
+            const fallbackTimeout = setTimeout(() => {
+              clearInterval(checkInterval)
+              resolve()
+            }, 2000)
+          })
+        }
+
+        // Clean up listener
+        window.removeEventListener('afterprint', handleAfterPrint)
+        setIsPrinting(false)
+
+        // NOW it's safe to record and clear - print has fully completed
+        recordCheck(checkDataSnapshot)
+
         // Clear form for next check
         setData({
           date: new Date().toISOString().slice(0, 10),
           payee: '',
           amount: '',
           amountWords: '',
-          memo: ''
+          memo: '',
+          external_memo: '',
+          internal_memo: '',
+          line_items: [],
+          ledger_snapshot: null
         })
-      } else {
-        alert(`Print failed: ${res.error || 'Unknown error'}`)
+      } catch (error) {
+        setIsPrinting(false)
+        alert(`Print error: ${error?.message || 'Unknown error'}`)
       }
     }, 250)
   }
@@ -934,21 +1144,49 @@ export default function App() {
                           className="profile-name-input"
                           defaultValue={p.name}
                           autoFocus
-                          onBlur={(e) => renameProfile(p.id, e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && renameProfile(p.id, e.target.value)}
+                          onBlur={(e) => {
+                            if (e.target.value.trim()) {
+                              renameProfile(p.id, e.target.value.trim())
+                            } else {
+                              setEditingProfileName(null)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              renameProfile(p.id, e.target.value.trim())
+                            } else if (e.key === 'Escape') {
+                              setEditingProfileName(null)
+                            }
+                          }}
                         />
                       ) : (
                         <span
                           className="profile-name"
-                          onDoubleClick={() => setEditingProfileName(p.id)}
                           onClick={() => loadProfile(p.id)}
                         >
                           {p.name}
                         </span>
                       )}
                       <div className="profile-actions">
+                        <button
+                          className="btn-icon-sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingProfileName(p.id)
+                          }}
+                          title="Rename"
+                        >
+                          ✎
+                        </button>
                         {profiles.length > 1 && (
-                          <button className="btn-icon-sm danger" onClick={() => deleteProfile(p.id)} title="Delete">
+                          <button
+                            className="btn-icon-sm danger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteProfile(p.id)
+                            }}
+                            title="Delete"
+                          >
                             <TrashIcon />
                           </button>
                         )}
@@ -961,7 +1199,7 @@ export default function App() {
                     <PlusIcon /> New Profile
                   </button>
                   <button className="btn btn-sm" onClick={saveCurrentProfile}>
-                    <CheckIcon /> Save Current
+                    <CheckIcon /> {profileSaved ? 'Saved!' : 'Save Current'}
                   </button>
                 </div>
               </div>
@@ -1018,6 +1256,22 @@ export default function App() {
                   placeholder="Optional note"
                 />
               </div>
+              <div className="field">
+                <label>External Memo (Payee Copy)</label>
+                <input
+                  value={data.external_memo}
+                  onChange={(e) => setData((p) => ({ ...p, external_memo: e.target.value }))}
+                  placeholder="Public memo for payee stub"
+                />
+              </div>
+              <div className="field">
+                <label>Internal Memo (Bookkeeper Copy)</label>
+                <input
+                  value={data.internal_memo}
+                  onChange={(e) => setData((p) => ({ ...p, internal_memo: e.target.value }))}
+                  placeholder="Private memo for bookkeeper stub"
+                />
+              </div>
             </div>
           </section>
 
@@ -1064,8 +1318,11 @@ export default function App() {
           {/* Stub Data - only if enabled */}
           {(model.layout.stub1Enabled || model.layout.stub2Enabled) && (
             <section className="section">
-              <h3>Stub Details</h3>
+              <h3>Stub Details (Optional Overrides)</h3>
               <div className="card">
+                <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                  Stub fields auto-fill from Check Details above. You can edit them here, but changes to Check Details will overwrite your edits.
+                </p>
                 {model.layout.stub1Enabled && (
                   <div className="stub-group">
                     <div className="stub-label">Stub 1</div>
@@ -1401,9 +1658,36 @@ export default function App() {
                 )}
 
                 {Object.entries(model.fields).map(([key, f]) => {
-                  const value = data[key] ?? ''
+                  // Smart field value handling
+                  let value = data[key] ?? ''
+                  let isTextarea = false
+                  let isReadOnly = editMode || key === 'amountWords'
+
+                  // Special handling for smart stub fields
+                  if (key.endsWith('_line_items')) {
+                    value = formatLineItems(data.line_items || [])
+                    isTextarea = true
+                    isReadOnly = true
+                  } else if (key.endsWith('_ledger')) {
+                    const snapshot = data.ledger_snapshot || {
+                      previous_balance: ledgerBalance + (parseFloat(data.amount) || 0),
+                      transaction_amount: parseFloat(data.amount) || 0,
+                      new_balance: ledgerBalance
+                    }
+                    value = formatLedgerSnapshot(snapshot)
+                    isTextarea = true
+                    isReadOnly = true
+                  } else if (key.endsWith('_approved')) {
+                    value = 'Approved By: ___________________'
+                    isReadOnly = true
+                  } else if (key.endsWith('_glcode')) {
+                    value = 'GL Code: ___________________'
+                    isReadOnly = true
+                  }
+
                   const isSelected = editMode && selected === key
                   const scaledFontIn = f.fontIn * preferences.fontScale
+
                   return (
                     <div
                       key={key}
@@ -1421,15 +1705,34 @@ export default function App() {
                           {f.label}
                         </div>
                       )}
-                      <input
-                        value={value}
-                        readOnly={editMode ? true : key === 'amountWords'}
-                        onChange={(e) => setData((p) => ({ ...p, [key]: e.target.value }))}
-                        style={{
-                          fontSize: `${scaledFontIn}in`,
-                          fontFamily: activeFontFamily
-                        }}
-                      />
+                      {isTextarea ? (
+                        <textarea
+                          value={value}
+                          readOnly={isReadOnly}
+                          onChange={(e) => !isReadOnly && setData((p) => ({ ...p, [key]: e.target.value }))}
+                          style={{
+                            fontSize: `${scaledFontIn}in`,
+                            fontFamily: activeFontFamily,
+                            width: '100%',
+                            height: '100%',
+                            border: 'none',
+                            background: 'transparent',
+                            resize: 'none',
+                            padding: '0',
+                            lineHeight: '1.3'
+                          }}
+                        />
+                      ) : (
+                        <input
+                          value={value}
+                          readOnly={isReadOnly}
+                          onChange={(e) => setData((p) => ({ ...p, [key]: e.target.value }))}
+                          style={{
+                            fontSize: `${scaledFontIn}in`,
+                            fontFamily: activeFontFamily
+                          }}
+                        />
+                      )}
                       {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
                     </div>
                   )
