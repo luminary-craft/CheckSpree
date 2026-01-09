@@ -130,8 +130,14 @@ ipcMain.handle('import:read', async (_evt, filePath) => {
 })
 
 // Export history to CSV
-ipcMain.handle('export:history', async (_evt, historyData) => {
+ipcMain.handle('export:history', async (_evt, exportData) => {
   if (!mainWindow) return { success: false, error: 'No window' }
+
+  // Support both old format (array) and new format (object with checks, ledgerTotals, etc)
+  const isLegacyFormat = Array.isArray(exportData)
+  const checks = isLegacyFormat ? exportData : exportData.checks
+  const ledgerTotals = isLegacyFormat ? null : exportData.ledgerTotals
+  const grandTotal = isLegacyFormat ? null : exportData.grandTotal
 
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: `checkspree-history-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -145,18 +151,52 @@ ipcMain.handle('export:history', async (_evt, historyData) => {
 
   try {
     // Build CSV content
-    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'Recorded At', 'Balance After']
-    const rows = historyData.map(entry => [
+    let csvContent = ''
+
+    // Add summary section if available
+    if (grandTotal && ledgerTotals) {
+      csvContent += '=== EXPORT SUMMARY ===\n'
+      csvContent += `Export Date,${new Date().toISOString()}\n`
+      csvContent += `Total Checks,${grandTotal.totalChecks}\n`
+      csvContent += `Total Amount Spent,$${grandTotal.totalSpent.toFixed(2)}\n`
+      csvContent += `Combined Ledger Balance,$${grandTotal.totalBalance.toFixed(2)}\n`
+      csvContent += '\n'
+
+      // Ledger breakdowns
+      csvContent += '=== LEDGER BREAKDOWN ===\n'
+      Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
+        csvContent += `\nLedger: ${ledger.name}\n`
+        csvContent += `Current Balance,$${ledger.balance.toFixed(2)}\n`
+        csvContent += `Total Spent,$${ledger.totalSpent.toFixed(2)}\n`
+        csvContent += `Check Count,${ledger.checkCount}\n`
+
+        if (Object.keys(ledger.profileBreakdown).length > 0) {
+          csvContent += '\nProfile Breakdown:\n'
+          Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
+            csvContent += `  ${profile.name},Checks: ${profile.checkCount},Amount: $${profile.totalSpent.toFixed(2)}\n`
+          })
+        }
+      })
+      csvContent += '\n'
+    }
+
+    // Add check details
+    csvContent += '=== CHECK DETAILS ===\n'
+    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
+    const rows = checks.map(entry => [
       entry.date || '',
       `"${(entry.payee || '').replace(/"/g, '""')}"`,
       entry.amount || 0,
       `"${(entry.memo || '').replace(/"/g, '""')}"`,
+      entry.ledgerName || '',
+      entry.profileName || '',
       entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
       entry.balanceAfter ?? ''
     ])
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    fs.writeFileSync(result.filePath, csv, 'utf8')
+    csvContent += [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+
+    fs.writeFileSync(result.filePath, csvContent, 'utf8')
 
     // Open the file location
     shell.showItemInFolder(result.filePath)
