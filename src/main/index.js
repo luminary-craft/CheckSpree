@@ -111,7 +111,7 @@ ipcMain.handle('import:select', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
     filters: [
-      { name: 'Spreadsheet Files', extensions: ['csv', 'tsv', 'txt'] }
+      { name: 'Spreadsheet Files', extensions: ['csv', 'tsv', 'txt', 'xlsx', 'xls'] }
     ]
   })
 
@@ -121,9 +121,18 @@ ipcMain.handle('import:select', async () => {
 
 ipcMain.handle('import:read', async (_evt, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, 'utf8')
     const ext = path.extname(filePath).toLowerCase()
-    return { success: true, content, ext }
+
+    // Read Excel files as binary buffer, text files as UTF-8 string
+    if (ext === '.xlsx' || ext === '.xls') {
+      const buffer = fs.readFileSync(filePath)
+      // Convert buffer to base64 for transmission to renderer
+      const content = buffer.toString('base64')
+      return { success: true, content, ext, isBinary: true }
+    } else {
+      const content = fs.readFileSync(filePath, 'utf8')
+      return { success: true, content, ext, isBinary: false }
+    }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }

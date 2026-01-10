@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { numberToWords } from '../shared/numberToWords'
+import * as XLSX from 'xlsx'
 
 const PX_PER_IN = 96
 
@@ -40,7 +41,14 @@ const DEFAULT_PROFILE = {
   layout: DEFAULT_LAYOUT,
   fields: DEFAULT_FIELDS,
   template: { path: null, opacity: 0, fit: 'cover' },
-  placement: { offsetXIn: 0, offsetYIn: 0 }
+  placement: { offsetXIn: 0, offsetYIn: 0 },
+  dateFormat: {
+    dateSlot1: 'MM',
+    dateSlot2: 'DD',
+    dateSlot3: 'YYYY',
+    dateSeparator: '/',
+    useLongDate: false
+  }
 }
 
 const DEFAULT_PREFERENCES = {
@@ -351,6 +359,242 @@ function parseCSV(content, delimiter = ',') {
   return results
 }
 
+// Parse Excel (.xlsx, .xls) files
+function parseExcel(base64Content) {
+  try {
+    // Convert base64 to binary
+    const binaryString = atob(base64Content)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    // Read the workbook
+    const workbook = XLSX.read(bytes, { type: 'array', cellDates: true })
+
+    // Get the first sheet
+    const firstSheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[firstSheetName]
+
+    // Convert to JSON with header row
+    const rawData = XLSX.utils.sheet_to_json(worksheet, {
+      raw: false,  // Convert dates to strings
+      defval: ''   // Default value for empty cells
+    })
+
+    if (rawData.length === 0) return []
+
+    // Normalize headers to lowercase for matching
+    const normalizedData = rawData.map(row => {
+      const normalizedRow = {}
+      for (const [key, value] of Object.entries(row)) {
+        normalizedRow[key.trim().toLowerCase()] = value
+      }
+      return normalizedRow
+    })
+
+    // Map common header variations
+    const fieldMap = {
+      date: ['date', 'check date', 'checkdate', 'dt'],
+      payee: ['payee', 'pay to', 'payto', 'recipient', 'name', 'to'],
+      amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total'],
+      memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
+      external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
+      internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo']
+    }
+
+    // Process each row
+    const results = []
+    for (const row of normalizedData) {
+      const entry = {}
+
+      // Find and map each field
+      for (const [field, variations] of Object.entries(fieldMap)) {
+        let value = ''
+        for (const variation of variations) {
+          if (row[variation] !== undefined && row[variation] !== '') {
+            value = row[variation]
+            break
+          }
+        }
+
+        // Handle date conversion
+        if (field === 'date' && value) {
+          value = convertExcelDate(value)
+        }
+
+        // Handle amount - strip currency symbols
+        if (field === 'amount' && value) {
+          value = String(value).replace(/[$,]/g, '')
+        }
+
+        entry[field] = value
+      }
+
+      // Only include if we have at least payee or amount
+      if (entry.payee || entry.amount) {
+        results.push(entry)
+      }
+    }
+
+    return results
+  } catch (error) {
+    console.error('Excel parsing error:', error)
+    return []
+  }
+}
+
+// Convert Excel date serial numbers to YYYY-MM-DD format
+function convertExcelDate(value) {
+  // If already a valid date string, try to parse it
+  if (typeof value === 'string') {
+    // Check if it's already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value
+    }
+
+    // Try to parse common date formats
+    const parsed = new Date(value)
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10)
+    }
+  }
+
+  // Handle Excel serial date number
+  if (typeof value === 'number') {
+    // Excel date serial number (days since 1900-01-01, with leap year bug)
+    const excelEpoch = new Date(1899, 11, 30) // Dec 30, 1899
+    const msPerDay = 86400000
+    const jsDate = new Date(excelEpoch.getTime() + value * msPerDay)
+
+    if (!isNaN(jsDate.getTime())) {
+      return jsDate.toISOString().slice(0, 10)
+    }
+  }
+
+  // If it's a Date object already (from cellDates: true)
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10)
+  }
+
+  // Fallback to current date if parsing fails
+  return new Date().toISOString().slice(0, 10)
+}
+
+// Parse Excel with custom column mapping
+function parseExcelWithMapping(base64Content, mapping) {
+  try {
+    const binaryString = atob(base64Content)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    const workbook = XLSX.read(bytes, { type: 'array', cellDates: true })
+    const firstSheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[firstSheetName]
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' })
+
+    if (rawData.length === 0) return []
+
+    const results = []
+    for (const row of rawData) {
+      const entry = {}
+
+      // Map each field using the custom mapping
+      for (const [field, header] of Object.entries(mapping)) {
+        if (header && row[header] !== undefined) {
+          let value = row[header]
+
+          // Handle date conversion
+          if (field === 'date' && value) {
+            value = convertExcelDate(value)
+          }
+
+          // Handle amount - strip currency symbols
+          if (field === 'amount' && value) {
+            value = String(value).replace(/[$,]/g, '')
+          }
+
+          entry[field] = value
+        } else {
+          entry[field] = ''
+        }
+      }
+
+      // Only include if we have at least payee or amount
+      if (entry.payee || entry.amount) {
+        results.push(entry)
+      }
+    }
+
+    return results
+  } catch (error) {
+    console.error('Excel parsing with mapping error:', error)
+    return []
+  }
+}
+
+// Parse CSV with custom column mapping
+function parseCSVWithMapping(content, delimiter, mapping) {
+  const lines = content.trim().split(/\r?\n/)
+  if (lines.length < 2) return []
+
+  // Parse header row
+  const headers = lines[0].split(delimiter).map(h => h.trim().replace(/['"]/g, ''))
+
+  // Find indices for mapped columns
+  const columnIndices = {}
+  for (const [field, header] of Object.entries(mapping)) {
+    if (header) {
+      const idx = headers.indexOf(header)
+      if (idx !== -1) {
+        columnIndices[field] = idx
+      }
+    }
+  }
+
+  // Parse data rows
+  const results = []
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+
+    // Handle quoted values
+    const values = []
+    let current = ''
+    let inQuotes = false
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j]
+      if (char === '"') {
+        inQuotes = !inQuotes
+      } else if (char === delimiter && !inQuotes) {
+        values.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    values.push(current.trim())
+
+    const entry = {
+      date: columnIndices.date !== undefined ? values[columnIndices.date] || '' : '',
+      payee: columnIndices.payee !== undefined ? values[columnIndices.payee] || '' : '',
+      amount: columnIndices.amount !== undefined ? values[columnIndices.amount]?.replace(/[$,]/g, '') || '' : '',
+      memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
+      external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
+      internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : ''
+    }
+
+    // Only include if we have at least payee or amount
+    if (entry.payee || entry.amount) {
+      results.push(entry)
+    }
+  }
+
+  return results
+}
+
 async function readTemplateDataUrl(path) {
   if (!path) return null
   const res = await window.cs2.readFileAsDataURL(path)
@@ -456,6 +700,26 @@ export default function App() {
   const [importQueue, setImportQueue] = useState([])
   const [showImportQueue, setShowImportQueue] = useState(false)
 
+  // Batch print & record
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false)
+  const [batchPrintProgress, setBatchPrintProgress] = useState({ current: 0, total: 0 })
+  const [batchPrintCancelled, setBatchPrintCancelled] = useState(false)
+
+  // Column mapping modal
+  const [showColumnMapping, setShowColumnMapping] = useState(false)
+  const [fileHeaders, setFileHeaders] = useState([])
+  const [columnMapping, setColumnMapping] = useState({
+    date: '',
+    payee: '',
+    amount: '',
+    memo: '',
+    external_memo: '',
+    internal_memo: ''
+  })
+  const [rawFileData, setRawFileData] = useState(null)
+  const [fileExtension, setFileExtension] = useState('')
+  const [previewRow, setPreviewRow] = useState(null)
+
   // Stub friendly labels
   const [showStub1Labels, setShowStub1Labels] = useState(false)
   const [showStub2Labels, setShowStub2Labels] = useState(false)
@@ -523,6 +787,13 @@ export default function App() {
     }, 250)
     return () => clearTimeout(t)
   }, [model, data, editMode, profiles, activeProfileId, ledgers, activeLedgerId, checkHistory, preferences])
+
+  // Force exit Edit Layout mode when Admin is locked
+  useEffect(() => {
+    if (preferences.adminLocked && editMode) {
+      setEditMode(false)
+    }
+  }, [preferences.adminLocked, editMode])
 
   // Auto-generate amount words
   useEffect(() => {
@@ -632,7 +903,14 @@ export default function App() {
       layout: { ...DEFAULT_LAYOUT },
       fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
       template: { path: null, opacity: 0, fit: 'cover' },
-      placement: { offsetXIn: 0, offsetYIn: 0 }
+      placement: { offsetXIn: 0, offsetYIn: 0 },
+      dateFormat: {
+        dateSlot1: 'MM',
+        dateSlot2: 'DD',
+        dateSlot3: 'YYYY',
+        dateSeparator: '/',
+        useLongDate: false
+      }
     }
     setProfiles([...profiles, newProfile])
     setActiveProfileId(newProfile.id)
@@ -644,6 +922,16 @@ export default function App() {
       fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
       template: { path: null, opacity: 0, fit: 'cover' },
       placement: { offsetXIn: 0, offsetYIn: 0 }
+    }))
+
+    // Reset date format to defaults
+    setPreferences(p => ({
+      ...p,
+      dateSlot1: 'MM',
+      dateSlot2: 'DD',
+      dateSlot3: 'YYYY',
+      dateSeparator: '/',
+      useLongDate: false
     }))
 
     // Reset dirty state for new profile
@@ -658,7 +946,14 @@ export default function App() {
             layout: { ...model.layout },
             fields: JSON.parse(JSON.stringify(model.fields)),
             template: { ...model.template },
-            placement: { ...model.placement }
+            placement: { ...model.placement },
+            dateFormat: {
+              dateSlot1: preferences.dateSlot1,
+              dateSlot2: preferences.dateSlot2,
+              dateSlot3: preferences.dateSlot3,
+              dateSeparator: preferences.dateSeparator,
+              useLongDate: preferences.useLongDate
+            }
           }
         : p
     ))
@@ -680,6 +975,18 @@ export default function App() {
       template: { ...profile.template },
       placement: { ...profile.placement }
     }))
+
+    // Restore date format settings if they exist in the profile
+    if (profile.dateFormat) {
+      setPreferences(p => ({
+        ...p,
+        dateSlot1: profile.dateFormat.dateSlot1,
+        dateSlot2: profile.dateFormat.dateSlot2,
+        dateSlot3: profile.dateFormat.dateSlot3,
+        dateSeparator: profile.dateFormat.dateSeparator,
+        useLongDate: profile.dateFormat.useLongDate
+      }))
+    }
   }
 
   const deleteProfile = (profileId) => {
@@ -834,6 +1141,139 @@ export default function App() {
     }
   }
 
+  // Auto-detect column mappings based on header keywords
+  const autoDetectMapping = (headers) => {
+    const fieldMap = {
+      date: ['date', 'check date', 'checkdate', 'dt', 'transaction date'],
+      payee: ['payee', 'pay to', 'payto', 'recipient', 'name', 'to', 'vendor'],
+      amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total', 'cost', 'price'],
+      memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
+      external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
+      internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo']
+    }
+
+    const mapping = {
+      date: '',
+      payee: '',
+      amount: '',
+      memo: '',
+      external_memo: '',
+      internal_memo: ''
+    }
+
+    const normalizedHeaders = headers.map(h => h.trim().toLowerCase())
+
+    // Find best match for each field
+    for (const [field, variations] of Object.entries(fieldMap)) {
+      const matchIndex = normalizedHeaders.findIndex(h => variations.includes(h))
+      if (matchIndex !== -1) {
+        mapping[field] = headers[matchIndex] // Use original case header
+      }
+    }
+
+    return mapping
+  }
+
+  // Extract headers from raw file data
+  const extractHeaders = (content, ext) => {
+    if (ext === '.xlsx' || ext === '.xls') {
+      // Parse Excel to get headers
+      try {
+        const binaryString = atob(content)
+        const bytes = new Uint8Array(binaryString.length)
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i)
+        }
+        const workbook = XLSX.read(bytes, { type: 'array' })
+        const firstSheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[firstSheetName]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+        if (jsonData.length > 0) {
+          return jsonData[0].map(h => String(h || '').trim()).filter(h => h)
+        }
+      } catch (error) {
+        console.error('Failed to extract Excel headers:', error)
+      }
+    } else {
+      // Parse CSV/TSV headers
+      const delimiter = ext === '.tsv' ? '\t' : ','
+      const lines = content.trim().split(/\r?\n/)
+      if (lines.length > 0) {
+        return lines[0].split(delimiter).map(h => h.trim().replace(/['"]/g, ''))
+      }
+    }
+    return []
+  }
+
+  // Get preview of first data row
+  const getPreviewRow = (content, ext, mapping) => {
+    try {
+      let firstDataRow = {}
+
+      if (ext === '.xlsx' || ext === '.xls') {
+        const binaryString = atob(content)
+        const bytes = new Uint8Array(binaryString.length)
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i)
+        }
+        const workbook = XLSX.read(bytes, { type: 'array', cellDates: true })
+        const firstSheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[firstSheetName]
+        const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' })
+
+        if (rawData.length > 0) {
+          const row = rawData[0]
+          // Map according to current mapping
+          for (const [field, header] of Object.entries(mapping)) {
+            if (header && row[header] !== undefined) {
+              firstDataRow[field] = row[header]
+            }
+          }
+        }
+      } else {
+        const delimiter = ext === '.tsv' ? '\t' : ','
+        const lines = content.trim().split(/\r?\n/)
+        if (lines.length > 1) {
+          const headers = lines[0].split(delimiter).map(h => h.trim().replace(/['"]/g, ''))
+          const values = []
+          const line = lines[1]
+
+          // Simple CSV parsing for preview
+          let current = ''
+          let inQuotes = false
+          for (let j = 0; j < line.length; j++) {
+            const char = line[j]
+            if (char === '"') {
+              inQuotes = !inQuotes
+            } else if (char === delimiter && !inQuotes) {
+              values.push(current.trim())
+              current = ''
+            } else {
+              current += char
+            }
+          }
+          values.push(current.trim())
+
+          // Map according to current mapping
+          for (const [field, header] of Object.entries(mapping)) {
+            if (header) {
+              const headerIndex = headers.indexOf(header)
+              if (headerIndex !== -1 && values[headerIndex] !== undefined) {
+                firstDataRow[field] = values[headerIndex]
+              }
+            }
+          }
+        }
+      }
+
+      return firstDataRow
+    } catch (error) {
+      console.error('Failed to get preview row:', error)
+      return null
+    }
+  }
+
   // Import/Export handlers
   const handleImport = async () => {
     const res = await window.cs2.importSelect()
@@ -845,14 +1285,51 @@ export default function App() {
       return
     }
 
-    const delimiter = fileRes.ext === '.tsv' ? '\t' : ','
-    const parsed = parseCSV(fileRes.content, delimiter)
+    // Extract headers from file
+    const headers = extractHeaders(fileRes.content, fileRes.ext)
 
-    if (parsed.length === 0) {
-      alert('No valid check data found in file. Make sure your file has columns for: Date, Payee, Amount, Memo')
+    if (headers.length === 0) {
+      alert('No headers found in file. Make sure your file has a header row.')
       return
     }
 
+    // Auto-detect column mapping
+    const detectedMapping = autoDetectMapping(headers)
+
+    // Store raw file data and show mapping modal
+    setRawFileData(fileRes.content)
+    setFileExtension(fileRes.ext)
+    setFileHeaders(headers)
+    setColumnMapping(detectedMapping)
+    setPreviewRow(getPreviewRow(fileRes.content, fileRes.ext, detectedMapping))
+    setShowColumnMapping(true)
+  }
+
+  // Process file with user-confirmed column mapping
+  const processImportWithMapping = () => {
+    // Validate that at least payee or amount is mapped
+    if (!columnMapping.payee && !columnMapping.amount) {
+      alert('Please map at least Payee or Amount field to continue.')
+      return
+    }
+
+    let parsed = []
+
+    // Parse based on file type with custom mapping
+    if (fileExtension === '.xlsx' || fileExtension === '.xls') {
+      parsed = parseExcelWithMapping(rawFileData, columnMapping)
+    } else {
+      const delimiter = fileExtension === '.tsv' ? '\t' : ','
+      parsed = parseCSVWithMapping(rawFileData, delimiter, columnMapping)
+    }
+
+    if (parsed.length === 0) {
+      alert('No valid check data found in file.')
+      return
+    }
+
+    // Close mapping modal and show import queue
+    setShowColumnMapping(false)
     setImportQueue(parsed.map((item, idx) => ({ ...item, id: generateId(), index: idx })))
     setShowImportQueue(true)
   }
@@ -1034,6 +1511,128 @@ export default function App() {
 
   const clearQueue = () => {
     setImportQueue([])
+  }
+
+  const handleBatchPrintAndRecord = async () => {
+    if (importQueue.length === 0) return
+
+    if (!confirm(`Print and record ${importQueue.length} checks? This will print each check and deduct amounts from your ledger balance.`)) {
+      return
+    }
+
+    // Initialize batch print state
+    setIsBatchPrinting(true)
+    setBatchPrintCancelled(false)
+    setBatchPrintProgress({ current: 0, total: importQueue.length })
+
+    let processed = 0
+    let newBalance = ledgerBalance
+    const newHistory = [...checkHistory]
+
+    // Create a copy of the queue to iterate through
+    const queueCopy = [...importQueue]
+
+    for (let i = 0; i < queueCopy.length; i++) {
+      // Check if user cancelled
+      if (batchPrintCancelled) {
+        break
+      }
+
+      const item = queueCopy[i]
+      const amount = sanitizeCurrencyInput(item.amount)
+
+      // Skip invalid items
+      if (amount <= 0 || !item.payee?.trim()) {
+        setBatchPrintProgress({ current: i + 1, total: queueCopy.length })
+        continue
+      }
+
+      // Update progress
+      setBatchPrintProgress({ current: i + 1, total: queueCopy.length })
+
+      // Load check data into the form for printing
+      setData({
+        date: item.date || new Date().toISOString().slice(0, 10),
+        payee: item.payee,
+        amount: item.amount,
+        amountWords: numberToWords(item.amount),
+        memo: item.memo || '',
+        external_memo: item.external_memo || '',
+        internal_memo: item.internal_memo || '',
+        line_items: item.line_items || [],
+        line_items_text: item.line_items_text || '',
+        ledger_snapshot: null
+      })
+
+      // Wait a brief moment for the UI to update with the new data
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // Trigger print
+      setIsPrinting(true)
+      try {
+        const res = await window.cs2.printDialog()
+        if (res?.success === false) {
+          console.error(`Print failed for ${item.payee}:`, res.error)
+          // Continue even if print fails - user might have cancelled
+        }
+      } catch (error) {
+        console.error(`Print error for ${item.payee}:`, error)
+      }
+      setIsPrinting(false)
+
+      // Wait for printer spooler to receive the job
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Record to ledger/history
+      const previousBalance = newBalance
+      newBalance -= amount
+      newHistory.unshift({
+        id: generateId(),
+        date: item.date || new Date().toISOString().slice(0, 10),
+        payee: item.payee,
+        amount: amount,
+        memo: item.memo || '',
+        external_memo: item.external_memo || '',
+        internal_memo: item.internal_memo || '',
+        line_items: item.line_items || [],
+        line_items_text: item.line_items_text || '',
+        ledgerId: activeLedgerId,
+        profileId: activeProfileId,
+        ledgerName: ledgers.find(l => l.id === activeLedgerId)?.name || '',
+        profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
+        ledger_snapshot: {
+          previous_balance: previousBalance,
+          transaction_amount: amount,
+          new_balance: newBalance
+        },
+        timestamp: Date.now(),
+        balanceAfter: newBalance
+      })
+      processed++
+    }
+
+    // Update ledger and history
+    updateLedgerBalance(activeLedgerId, newBalance)
+    setCheckHistory(newHistory)
+
+    // Clear the queue and reset batch state
+    setImportQueue([])
+    setIsBatchPrinting(false)
+    setBatchPrintProgress({ current: 0, total: 0 })
+
+    // Show completion message
+    if (batchPrintCancelled) {
+      alert(`Batch print cancelled. Processed ${processed} of ${queueCopy.length} checks.`)
+    } else {
+      alert(`Successfully printed and recorded ${processed} checks.`)
+      setShowImportQueue(false)
+    }
+  }
+
+  const cancelBatchPrint = () => {
+    if (confirm('Cancel the batch print operation? Already processed checks will remain recorded.')) {
+      setBatchPrintCancelled(true)
+    }
   }
 
   const paperStyle = useMemo(() => {
@@ -1385,7 +1984,7 @@ export default function App() {
             onClick={() => { setShowHistory(true); setShowLedger(false); }}
           >
             <span className="tab-label">History</span>
-            <span className="tab-value">{checkHistory.length}</span>
+            <span className="tab-value">{checkHistory.filter(c => c.ledgerId === activeLedgerId).length}</span>
           </button>
         </div>
 
@@ -1423,6 +2022,236 @@ export default function App() {
 
       <div className="layout">
         <div className="side">
+          {/* Unified Ledger Widget - Always Visible */}
+          <section className="section">
+            <div className="card" style={{ padding: '20px', marginBottom: '16px' }}>
+              {/* Active Ledger Selector */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <select
+                    className="profile-select"
+                    value={activeLedgerId}
+                    onChange={(e) => setActiveLedgerId(e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    {ledgers.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn-icon"
+                    onClick={() => setShowLedgerManager(!showLedgerManager)}
+                    title="Manage ledgers"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Ledger Manager */}
+                {showLedgerManager && (
+                  <div className="profile-manager" style={{ marginTop: '12px' }}>
+                    <div className="profile-list">
+                      {ledgers.map(l => (
+                        <div key={l.id} className={`profile-item ${l.id === activeLedgerId ? 'active' : ''}`}>
+                          {editingLedgerName === l.id ? (
+                            <input
+                              className="profile-name-input"
+                              defaultValue={l.name}
+                              autoFocus
+                              onBlur={(e) => {
+                                if (e.target.value.trim()) {
+                                  renameLedger(l.id, e.target.value.trim())
+                                } else {
+                                  setEditingLedgerName(null)
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                  renameLedger(l.id, e.target.value.trim())
+                                } else if (e.key === 'Escape') {
+                                  setEditingLedgerName(null)
+                                }
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <span className="profile-name" onClick={() => setEditingLedgerName(l.id)}>
+                                {l.name}
+                              </span>
+                              {ledgers.length > 1 && (
+                                <button
+                                  className="profile-delete"
+                                  onClick={() => deleteLedger(l.id)}
+                                  title="Delete ledger"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button className="btn btn-sm full-width" onClick={createNewLedger}>
+                      <PlusIcon /> New Ledger
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Balance Display */}
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '16px', marginBottom: '16px' }}>
+                {editingBalance ? (
+                  <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'center'
+                  }}>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={tempBalance}
+                      onChange={(e) => setTempBalance(e.target.value)}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') updateBalance()
+                        if (e.key === 'Escape') setEditingBalance(false)
+                      }}
+                      placeholder="0.00"
+                      style={{
+                        flexGrow: 1,
+                        padding: '8px 12px',
+                        fontSize: '16px',
+                        backgroundColor: '#1e293b',
+                        color: '#f1f5f9',
+                        border: '1px solid #475569',
+                        borderRadius: '6px'
+                      }}
+                    />
+                    <button
+                      className="btn btn-sm"
+                      onClick={updateBalance}
+                      style={{
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        padding: '8px 16px'
+                      }}
+                    >
+                      <CheckIcon /> Update
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => { setTempBalance(ledgerBalance.toString()); setEditingBalance(true) }}
+                    style={{ cursor: 'pointer', textAlign: 'center' }}
+                  >
+                    <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Current Balance</div>
+                    <div style={{
+                      fontSize: '32px',
+                      fontWeight: '700',
+                      color: ledgerBalance < 0 ? '#ef4444' : '#10b981',
+                      marginBottom: '4px'
+                    }}>
+                      {formatCurrency(ledgerBalance)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>Click to edit</div>
+                  </div>
+                )}
+
+                {pendingAmount > 0 && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    backgroundColor: isOverdrawn ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    border: isOverdrawn ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                    color: '#e2e8f0'
+                  }}>
+                    <span>After this check:</span>
+                    <span style={{ color: isOverdrawn ? '#f87171' : '#34d399', fontWeight: '600' }}>
+                      {formatCurrency(projectedBalance)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Recent History */}
+              <div style={{ borderTop: '1px solid #334155', paddingTop: '16px' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>
+                  Recent Activity
+                </h4>
+                {checkHistory.filter(c => c.ledgerId === activeLedgerId).length === 0 ? (
+                  <div style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>
+                    No recent activity
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                    {checkHistory.filter(c => c.ledgerId === activeLedgerId).slice(0, 2).map(entry => (
+                      <div key={entry.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 10px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: '500', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {entry.payee}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                            {formatDate(entry.date)}
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: '600', color: '#f87171', whiteSpace: 'nowrap' }}>
+                          -{formatCurrency(entry.amount)}
+                        </div>
+                        <button
+                          onClick={() => deleteHistoryEntry(entry.id)}
+                          title="Delete and restore amount"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            color: '#64748b',
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* View History Button */}
+                {checkHistory.filter(c => c.ledgerId === activeLedgerId).length > 0 && (
+                  <button
+                    className="btn btn-sm full-width"
+                    onClick={() => { setShowHistory(true); setShowLedger(false); }}
+                  >
+                    View Full History ({checkHistory.filter(c => c.ledgerId === activeLedgerId).length})
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+
           {/* Import Queue Panel */}
           {showImportQueue && importQueue.length > 0 && (
             <section className="section-import">
@@ -1433,6 +2262,14 @@ export default function App() {
                 </div>
 
                 <div className="import-actions">
+                  <button className="btn btn-sm primary" onClick={handleBatchPrintAndRecord}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+                      <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Print & Record All
+                  </button>
                   <button className="btn btn-sm" onClick={processAllQueue}>
                     <CheckIcon /> Record All
                   </button>
@@ -1459,176 +2296,6 @@ export default function App() {
               </div>
             </section>
           )}
-
-          {/* Ledger Panel */}
-          {showLedger && (
-            <section className="section-ledger">
-              <div className="card card-ledger">
-                <div className="ledger-header">
-                  <h2>Ledger</h2>
-                  <button className="btn-icon" onClick={() => setShowLedger(false)}>×</button>
-                </div>
-
-                <div className="balance-display">
-                  {editingBalance ? (
-                    <div className="balance-edit">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={tempBalance}
-                        onChange={(e) => setTempBalance(e.target.value)}
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') updateBalance()
-                          if (e.key === 'Escape') setEditingBalance(false)
-                        }}
-                        placeholder="0.00"
-                      />
-                      <button className="btn-sm" onClick={updateBalance}><CheckIcon /></button>
-                    </div>
-                  ) : (
-                    <div className="balance-view" onClick={() => { setTempBalance(ledgerBalance.toString()); setEditingBalance(true) }}>
-                      <div className="balance-label">Current Balance</div>
-                      <div className={`balance-value ${ledgerBalance < 0 ? 'negative' : ''}`}>
-                        {formatCurrency(ledgerBalance)}
-                      </div>
-                      <div className="balance-hint">Click to edit</div>
-                    </div>
-                  )}
-                </div>
-
-                {pendingAmount > 0 && (
-                  <div className={`pending-deduction ${isOverdrawn ? 'overdrawn' : ''}`}>
-                    <span>After this check:</span>
-                    <span>{formatCurrency(projectedBalance)}</span>
-                  </div>
-                )}
-
-                <div className="history-section">
-                  <div className="history-header">
-                    <h3>Check History</h3>
-                  </div>
-                  {checkHistory.length > 0 && (
-                    <button className="btn btn-sm full-width" onClick={() => { setShowHistory(true); setShowLedger(false); }} style={{ marginBottom: '12px' }}>
-                      View History
-                    </button>
-                  )}
-                  {checkHistory.length === 0 ? (
-                    <div className="history-empty">No checks recorded yet</div>
-                  ) : (
-                    <div className="history-list">
-                      {checkHistory.map(entry => (
-                        <div key={entry.id} className="history-item">
-                          <div className="history-main">
-                            <div className="history-payee">{entry.payee}</div>
-                            <div className="history-amount">-{formatCurrency(entry.amount)}</div>
-                          </div>
-                          <div className="history-meta">
-                            <span>{formatDate(entry.date)}</span>
-                            {entry.memo && <span className="history-memo">{entry.memo}</span>}
-                          </div>
-                          <button className="history-delete" onClick={() => deleteHistoryEntry(entry.id)} title="Delete and restore amount">
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Ledger Selector */}
-          <section className="section">
-            <h3>Active Ledger</h3>
-            <div className="profile-bar">
-              <select
-                className="profile-select"
-                value={activeLedgerId}
-                onChange={(e) => setActiveLedgerId(e.target.value)}
-              >
-                {ledgers.map(l => (
-                  <option key={l.id} value={l.id}>{l.name} ({formatCurrency(l.balance)})</option>
-                ))}
-              </select>
-              <button className="btn-icon" onClick={() => setShowLedgerManager(!showLedgerManager)} title="Manage ledgers">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
-                  <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                  <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
-                </svg>
-              </button>
-            </div>
-
-            {showLedgerManager && (
-              <div className="profile-manager">
-                <div className="profile-list">
-                  {ledgers.map(l => (
-                    <div key={l.id} className={`profile-item ${l.id === activeLedgerId ? 'active' : ''}`}>
-                      {editingLedgerName === l.id ? (
-                        <input
-                          className="profile-name-input"
-                          defaultValue={l.name}
-                          autoFocus
-                          onBlur={(e) => {
-                            if (e.target.value.trim()) {
-                              renameLedger(l.id, e.target.value.trim())
-                            } else {
-                              setEditingLedgerName(null)
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && e.target.value.trim()) {
-                              renameLedger(l.id, e.target.value.trim())
-                            } else if (e.key === 'Escape') {
-                              setEditingLedgerName(null)
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="profile-name"
-                          onClick={() => setActiveLedgerId(l.id)}
-                        >
-                          {l.name} ({formatCurrency(l.balance)})
-                        </span>
-                      )}
-                      <div className="profile-actions">
-                        <button
-                          className="btn-icon-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditingLedgerName(l.id)
-                          }}
-                          title="Rename"
-                        >
-                          ✎
-                        </button>
-                        {ledgers.length > 1 && (
-                          <button
-                            className="btn-icon-sm danger"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteLedger(l.id)
-                            }}
-                            title="Delete"
-                          >
-                            <TrashIcon />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="profile-footer">
-                  <button className="btn btn-sm full-width" onClick={createNewLedger}>
-                    <PlusIcon /> New Ledger
-                  </button>
-                </div>
-              </div>
-            )}
-          </section>
 
           {/* Profile Selector */}
           {!preferences.adminLocked && (
@@ -2682,6 +3349,231 @@ export default function App() {
         </div>
       )}
 
+      {/* Batch Print Progress Modal */}
+      {isBatchPrinting && (
+        <div className="modal-overlay">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Batch Print & Record</h2>
+            </div>
+            <div className="modal-body" style={{ padding: '24px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '16px', marginBottom: '8px' }}>
+                  Printing check {batchPrintProgress.current} of {batchPrintProgress.total}...
+                </p>
+                <div style={{
+                  width: '100%',
+                  height: '24px',
+                  backgroundColor: '#e5e7eb',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{
+                    width: `${(batchPrintProgress.current / batchPrintProgress.total) * 100}%`,
+                    height: '100%',
+                    backgroundColor: '#3b82f6',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                <p style={{ fontSize: '14px', color: '#6b7280' }}>
+                  Please wait while each check is printed and recorded. Do not close this window.
+                </p>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button
+                  className="btn danger"
+                  onClick={cancelBatchPrint}
+                  style={{ minWidth: '120px' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Column Mapping Modal */}
+      {showColumnMapping && (
+        <div className="modal-overlay">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+            <div className="modal-header">
+              <h2>Map Import Columns</h2>
+              <button className="btn-icon" onClick={() => setShowColumnMapping(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '20px', color: '#6b7280' }}>
+                Match your file's columns to the check fields. We've auto-detected likely matches, but you can adjust them below.
+              </p>
+
+              <div style={{ display: 'grid', gap: '16px' }}>
+                {/* Date Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>Date:</label>
+                  <select
+                    value={columnMapping.date}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, date: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Skip this field)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Payee Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>Payee: *</label>
+                  <select
+                    value={columnMapping.payee}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, payee: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Skip this field)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>Amount: *</label>
+                  <select
+                    value={columnMapping.amount}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, amount: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Skip this field)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Memo Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>Memo:</label>
+                  <select
+                    value={columnMapping.memo}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, memo: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Skip this field)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* External Memo Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>External Memo:</label>
+                  <select
+                    value={columnMapping.external_memo}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, external_memo: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Skip this field)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Internal Memo Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>Internal Memo:</label>
+                  <select
+                    value={columnMapping.internal_memo}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, internal_memo: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Skip this field)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '12px' }}>
+                * At least one of Payee or Amount must be mapped
+              </p>
+
+              {/* Preview Section */}
+              {previewRow && (
+                <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Preview (First Row)</h3>
+                  <div style={{ display: 'grid', gap: '8px', fontSize: '13px' }}>
+                    {previewRow.date && (
+                      <div><strong>Date:</strong> {previewRow.date}</div>
+                    )}
+                    {previewRow.payee && (
+                      <div><strong>Payee:</strong> {previewRow.payee}</div>
+                    )}
+                    {previewRow.amount && (
+                      <div><strong>Amount:</strong> ${previewRow.amount}</div>
+                    )}
+                    {previewRow.memo && (
+                      <div><strong>Memo:</strong> {previewRow.memo}</div>
+                    )}
+                    {previewRow.external_memo && (
+                      <div><strong>External Memo:</strong> {previewRow.external_memo}</div>
+                    )}
+                    {previewRow.internal_memo && (
+                      <div><strong>Internal Memo:</strong> {previewRow.internal_memo}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+                <button
+                  className="btn"
+                  onClick={() => setShowColumnMapping(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn primary"
+                  onClick={processImportWithMapping}
+                >
+                  Import
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export Dialog Modal */}
       {showExportDialog && (
         <div className="modal-overlay" onClick={() => setShowExportDialog(false)}>
@@ -2778,11 +3670,11 @@ export default function App() {
         <div className="modal-overlay history-modal-overlay" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>
           <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="history-modal-header">
-              <h2>Check History ({checkHistory.length})</h2>
+              <h2>Check History - {activeLedger?.name} ({checkHistory.filter(c => c.ledgerId === activeLedgerId).length})</h2>
               <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
             </div>
 
-            {checkHistory.length === 0 ? (
+            {checkHistory.filter(c => c.ledgerId === activeLedgerId).length === 0 ? (
               <div className="history-empty-state">
                 <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
                   <path d="M32 8L8 20V42C8 51.9 18.8 56 32 56C45.2 56 56 51.9 56 42V20L32 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.3"/>
@@ -2793,7 +3685,7 @@ export default function App() {
             ) : (
               <div className="history-modal-body">
                 <div className="history-list-column">
-                  {checkHistory.map(entry => {
+                  {checkHistory.filter(c => c.ledgerId === activeLedgerId).map(entry => {
                     const ledger = ledgers.find(l => l.id === entry.ledgerId)
                     const profile = profiles.find(p => p.id === entry.profileId)
                     return (

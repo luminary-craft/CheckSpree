@@ -13,7 +13,8 @@
   "dependencies": {
     "electron": "^33.4.11",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.2",
@@ -21,4 +22,3 @@
     "vite": "^7.3.1"
   }
 }
-
