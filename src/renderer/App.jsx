@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { numberToWords } from '../shared/numberToWords'
 import * as XLSX from 'xlsx'
+import UpdateNotification from './UpdateNotification'
 
 const PX_PER_IN = 96
 
@@ -4569,6 +4570,9 @@ export default function App() {
           {toast.message}
         </div>
       )}
+
+      {/* Update Notification */}
+      <UpdateNotification />
     </div>
   )
 }

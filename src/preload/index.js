@@ -16,5 +16,16 @@ contextBridge.exposeInMainWorld('cs2', {
   previewPdf: () => ipcRenderer.invoke('print:previewPdf'),
 
   // Backup
-  backupSave: () => ipcRenderer.invoke('backup:save')
+  backupSave: () => ipcRenderer.invoke('backup:save'),
+
+  // Auto-Updater
+  updaterCheck: () => ipcRenderer.invoke('updater:check'),
+  updaterDownload: () => ipcRenderer.invoke('updater:download'),
+  updaterInstall: () => ipcRenderer.invoke('updater:install'),
+  onUpdateStatus: (callback) => {
+    const subscription = (_event, data) => callback(data)
+    ipcRenderer.on('update-status', subscription)
+    // Return cleanup function
+    return () => ipcRenderer.removeListener('update-status', subscription)
+  }
 })

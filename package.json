@@ -13,6 +13,8 @@
     "build:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "xlsx": "^0.18.5"
@@ -63,6 +65,13 @@
     },
     "portable": {
       "artifactName": "CheckSpree-Portable.exe"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "luminary-craft",
+        "repo": "CheckSpree"
+      }
+    ]
   }
 }

@@ -2,9 +2,18 @@ const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('ele
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
+const { autoUpdater } = require('electron-updater')
+const log = require('electron-log')
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null
+
+// Configure logging for auto-updater
+log.transports.file.level = 'info'
+autoUpdater.logger = log
+
+// Disable auto-download - we'll trigger it manually when user confirms
+autoUpdater.autoDownload = false
 
 function getUserDataFile() {
   return path.join(app.getPath('userData'), 'checkspree2.settings.json')
@@ -342,5 +351,106 @@ ipcMain.handle('backup:save', async () => {
     return { success: true, path: result.filePath }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// ==================== Auto-Updater ====================
+
+// Auto-updater event handlers
+autoUpdater.on('checking-for-update', () => {
+  log.info('Checking for updates...')
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', { type: 'checking' })
+  }
+})
+
+autoUpdater.on('update-available', (info) => {
+  log.info('Update available:', info)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'available',
+      version: info.version
+    })
+  }
+})
+
+autoUpdater.on('update-not-available', (info) => {
+  log.info('Update not available:', info)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', { type: 'not-available' })
+  }
+})
+
+autoUpdater.on('download-progress', (progressObj) => {
+  log.info('Download progress:', progressObj.percent)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'downloading',
+      percent: Math.round(progressObj.percent)
+    })
+  }
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info('Update downloaded:', info)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'downloaded',
+      version: info.version
+    })
+  }
+})
+
+autoUpdater.on('error', (err) => {
+  log.error('Update error:', err)
+  if (mainWindow) {
+    mainWindow.webContents.send('update-status', {
+      type: 'error',
+      message: err?.message || String(err)
+    })
+  }
+})
+
+// IPC handlers for update actions
+ipcMain.handle('updater:check', async () => {
+  // Only check for updates in production
+  if (process.env.NODE_ENV === 'development') {
+    log.info('Skipping update check in development mode')
+    return { success: false, error: 'Updates disabled in development mode' }
+  }
+
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    return { success: true, updateInfo: result?.updateInfo }
+  } catch (e) {
+    log.error('Failed to check for updates:', e)
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+ipcMain.handle('updater:download', async () => {
+  try {
+    await autoUpdater.downloadUpdate()
+    return { success: true }
+  } catch (e) {
+    log.error('Failed to download update:', e)
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+ipcMain.handle('updater:install', () => {
+  log.info('Installing update and restarting...')
+  autoUpdater.quitAndInstall()
+})
+
+// Check for updates when app is ready (production only)
+app.on('ready', () => {
+  if (process.env.NODE_ENV !== 'development') {
+    // Check for updates 3 seconds after app starts (gives UI time to load)
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        log.error('Auto-update check failed:', err)
+      })
+    }, 3000)
   }
 })

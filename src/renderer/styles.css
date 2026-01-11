@@ -1998,3 +1998,105 @@ body {
     opacity: 1;
   }
 }
+
+/* Update Notification */
+.update-notification {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 16px 20px;
+  max-width: 380px;
+  z-index: 9999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.update-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.update-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.update-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.update-message {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.update-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 8px 0 4px 0;
+}
+
+.update-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.btn-update {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+}
+
+.btn-update.primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-update.primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-update.secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.btn-update.secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Adjust toast position when update notification is shown */
+.update-notification ~ div[style*="bottom: 24px"] {
+  bottom: 120px !important;
+}
