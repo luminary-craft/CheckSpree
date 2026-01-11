@@ -68,7 +68,8 @@ const DEFAULT_PREFERENCES = {
   stub2ShowApproved: true,
   stub2ShowGLCode: true,
   adminLocked: true,
-  adminPin: '0000'
+  adminPin: '0000',
+  enableSnapping: false
 }
 
 const DEFAULT_MODEL = {
@@ -769,9 +770,6 @@ export default function App() {
       const persisted = await window.cs2.settingsGet()
       if (cancelled) return
 
-      console.log('🔍 Loading persisted settings:', persisted)
-      console.log('📦 Import queue from disk:', persisted?.importQueue)
-
       if (persisted?.model) setModel(normalizeModel(persisted.model))
       if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
       if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
@@ -794,12 +792,9 @@ export default function App() {
         setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true })
       }
       if (persisted?.importQueue && persisted.importQueue.length > 0) {
-        console.log('✅ Setting import queue from disk:', persisted.importQueue)
         setImportQueue(persisted.importQueue)
         // Automatically show the import queue modal if there are items
         setShowImportQueue(true)
-      } else {
-        console.log('⚠️ No import queue found in persisted settings')
       }
     })()
     return () => { cancelled = true }
@@ -807,7 +802,6 @@ export default function App() {
 
   // Immediate save for critical data (importQueue, checkHistory, ledgers)
   useEffect(() => {
-    console.log('💾 Saving settings (immediate) - importQueue length:', importQueue?.length)
     window.cs2.settingsSet({
       model,
       data,
@@ -1320,7 +1314,8 @@ export default function App() {
       amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total', 'cost', 'price'],
       memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
-      internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo']
+      internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
+      ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
     }
 
     const mapping = {
@@ -1329,7 +1324,8 @@ export default function App() {
       amount: '',
       memo: '',
       external_memo: '',
-      internal_memo: ''
+      internal_memo: '',
+      ledger: ''
     }
 
     const normalizedHeaders = headers.map(h => h.trim().toLowerCase())
@@ -1709,6 +1705,37 @@ export default function App() {
     )
   }
 
+  // Helper function to find or create a ledger by name (case-insensitive match)
+  const findOrCreateLedger = (ledgerName) => {
+    if (!ledgerName || !ledgerName.trim()) {
+      return activeLedgerId // Default to active ledger if no name provided
+    }
+
+    const trimmedName = ledgerName.trim()
+
+    // Try to find existing ledger (case-insensitive)
+    const existingLedger = ledgers.find(l =>
+      l.name.toLowerCase() === trimmedName.toLowerCase()
+    )
+
+    if (existingLedger) {
+      return existingLedger.id
+    }
+
+    // Create new ledger if not found
+    const newLedgerId = generateId()
+    const newLedger = {
+      id: newLedgerId,
+      name: trimmedName,
+      balance: 0
+    }
+
+    // Add to ledgers state
+    setLedgers(prev => [...prev, newLedger])
+
+    return newLedgerId
+  }
+
   const executeBatchPrintAndRecord = async () => {
 
     // Initialize batch print state
@@ -1717,8 +1744,13 @@ export default function App() {
     setBatchPrintProgress({ current: 0, total: importQueue.length })
 
     let processed = 0
-    let newBalance = ledgerBalance
     const newHistory = [...checkHistory]
+
+    // Track balances per ledger (ledgerId -> balance)
+    const ledgerBalances = {}
+    ledgers.forEach(l => {
+      ledgerBalances[l.id] = l.balance
+    })
 
     // Create a copy of the queue to iterate through
     const queueCopy = [...importQueue]
@@ -1740,6 +1772,14 @@ export default function App() {
 
       // Update progress
       setBatchPrintProgress({ current: i + 1, total: queueCopy.length })
+
+      // Determine which ledger to use (find or create based on item.ledger)
+      const targetLedgerId = findOrCreateLedger(item.ledger)
+
+      // Initialize balance for newly created ledgers
+      if (ledgerBalances[targetLedgerId] === undefined) {
+        ledgerBalances[targetLedgerId] = 0
+      }
 
       // Normalize the date to YYYY-MM-DD format
       let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
@@ -1793,8 +1833,10 @@ export default function App() {
       await new Promise(resolve => setTimeout(resolve, 2000))
 
       // Record to ledger/history
-      const previousBalance = newBalance
-      newBalance -= amount
+      const previousBalance = ledgerBalances[targetLedgerId]
+      ledgerBalances[targetLedgerId] -= amount
+      const newBalance = ledgerBalances[targetLedgerId]
+
       newHistory.unshift({
         id: generateId(),
         date: item.date || new Date().toISOString().slice(0, 10),
@@ -1805,9 +1847,9 @@ export default function App() {
         internal_memo: item.internal_memo || '',
         line_items: item.line_items || [],
         line_items_text: item.line_items_text || '',
-        ledgerId: activeLedgerId,
+        ledgerId: targetLedgerId,
         profileId: activeProfileId,
-        ledgerName: ledgers.find(l => l.id === activeLedgerId)?.name || '',
+        ledgerName: ledgers.find(l => l.id === targetLedgerId)?.name || '',
         profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
         ledger_snapshot: {
           previous_balance: previousBalance,
@@ -1820,8 +1862,10 @@ export default function App() {
       processed++
     }
 
-    // Update ledger and history
-    updateLedgerBalance(activeLedgerId, newBalance)
+    // Update all affected ledger balances
+    Object.entries(ledgerBalances).forEach(([ledgerId, balance]) => {
+      updateLedgerBalance(ledgerId, balance)
+    })
     setCheckHistory(newHistory)
 
     // Clear the queue and reset batch state
@@ -1876,7 +1920,8 @@ export default function App() {
     }
   }, [model.placement.offsetXIn, model.placement.offsetYIn])
 
-  const snapStepIn = 0.01
+  // Snap to grid: 0.125 inches when enabled, 0.01 inches (fine) when disabled
+  const snapStepIn = preferences.enableSnapping ? 0.125 : 0.01
   const dragRef = useRef(null)
 
   const setField = (key, patch) => {
@@ -2255,6 +2300,17 @@ export default function App() {
                 <span className={`status-dot ${editMode ? 'active' : ''}`} />
                 Edit Layout
               </button>
+              {editMode && (
+                <label className="toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0 12px' }}>
+                  <input
+                    type="checkbox"
+                    checked={preferences.enableSnapping}
+                    onChange={(e) => setPreferences(p => ({ ...p, enableSnapping: e.target.checked }))}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>Snap to Grid</span>
+                </label>
+              )}
             </>
           )}
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
@@ -2455,16 +2511,14 @@ export default function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                     {checkHistory.filter(c => c.ledgerId === activeLedgerId).slice(0, 2).map(entry => (
                       <div key={entry.id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '8px 10px',
+                        position: 'relative',
+                        padding: '8px 40px 8px 10px',
                         backgroundColor: 'rgba(255, 255, 255, 0.05)',
                         borderRadius: '6px',
                         fontSize: '13px',
                         border: '1px solid rgba(255, 255, 255, 0.08)'
                       }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ marginBottom: '4px' }}>
                           <div style={{ fontWeight: '500', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {entry.payee}
                           </div>
@@ -2479,6 +2533,9 @@ export default function App() {
                           onClick={() => deleteHistoryEntry(entry.id)}
                           title="Delete and restore amount"
                           style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
                             background: 'none',
                             border: 'none',
                             cursor: 'pointer',
@@ -2752,7 +2809,12 @@ export default function App() {
                     fontFamily: 'monospace',
                     fontSize: '13px',
                     lineHeight: '1.5',
-                    resize: 'vertical'
+                    resize: 'vertical',
+                    backgroundColor: '#1e293b',
+                    color: '#f1f5f9',
+                    border: '1px solid #475569',
+                    padding: '8px',
+                    borderRadius: '6px'
                   }}
                 />
                 <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
@@ -3389,6 +3451,108 @@ export default function App() {
                   )}
                 </div>
 
+                {/* Draggable Fold Lines (no-print) */}
+                {editMode && model.layout.stub1Enabled && (
+                  <div
+                    className="fold-line no-print"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: `${model.layout.checkHeightIn}in`,
+                      height: '2px',
+                      borderTop: '2px dashed var(--accent)',
+                      cursor: 'ns-resize',
+                      zIndex: 1000
+                    }}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('text/plain', 'fold-line-1')
+                    }}
+                    onDrag={(e) => {
+                      if (e.clientY === 0) return // Ignore invalid drag events
+                      const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
+                      const relativeY = e.clientY - paperRect.top
+                      const yInInches = relativeY / (96 * model.view.zoom)
+
+                      // Constrain between 2.5 and 4.0 inches
+                      const newHeight = Math.max(2.5, Math.min(4.0, yInInches))
+                      setModel(m => ({
+                        ...m,
+                        layout: { ...m.layout, checkHeightIn: newHeight }
+                      }))
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '-8px',
+                      transform: 'translateX(-50%)',
+                      background: 'var(--accent)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      pointerEvents: 'none'
+                    }}>
+                      Check/Stub1 Fold
+                    </div>
+                  </div>
+                )}
+
+                {editMode && model.layout.stub2Enabled && (
+                  <div
+                    className="fold-line no-print"
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
+                      height: '2px',
+                      borderTop: '2px dashed var(--accent)',
+                      cursor: 'ns-resize',
+                      zIndex: 1000
+                    }}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('text/plain', 'fold-line-2')
+                    }}
+                    onDrag={(e) => {
+                      if (e.clientY === 0) return // Ignore invalid drag events
+                      const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
+                      const relativeY = e.clientY - paperRect.top
+                      const yInInches = relativeY / (96 * model.view.zoom)
+                      const checkHeight = model.layout.checkHeightIn
+
+                      // Calculate stub1 height (total Y minus check height)
+                      const newStub1Height = Math.max(2.5, Math.min(4.0, yInInches - checkHeight))
+                      setModel(m => ({
+                        ...m,
+                        layout: { ...m.layout, stub1HeightIn: newStub1Height }
+                      }))
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '-8px',
+                      transform: 'translateX(-50%)',
+                      background: 'var(--accent)',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      pointerEvents: 'none'
+                    }}>
+                      Stub1/Stub2 Fold
+                    </div>
+                  </div>
+                )}
+
                 {Object.entries(model.fields).map(([key, f]) => {
                   // Check if this field belongs to a disabled stub
                   const isStub1Field = key.startsWith('stub1_')
@@ -3411,6 +3575,14 @@ export default function App() {
                   // Special handling for date formatting (check and stubs)
                   if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
                     value = formatDateByPreference(value, preferences)
+                  }
+
+                  // Special handling for amount fields - format with commas (1,250.00)
+                  if ((key === 'amount' || key === 'stub1_amount' || key === 'stub2_amount') && value) {
+                    const numValue = parseFloat(value)
+                    if (!isNaN(numValue)) {
+                      value = numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    }
                   }
 
                   // Special handling for smart stub fields
@@ -3445,13 +3617,31 @@ export default function App() {
                     (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
                   )
 
+                  // Calculate actual Y position for stub fields (they should stay pinned to their stub section)
+                  // When stubs are created, fields get Y positions like checkHeight + 0.25
+                  // We need to extract the relative offset and re-apply it to the current stub position
+                  let actualY = f.y
+                  if (isStub1Field) {
+                    // Stub1 starts at checkHeightIn
+                    // Find what the stub1 start was when this field was created (use 3.0 as default check height)
+                    const originalStub1Start = 3.0
+                    const relativeY = f.y - originalStub1Start
+                    actualY = model.layout.checkHeightIn + relativeY
+                  } else if (isStub2Field) {
+                    // Stub2 starts at checkHeightIn + stub1HeightIn
+                    // Find what the stub2 start was when this field was created
+                    const originalStub2Start = 3.0 + 3.0 // default check + default stub1
+                    const relativeY = f.y - originalStub2Start
+                    actualY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
+                  }
+
                   return (
                     <div
                       key={key}
                       className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
                       style={{
                         left: `${f.x}in`,
-                        top: `${f.y}in`,
+                        top: `${actualY}in`,
                         width: `${f.w}in`,
                         height: `${f.h}in`
                       }}
@@ -4014,6 +4204,25 @@ export default function App() {
                     ))}
                   </select>
                 </div>
+
+                {/* Ledger Field */}
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                  <label style={{ fontWeight: '600' }}>Ledger:</label>
+                  <select
+                    value={columnMapping.ledger}
+                    onChange={(e) => {
+                      const newMapping = { ...columnMapping, ledger: e.target.value }
+                      setColumnMapping(newMapping)
+                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                    }}
+                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                  >
+                    <option value="">(Use active ledger)</option>
+                    {fileHeaders.map(header => (
+                      <option key={header} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '12px' }}>
@@ -4048,6 +4257,9 @@ export default function App() {
                     )}
                     {previewRow.internal_memo && (
                       <div><strong>Internal Memo:</strong> {previewRow.internal_memo}</div>
+                    )}
+                    {previewRow.ledger && (
+                      <div><strong>Ledger:</strong> {previewRow.ledger}</div>
                     )}
                   </div>
                 </div>
@@ -4118,7 +4330,14 @@ export default function App() {
                   <select
                     value={exportDateRange}
                     onChange={(e) => setExportDateRange(e.target.value)}
-                    style={{ width: '100%' }}
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#1e293b',
+                      color: '#f1f5f9',
+                      border: '1px solid #475569',
+                      padding: '8px',
+                      borderRadius: '6px'
+                    }}
                   >
                     <option value="all">All Time</option>
                     <option value="custom">Custom Range</option>
@@ -4227,7 +4446,7 @@ export default function App() {
                   <div className="history-detail-column">
                     <div className="history-detail-header">
                       <h3>Check Details</h3>
-                      <button className="btn btn-sm" onClick={() => setSelectedHistoryItem(null)}>
+                      <button className="btn btn-sm" onClick={() => setSelectedHistoryItem(null)} style={{ minWidth: 'fit-content', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
                         Close Preview
                       </button>
                     </div>

@@ -36,6 +36,28 @@ body {
   overflow: hidden;
 }
 
+/* ===== Global Scrollbar Styling ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px; /* For horizontal scrollbars */
+}
+
+/* The Track (Background) */
+::-webkit-scrollbar-track {
+  background: transparent; /* Or a very dark grey like #0f172a */
+}
+
+/* The Thumb (The moving part) */
+::-webkit-scrollbar-thumb {
+  background: #334155; /* Slate-700 */
+  border-radius: 4px;
+}
+
+/* Hover State */
+::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* Slate-600 */
+}
+
 /* ===== App Container ===== */
 .app {
   display: flex;
