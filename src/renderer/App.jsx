@@ -4572,7 +4572,7 @@ export default function App() {
       )}
 
       {/* Update Notification */}
-      <UpdateNotification />
+      <UpdateNotification isAdmin={!preferences.adminLocked} />
     </div>
   )
 }
