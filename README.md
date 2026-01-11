@@ -1,4 +1,4 @@
-# CheckSpree2
+# CheckSpree
 
 A professional check printing application built with Electron that treats printing as a **physical-units problem** for precise, reliable output.
 
