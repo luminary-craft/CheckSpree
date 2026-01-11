@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('cs2', {
   importRead: (filePath) => ipcRenderer.invoke('import:read', filePath),
   exportHistory: (historyData) => ipcRenderer.invoke('export:history', historyData),
 
-  printDialog: () => ipcRenderer.invoke('print:dialog'),
-  previewPdf: () => ipcRenderer.invoke('print:previewPdf')
+  printDialog: (filename) => ipcRenderer.invoke('print:dialog', filename),
+  previewPdf: () => ipcRenderer.invoke('print:previewPdf'),
+
+  // Backup
+  backupSave: () => ipcRenderer.invoke('backup:save')
 })

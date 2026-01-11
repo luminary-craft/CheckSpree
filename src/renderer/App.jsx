@@ -726,8 +726,28 @@ export default function App() {
 
   // Admin PIN modal
   const [showPinModal, setShowPinModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
+
+  // Change PIN modal
+  const [showChangePinModal, setShowChangePinModal] = useState(false)
+  const [currentPinInput, setCurrentPinInput] = useState('')
+  const [newPinInput, setNewPinInput] = useState('')
+  const [confirmPinInput, setConfirmPinInput] = useState('')
+  const [changePinError, setChangePinError] = useState('')
+
+  // Generic confirm modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [confirmConfig, setConfirmConfig] = useState({ title: '', message: '', onConfirm: null })
+
+  // Toast notification state
+  const [toast, setToast] = useState(null)
+
+  // Batch completion modal state
+  const [showBatchCompleteModal, setShowBatchCompleteModal] = useState(false)
+  const [batchCompleteData, setBatchCompleteData] = useState({ processed: 0, total: 0, cancelled: false })
 
   const [data, setData] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -748,6 +768,10 @@ export default function App() {
     ;(async () => {
       const persisted = await window.cs2.settingsGet()
       if (cancelled) return
+
+      console.log('🔍 Loading persisted settings:', persisted)
+      console.log('📦 Import queue from disk:', persisted?.importQueue)
+
       if (persisted?.model) setModel(normalizeModel(persisted.model))
       if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
       if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
@@ -765,12 +789,40 @@ export default function App() {
       }
 
       if (persisted?.checkHistory) setCheckHistory(persisted.checkHistory)
-      if (persisted?.preferences) setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences })
+      if (persisted?.preferences) {
+        // Always force admin to be locked on startup for security
+        setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true })
+      }
+      if (persisted?.importQueue && persisted.importQueue.length > 0) {
+        console.log('✅ Setting import queue from disk:', persisted.importQueue)
+        setImportQueue(persisted.importQueue)
+        // Automatically show the import queue modal if there are items
+        setShowImportQueue(true)
+      } else {
+        console.log('⚠️ No import queue found in persisted settings')
+      }
     })()
     return () => { cancelled = true }
   }, [])
 
-  // Persist settings (debounced)
+  // Immediate save for critical data (importQueue, checkHistory, ledgers)
+  useEffect(() => {
+    console.log('💾 Saving settings (immediate) - importQueue length:', importQueue?.length)
+    window.cs2.settingsSet({
+      model,
+      data,
+      editMode,
+      profiles,
+      activeProfileId,
+      ledgers,
+      activeLedgerId,
+      checkHistory,
+      preferences,
+      importQueue
+    })
+  }, [importQueue, checkHistory, ledgers, activeLedgerId, profiles, activeProfileId])
+
+  // Debounced save for UI state changes (model, data, editMode, preferences)
   useEffect(() => {
     const t = setTimeout(() => {
       window.cs2.settingsSet({
@@ -782,11 +834,12 @@ export default function App() {
         ledgers,
         activeLedgerId,
         checkHistory,
-        preferences
+        preferences,
+        importQueue
       })
     }, 250)
     return () => clearTimeout(t)
-  }, [model, data, editMode, profiles, activeProfileId, ledgers, activeLedgerId, checkHistory, preferences])
+  }, [model, data, editMode, preferences])
 
   // Force exit Edit Layout mode when Admin is locked
   useEffect(() => {
@@ -991,12 +1044,26 @@ export default function App() {
 
   const deleteProfile = (profileId) => {
     if (profiles.length <= 1) return
-    if (!confirm('Delete this profile?')) return
-    const newProfiles = profiles.filter(p => p.id !== profileId)
-    setProfiles(newProfiles)
-    if (activeProfileId === profileId) {
-      loadProfile(newProfiles[0].id)
-    }
+
+    showConfirm('Delete Profile?', 'Are you sure you want to delete this profile?', () => {
+      const newProfiles = profiles.filter(p => p.id !== profileId)
+
+      // If deleting the active profile, switch to another one first
+      if (activeProfileId === profileId) {
+        if (newProfiles.length > 0) {
+          // Select the first remaining profile
+          loadProfile(newProfiles[0].id)
+        } else {
+          // Create and select a new default profile if none remain
+          const defaultProfile = createNewProfile()
+          setProfiles([defaultProfile])
+          loadProfile(defaultProfile.id)
+          return // Early return since we already set the profiles
+        }
+      }
+
+      setProfiles(newProfiles)
+    })
   }
 
   const renameProfile = (profileId, newName) => {
@@ -1027,17 +1094,27 @@ export default function App() {
     }
     const ledger = ledgers.find(l => l.id === ledgerId)
     const checksInLedger = checkHistory.filter(c => c.ledgerId === ledgerId).length
+
     if (checksInLedger > 0) {
-      if (!confirm(`This ledger has ${checksInLedger} checks. Deleting it will also delete all associated checks. Continue?`)) {
-        return
+      showConfirm(
+        'Delete Ledger with Checks?',
+        `This ledger has ${checksInLedger} checks. Deleting it will also delete all associated checks. Continue?`,
+        () => {
+          // Remove checks associated with this ledger
+          setCheckHistory(checkHistory.filter(c => c.ledgerId !== ledgerId))
+          const newLedgers = ledgers.filter(l => l.id !== ledgerId)
+          setLedgers(newLedgers)
+          if (activeLedgerId === ledgerId) {
+            setActiveLedgerId(newLedgers[0].id)
+          }
+        }
+      )
+    } else {
+      const newLedgers = ledgers.filter(l => l.id !== ledgerId)
+      setLedgers(newLedgers)
+      if (activeLedgerId === ledgerId) {
+        setActiveLedgerId(newLedgers[0].id)
       }
-      // Remove checks associated with this ledger
-      setCheckHistory(checkHistory.filter(c => c.ledgerId !== ledgerId))
-    }
-    const newLedgers = ledgers.filter(l => l.id !== ledgerId)
-    setLedgers(newLedgers)
-    if (activeLedgerId === ledgerId) {
-      setActiveLedgerId(newLedgers[0].id)
     }
   }
 
@@ -1092,20 +1169,73 @@ export default function App() {
   const deleteHistoryEntry = (entryId) => {
     const entry = checkHistory.find(e => e.id === entryId)
     if (!entry) return
-    if (!confirm(`Delete check to "${entry.payee}" for ${formatCurrency(entry.amount)}? This will restore the amount to the ledger balance.`)) return
 
-    setCheckHistory(checkHistory.filter(e => e.id !== entryId))
-    // Restore balance to the ledger this check belonged to
-    const ledger = ledgers.find(l => l.id === entry.ledgerId)
-    if (ledger) {
-      updateLedgerBalance(entry.ledgerId, ledger.balance + entry.amount)
+    // Show custom modal instead of native confirm to avoid focus issues
+    setDeleteTarget(entry)
+    setShowDeleteConfirm(true)
+  }
+
+  const confirmDeleteHistoryEntry = () => {
+    if (!deleteTarget) return
+
+    // Use functional updates to ensure we're working with latest state
+    setCheckHistory(prev => prev.filter(e => e.id !== deleteTarget.id))
+
+    // Restore balance using functional update to avoid stale closure
+    setLedgers(prev => {
+      const ledger = prev.find(l => l.id === deleteTarget.ledgerId)
+      if (!ledger) {
+        console.warn(`Ledger ${deleteTarget.ledgerId} not found for deleted check entry`)
+        return prev
+      }
+
+      return prev.map(l =>
+        l.id === deleteTarget.ledgerId
+          ? { ...l, balance: l.balance + deleteTarget.amount }
+          : l
+      )
+    })
+
+    // Close modal and clear target
+    setShowDeleteConfirm(false)
+    setDeleteTarget(null)
+  }
+
+  const cancelDeleteHistoryEntry = () => {
+    setShowDeleteConfirm(false)
+    setDeleteTarget(null)
+  }
+
+  // Generic confirm helper to avoid focus-stealing native confirm()
+  const showConfirm = (title, message, onConfirm) => {
+    setConfirmConfig({ title, message, onConfirm })
+    setShowConfirmModal(true)
+  }
+
+  const handleConfirmModalConfirm = () => {
+    if (confirmConfig.onConfirm) {
+      confirmConfig.onConfirm()
     }
+    setShowConfirmModal(false)
+    setConfirmConfig({ title: '', message: '', onConfirm: null })
+  }
+
+  const handleConfirmModalCancel = () => {
+    setShowConfirmModal(false)
+    setConfirmConfig({ title: '', message: '', onConfirm: null })
   }
 
   const updateBalance = () => {
+    // Validate that we have a valid active ledger
+    if (!activeLedgerId || !ledgers.find(l => l.id === activeLedgerId)) {
+      setEditingBalance(false)
+      return
+    }
+
     const newBal = parseFloat(tempBalance) || 0
     updateLedgerBalance(activeLedgerId, newBal)
     setEditingBalance(false)
+    setTempBalance('')
   }
 
   // Admin PIN authentication
@@ -1132,12 +1262,53 @@ export default function App() {
   }
 
   const handleChangePinRequest = () => {
-    const newPin = prompt('Enter new 4-digit PIN:', preferences.adminPin)
-    if (newPin && /^\d{4}$/.test(newPin)) {
-      setPreferences(p => ({ ...p, adminPin: newPin }))
-      alert('PIN updated successfully')
-    } else if (newPin !== null) {
-      alert('PIN must be exactly 4 digits')
+    setCurrentPinInput('')
+    setNewPinInput('')
+    setConfirmPinInput('')
+    setChangePinError('')
+    setShowChangePinModal(true)
+  }
+
+  const handleChangePinSubmit = () => {
+    // Verify current PIN
+    if (currentPinInput !== preferences.adminPin) {
+      setChangePinError('Current PIN is incorrect')
+      return
+    }
+
+    // Validate new PIN format
+    if (!/^\d{4}$/.test(newPinInput)) {
+      setChangePinError('New PIN must be exactly 4 digits')
+      return
+    }
+
+    // Verify PINs match
+    if (newPinInput !== confirmPinInput) {
+      setChangePinError('New PINs do not match')
+      return
+    }
+
+    // Update PIN
+    setPreferences(p => ({ ...p, adminPin: newPinInput }))
+    setShowChangePinModal(false)
+    showToast('PIN updated successfully', 'success')
+  }
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const handleBackupData = async () => {
+    try {
+      const result = await window.cs2.backupSave()
+      if (result.success) {
+        showToast(`Backup saved: ${result.path}`, 'success')
+      } else {
+        showToast('Backup cancelled or failed', 'error')
+      }
+    } catch (e) {
+      showToast(`Error creating backup: ${e.message}`, 'error')
     }
   }
 
@@ -1467,7 +1638,17 @@ export default function App() {
 
   const processAllQueue = async () => {
     if (importQueue.length === 0) return
-    if (!confirm(`Record ${importQueue.length} checks from import queue? This will deduct from your current ledger balance.`)) return
+
+    showConfirm(
+      'Record All Checks?',
+      `Record ${importQueue.length} checks from import queue? This will deduct from your current ledger balance.`,
+      async () => {
+        await executeProcessAllQueue()
+      }
+    )
+  }
+
+  const executeProcessAllQueue = async () => {
 
     let processed = 0
     let newBalance = ledgerBalance
@@ -1506,7 +1687,10 @@ export default function App() {
     setCheckHistory(newHistory)
     setImportQueue([])
     setShowImportQueue(false)
-    alert(`Recorded ${processed} checks`)
+
+    // Show completion modal instead of alert
+    setBatchCompleteData({ processed, total: importQueue.length, cancelled: false })
+    setShowBatchCompleteModal(true)
   }
 
   const clearQueue = () => {
@@ -1516,9 +1700,16 @@ export default function App() {
   const handleBatchPrintAndRecord = async () => {
     if (importQueue.length === 0) return
 
-    if (!confirm(`Print and record ${importQueue.length} checks? This will print each check and deduct amounts from your ledger balance.`)) {
-      return
-    }
+    showConfirm(
+      'Print & Record All Checks?',
+      `Print and record ${importQueue.length} checks? This will print each check and deduct amounts from your ledger balance.`,
+      async () => {
+        await executeBatchPrintAndRecord()
+      }
+    )
+  }
+
+  const executeBatchPrintAndRecord = async () => {
 
     // Initialize batch print state
     setIsBatchPrinting(true)
@@ -1550,9 +1741,16 @@ export default function App() {
       // Update progress
       setBatchPrintProgress({ current: i + 1, total: queueCopy.length })
 
+      // Normalize the date to YYYY-MM-DD format
+      let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
+      if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+        // Date is not in YYYY-MM-DD format, try to parse it
+        normalizedDate = convertExcelDate(item.date)
+      }
+
       // Load check data into the form for printing
       setData({
-        date: item.date || new Date().toISOString().slice(0, 10),
+        date: normalizedDate,
         payee: item.payee,
         amount: item.amount,
         amountWords: numberToWords(item.amount),
@@ -1567,16 +1765,27 @@ export default function App() {
       // Wait a brief moment for the UI to update with the new data
       await new Promise(resolve => setTimeout(resolve, 300))
 
+      // Set document title for PDF filename
+      const originalTitle = document.title
+      document.title = generatePrintFilename(item)
+
       // Trigger print
       setIsPrinting(true)
       try {
-        const res = await window.cs2.printDialog()
+        const filename = generatePrintFilename(item)
+        const res = await window.cs2.printDialog(filename)
+
+        // Restore original title
+        document.title = originalTitle
+
         if (res?.success === false) {
           console.error(`Print failed for ${item.payee}:`, res.error)
           // Continue even if print fails - user might have cancelled
         }
       } catch (error) {
         console.error(`Print error for ${item.payee}:`, error)
+        // Restore original title on error
+        document.title = originalTitle
       }
       setIsPrinting(false)
 
@@ -1620,19 +1829,23 @@ export default function App() {
     setIsBatchPrinting(false)
     setBatchPrintProgress({ current: 0, total: 0 })
 
-    // Show completion message
-    if (batchPrintCancelled) {
-      alert(`Batch print cancelled. Processed ${processed} of ${queueCopy.length} checks.`)
-    } else {
-      alert(`Successfully printed and recorded ${processed} checks.`)
+    // Show completion modal
+    setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled })
+    setShowBatchCompleteModal(true)
+
+    if (!batchPrintCancelled) {
       setShowImportQueue(false)
     }
   }
 
   const cancelBatchPrint = () => {
-    if (confirm('Cancel the batch print operation? Already processed checks will remain recorded.')) {
-      setBatchPrintCancelled(true)
-    }
+    showConfirm(
+      'Cancel Batch Print?',
+      'Cancel the batch print operation? Already processed checks will remain recorded.',
+      () => {
+        setBatchPrintCancelled(true)
+      }
+    )
   }
 
   const paperStyle = useMemo(() => {
@@ -1820,6 +2033,14 @@ export default function App() {
     setModel((m) => ({ ...m, template: { ...m.template, path: res.path } }))
   }
 
+  // Generate PDF filename from check data
+  const generatePrintFilename = (checkData) => {
+    const payee = (checkData.payee || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_')
+    const date = checkData.date || new Date().toISOString().slice(0, 10)
+    const amount = sanitizeCurrencyInput(checkData.amount).toFixed(2).replace('.', '')
+    return `Check_${payee}_${date}_${amount}`
+  }
+
   const handlePreviewPdf = async () => {
     setIsPrinting(true)
     setTimeout(async () => {
@@ -1831,8 +2052,18 @@ export default function App() {
 
   const handlePrint = async () => {
     setIsPrinting(true)
+
+    // Set document title for PDF filename
+    const originalTitle = document.title
+    document.title = generatePrintFilename(data)
+
     setTimeout(async () => {
-      const res = await window.cs2.printDialog()
+      const filename = generatePrintFilename(data)
+      const res = await window.cs2.printDialog(filename)
+
+      // Restore original title
+      document.title = originalTitle
+
       if (res?.success === false) alert(`Print failed: ${res.error || 'Unknown error'}`)
       setIsPrinting(false)
     }, 250)
@@ -1865,6 +2096,10 @@ export default function App() {
 
     setIsPrinting(true)
 
+    // Set document title for PDF filename
+    const originalTitle = document.title
+    document.title = generatePrintFilename(checkDataSnapshot)
+
     // Small delay to ensure DOM is ready for printing
     setTimeout(async () => {
       try {
@@ -1877,7 +2112,11 @@ export default function App() {
         window.addEventListener('afterprint', handleAfterPrint)
 
         // Open print dialog and wait for it to close
-        const res = await window.cs2.printDialog()
+        const filename = generatePrintFilename(checkDataSnapshot)
+        const res = await window.cs2.printDialog(filename)
+
+        // Restore original title
+        document.title = originalTitle
 
         // Remove the event listener if dialog failed
         if (res?.success === false) {
@@ -1935,8 +2174,13 @@ export default function App() {
   }
 
   const resetModel = () => {
-    if (!confirm('Reset all settings to defaults?')) return
-    setModel(DEFAULT_MODEL)
+    showConfirm(
+      'Reset All Settings?',
+      'Reset all settings to defaults? This cannot be undone.',
+      () => {
+        setModel(DEFAULT_MODEL)
+      }
+    )
   }
 
   const templateName = useMemo(() => {
@@ -2003,10 +2247,15 @@ export default function App() {
             {preferences.adminLocked ? '🔒' : '🔓'} Admin
           </button>
           {!preferences.adminLocked && (
-            <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
-              <span className={`status-dot ${editMode ? 'active' : ''}`} />
-              Edit Layout
-            </button>
+            <>
+              <button className="btn ghost" onClick={handleBackupData} title="Backup all data to file">
+                💾 Backup
+              </button>
+              <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
+                <span className={`status-dot ${editMode ? 'active' : ''}`} />
+                Edit Layout
+              </button>
+            </>
           )}
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           <button className="btn primary" onClick={handlePrintAndRecord}>
@@ -2133,15 +2382,25 @@ export default function App() {
                       }}
                     />
                     <button
-                      className="btn btn-sm"
+                      className="btn-icon"
                       onClick={updateBalance}
+                      title="Save balance"
                       style={{
                         flexShrink: 0,
-                        whiteSpace: 'nowrap',
-                        padding: '8px 16px'
+                        width: '40px',
+                        height: '40px',
+                        padding: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
                       }}
                     >
-                      <CheckIcon /> Update
+                      <CheckIcon />
                     </button>
                   </div>
                 ) : (
@@ -2262,7 +2521,8 @@ export default function App() {
                 </div>
 
                 <div className="import-actions">
-                  <button className="btn btn-sm primary" onClick={handleBatchPrintAndRecord}>
+                  {/* Primary Action - Full Width */}
+                  <button className="btn btn-sm primary full-width" onClick={handleBatchPrintAndRecord}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                       <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
@@ -2270,12 +2530,16 @@ export default function App() {
                     </svg>
                     Print & Record All
                   </button>
-                  <button className="btn btn-sm" onClick={processAllQueue}>
-                    <CheckIcon /> Record All
-                  </button>
-                  <button className="btn btn-sm danger" onClick={clearQueue}>
-                    <TrashIcon /> Clear
-                  </button>
+
+                  {/* Secondary Actions - Split Row */}
+                  <div className="import-actions-row">
+                    <button className="btn btn-sm" onClick={processAllQueue}>
+                      <CheckIcon /> Record Only
+                    </button>
+                    <button className="btn btn-sm danger" onClick={clearQueue}>
+                      <TrashIcon /> Clear Queue
+                    </button>
+                  </div>
                 </div>
 
                 <div className="import-list">
@@ -2297,23 +2561,23 @@ export default function App() {
             </section>
           )}
 
-          {/* Profile Selector */}
-          {!preferences.adminLocked && (
-            <section className="section">
-              <h3>Check Profile</h3>
-              <div className="card">
-                <div className="profile-bar">
-                  <select
-                    className="profile-select"
-                    value={activeProfileId}
-                    onChange={(e) => loadProfile(e.target.value)}
-                  >
-                    {profiles.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.id === activeProfileId && hasUnsavedChanges ? '●' : ''}
-                      </option>
-                    ))}
-                  </select>
+          {/* Profile Selector - Always Visible */}
+          <section className="section">
+            <h3>Check Profile</h3>
+            <div className="card">
+              <div className="profile-bar">
+                <select
+                  className="profile-select"
+                  value={activeProfileId}
+                  onChange={(e) => loadProfile(e.target.value)}
+                >
+                  {profiles.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.id === activeProfileId && hasUnsavedChanges ? '●' : ''}
+                    </option>
+                  ))}
+                </select>
+                {!preferences.adminLocked && (
                   <button className="btn-icon" onClick={() => setShowProfileManager(!showProfileManager)} title="Rename or delete profiles">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
@@ -2321,85 +2585,89 @@ export default function App() {
                       <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
                     </svg>
                   </button>
-                </div>
-
-                {/* Side-by-side action buttons */}
-                <div className="profile-actions-bar">
-                  <button className="btn btn-sm" onClick={createNewProfile}>
-                    <PlusIcon /> New
-                  </button>
-                  <button
-                    className={`btn btn-sm ${profileSaved ? 'success' : hasUnsavedChanges ? 'primary pulse' : 'primary'}`}
-                    onClick={saveCurrentProfile}
-                  >
-                    {hasUnsavedChanges && <span className="unsaved-dot">●</span>}
-                    <CheckIcon /> {profileSaved ? 'Saved!' : 'Save'}
-                  </button>
-                </div>
-
-                {/* Collapsible profile manager for rename/delete */}
-                {showProfileManager && (
-                  <div className="profile-manager" style={{ marginTop: '12px' }}>
-                    <div className="profile-list">
-                      {profiles.map(p => (
-                        <div key={p.id} className={`profile-item ${p.id === activeProfileId ? 'active' : ''}`}>
-                          {editingProfileName === p.id ? (
-                            <input
-                              className="profile-name-input"
-                              defaultValue={p.name}
-                              autoFocus
-                              onBlur={(e) => {
-                                if (e.target.value.trim()) {
-                                  renameProfile(p.id, e.target.value.trim())
-                                } else {
-                                  setEditingProfileName(null)
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && e.target.value.trim()) {
-                                  renameProfile(p.id, e.target.value.trim())
-                                } else if (e.key === 'Escape') {
-                                  setEditingProfileName(null)
-                                }
-                              }}
-                            />
-                          ) : (
-                            <span className="profile-name">
-                              {p.name}
-                            </span>
-                          )}
-                          <div className="profile-actions">
-                            <button
-                              className="btn-icon-sm"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingProfileName(p.id)
-                              }}
-                              title="Rename"
-                            >
-                              ✎
-                            </button>
-                            {profiles.length > 1 && (
-                              <button
-                                className="btn-icon-sm danger"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  deleteProfile(p.id)
-                                }}
-                                title="Delete"
-                              >
-                                <TrashIcon />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 )}
               </div>
-            </section>
-          )}
+
+              {/* Admin-only action buttons */}
+              {!preferences.adminLocked && (
+                <>
+                  <div className="profile-actions-bar">
+                    <button className="btn btn-sm" onClick={createNewProfile}>
+                      <PlusIcon /> New
+                    </button>
+                    <button
+                      className={`btn btn-sm ${profileSaved ? 'success' : hasUnsavedChanges ? 'primary pulse' : 'primary'}`}
+                      onClick={saveCurrentProfile}
+                    >
+                      {hasUnsavedChanges && <span className="unsaved-dot">●</span>}
+                      <CheckIcon /> {profileSaved ? 'Saved!' : 'Save'}
+                    </button>
+                  </div>
+
+                  {/* Collapsible profile manager for rename/delete */}
+                  {showProfileManager && (
+                    <div className="profile-manager" style={{ marginTop: '12px' }}>
+                      <div className="profile-list">
+                        {profiles.map(p => (
+                          <div key={p.id} className={`profile-item ${p.id === activeProfileId ? 'active' : ''}`}>
+                            {editingProfileName === p.id ? (
+                              <input
+                                className="profile-name-input"
+                                defaultValue={p.name}
+                                autoFocus
+                                onBlur={(e) => {
+                                  if (e.target.value.trim()) {
+                                    renameProfile(p.id, e.target.value.trim())
+                                  } else {
+                                    setEditingProfileName(null)
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && e.target.value.trim()) {
+                                    renameProfile(p.id, e.target.value.trim())
+                                  } else if (e.key === 'Escape') {
+                                    setEditingProfileName(null)
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span className="profile-name">
+                                {p.name}
+                              </span>
+                            )}
+                            <div className="profile-actions">
+                              <button
+                                className="btn-icon-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingProfileName(p.id)
+                                }}
+                                title="Rename"
+                              >
+                                ✎
+                              </button>
+                              {profiles.length > 1 && (
+                                <button
+                                  className="btn-icon-sm danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    deleteProfile(p.id)
+                                  }}
+                                  title="Delete"
+                                >
+                                  <TrashIcon />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
 
           {/* Check Data - Main focus */}
           <section className="section-main">
@@ -2431,7 +2699,7 @@ export default function App() {
                       onChange={(e) => setData((p) => ({ ...p, amount: e.target.value }))}
                       onBlur={(e) => {
                         const value = e.target.value.trim()
-                        if (value && value !== '' && sanitizeCurrencyInput(value) > 0) {
+                        if (value && value !== '') {
                           setData((p) => ({ ...p, amount: formatAmountForDisplay(value) }))
                         }
                       }}
@@ -2871,23 +3139,30 @@ export default function App() {
 
                 {/* Calibration */}
                 <div className="card">
-                  <h4>Print Calibration</h4>
-                  <p className="hint">Adjust if print doesn't align with your check stock.</p>
+                  <h4>Printer Calibration</h4>
+                  <p className="hint">
+                    Compensates for physical printer margins. Use negative numbers to shift Left/Up, positive to shift Right/Down.
+                    Most laser printers need X = -0.25in.
+                  </p>
                   <div className="field-row">
                     <div className="field">
-                      <label>Offset X (in)</label>
+                      <label>Global X Offset (in)</label>
                       <input
                         type="number"
                         step="0.01"
+                        min="-1.0"
+                        max="1.0"
                         value={model.placement.offsetXIn}
                         onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetXIn: parseFloat(e.target.value) || 0 } }))}
                       />
                     </div>
                     <div className="field">
-                      <label>Offset Y (in)</label>
+                      <label>Global Y Offset (in)</label>
                       <input
                         type="number"
                         step="0.01"
+                        min="-1.0"
+                        max="1.0"
                         value={model.placement.offsetYIn}
                         onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetYIn: parseFloat(e.target.value) || 0 } }))}
                       />
@@ -3042,35 +3317,68 @@ export default function App() {
         </div>
 
         <div className="workspace">
-          <div className="paperWrap">
-            <div className="paper" style={paperStyle}>
-              <div
-                className="checkStage"
-                style={{
-                  ...checkPlacementStyle,
-                  ...stageVars
-                }}
-              >
-                {/* Rigid check face container with background image */}
+          {profiles.length === 0 ? (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              padding: '40px',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                maxWidth: '400px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '32px',
+                color: '#94a3b8'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
+                <h3 style={{ color: '#e2e8f0', marginBottom: '12px', fontSize: '20px' }}>No Check Profiles Found</h3>
+                <p style={{ marginBottom: '20px', lineHeight: '1.6' }}>
+                  Please unlock <strong>Admin Mode</strong> to create your first check layout.
+                </p>
+                <button
+                  className="btn primary"
+                  onClick={preferences.adminLocked ? handleUnlockRequest : () => {}}
+                  style={{ marginTop: '8px' }}
+                >
+                  {preferences.adminLocked ? '🔓 Unlock Admin' : '✓ Admin Unlocked'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="paperWrap">
+              <div className="paper" style={paperStyle}>
                 <div
-                  className="check-face-container"
+                  className="checkStage"
                   style={{
-                    '--check-height': `${model.layout.checkHeightIn}in`,
-                    ...(templateDataUrl
-                      ? {
-                          backgroundImage: `url(${templateDataUrl})`,
-                          backgroundRepeat: 'no-repeat',
-                          backgroundPosition: 'top left',
-                          backgroundSize: templateBgSize
-                        }
-                      : {})
+                    '--offset-x': `${model.placement.offsetXIn}in`,
+                    '--offset-y': `${model.placement.offsetYIn}in`,
+                    ...stageVars
                   }}
                 >
-                  {templateDataUrl && (
-                    <img
-                      className="templateImg"
-                      src={templateDataUrl}
-                      alt="Template"
+                  {/* Rigid check face container with background image */}
+                  <div
+                    className="check-face-container"
+                    style={{
+                      '--check-height': `${model.layout.checkHeightIn}in`,
+                      ...(templateDataUrl
+                        ? {
+                            backgroundImage: `url(${templateDataUrl})`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'top left',
+                            backgroundSize: templateBgSize
+                          }
+                        : {})
+                    }}
+                  >
+                    {templateDataUrl && (
+                      <img
+                        className="templateImg"
+                        src={templateDataUrl}
+                        alt="Template"
                       draggable="false"
                       onError={() => setTemplateDecodeError('Template image failed to load.')}
                       style={{
@@ -3130,9 +3438,11 @@ export default function App() {
                   const isSelected = editMode && selected === key
                   // Use stub font size for stub fields, check font size for others
                   const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
+
+                  // Don't show labels for stub2 approved/glcode fields since they already have labels in the value
                   const showFriendlyLabel = !editMode && (
                     (isStub1Field && showStub1Labels) ||
-                    (isStub2Field && showStub2Labels)
+                    (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
                   )
 
                   return (
@@ -3282,12 +3592,13 @@ export default function App() {
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
 
       {/* PIN Authentication Modal */}
       {showPinModal && (
-        <div className="modal-overlay" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>
+        <div className="modal-overlay no-print" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal-header">
               <h2>Enter Admin PIN</h2>
@@ -3349,9 +3660,151 @@ export default function App() {
         </div>
       )}
 
+      {/* Change PIN Modal */}
+      {showChangePinModal && (
+        <div className="modal-overlay no-print" onClick={() => setShowChangePinModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2>Change Admin PIN</h2>
+              <button className="btn-icon" onClick={() => setShowChangePinModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>Current PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength="4"
+                  value={currentPinInput}
+                  onChange={(e) => setCurrentPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="0000"
+                  autoFocus
+                  style={{
+                    fontSize: '18px',
+                    letterSpacing: '4px',
+                    textAlign: 'center',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label>New PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength="4"
+                  value={newPinInput}
+                  onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="0000"
+                  style={{
+                    fontSize: '18px',
+                    letterSpacing: '4px',
+                    textAlign: 'center',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label>Confirm New PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength="4"
+                  value={confirmPinInput}
+                  onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && currentPinInput.length === 4 && newPinInput.length === 4 && confirmPinInput.length === 4) {
+                      handleChangePinSubmit()
+                    }
+                  }}
+                  placeholder="0000"
+                  style={{
+                    fontSize: '18px',
+                    letterSpacing: '4px',
+                    textAlign: 'center',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+              {changePinError && (
+                <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
+                  {changePinError}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" onClick={() => setShowChangePinModal(false)}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={handleChangePinSubmit}
+                disabled={currentPinInput.length !== 4 || newPinInput.length !== 4 || confirmPinInput.length !== 4}
+              >
+                Update PIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Check Confirmation Modal */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="modal-overlay no-print" onClick={cancelDeleteHistoryEntry}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Delete Check?</h2>
+              <button className="btn-icon" onClick={cancelDeleteHistoryEntry}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete this check?</p>
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: '#1e293b',
+                borderRadius: '6px',
+                border: '1px solid #334155'
+              }}>
+                <div><strong>Payee:</strong> {deleteTarget.payee}</div>
+                <div><strong>Amount:</strong> {formatCurrency(deleteTarget.amount)}</div>
+                <div><strong>Date:</strong> {deleteTarget.date}</div>
+              </div>
+              <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '14px' }}>
+                This will restore {formatCurrency(deleteTarget.amount)} to the ledger balance.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" onClick={cancelDeleteHistoryEntry}>Cancel</button>
+              <button className="btn danger" onClick={confirmDeleteHistoryEntry}>
+                Delete Check
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generic Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="modal-overlay no-print" onClick={handleConfirmModalCancel}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+            <div className="modal-header">
+              <h2>{confirmConfig.title}</h2>
+              <button className="btn-icon" onClick={handleConfirmModalCancel}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>{confirmConfig.message}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" onClick={handleConfirmModalCancel}>Cancel</button>
+              <button className="btn primary" onClick={handleConfirmModalConfirm}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Batch Print Progress Modal */}
       {isBatchPrinting && (
-        <div className="modal-overlay">
+        <div className="modal-overlay no-print">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
               <h2>Batch Print & Record</h2>
@@ -3394,9 +3847,49 @@ export default function App() {
         </div>
       )}
 
+      {/* Batch Complete Modal */}
+      {showBatchCompleteModal && (
+        <div className="modal-overlay no-print" onClick={() => setShowBatchCompleteModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+            <div className="modal-header">
+              <h2>{batchCompleteData.cancelled ? 'Batch Cancelled' : 'Batch Complete'}</h2>
+              <button className="btn-icon" onClick={() => setShowBatchCompleteModal(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ textAlign: 'center', padding: '32px' }}>
+              <div style={{
+                fontSize: '48px',
+                marginBottom: '16px'
+              }}>
+                {batchCompleteData.cancelled ? '⚠️' : '✅'}
+              </div>
+              <p style={{ fontSize: '18px', marginBottom: '8px', color: '#f1f5f9' }}>
+                {batchCompleteData.cancelled
+                  ? `Processed ${batchCompleteData.processed} of ${batchCompleteData.total} checks`
+                  : `Successfully printed and recorded ${batchCompleteData.processed} checks`
+                }
+              </p>
+              {batchCompleteData.cancelled && (
+                <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '12px' }}>
+                  Already processed checks have been recorded.
+                </p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn primary"
+                onClick={() => setShowBatchCompleteModal(false)}
+                style={{ width: '100%' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Column Mapping Modal */}
       {showColumnMapping && (
-        <div className="modal-overlay">
+        <div className="modal-overlay no-print">
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
             <div className="modal-header">
               <h2>Map Import Columns</h2>
@@ -3529,9 +4022,15 @@ export default function App() {
 
               {/* Preview Section */}
               {previewRow && (
-                <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Preview (First Row)</h3>
-                  <div style={{ display: 'grid', gap: '8px', fontSize: '13px' }}>
+                <div style={{
+                  marginTop: '24px',
+                  padding: '16px',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '8px'
+                }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#e2e8f0' }}>Preview (First Row)</h3>
+                  <div style={{ display: 'grid', gap: '8px', fontSize: '13px', color: '#cbd5e1' }}>
                     {previewRow.date && (
                       <div><strong>Date:</strong> {previewRow.date}</div>
                     )}
@@ -3576,7 +4075,7 @@ export default function App() {
 
       {/* Export Dialog Modal */}
       {showExportDialog && (
-        <div className="modal-overlay" onClick={() => setShowExportDialog(false)}>
+        <div className="modal-overlay no-print" onClick={() => setShowExportDialog(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Export Check History</h2>
@@ -3829,6 +4328,26 @@ export default function App() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#ef4444' : '#3b82f6',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 10000,
+          maxWidth: '400px',
+          wordWrap: 'break-word',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          {toast.message}
         </div>
       )}
     </div>

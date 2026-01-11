@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
@@ -14,15 +14,63 @@ function readSettings() {
   try {
     const file = getUserDataFile()
     if (!fs.existsSync(file)) return {}
-    return JSON.parse(fs.readFileSync(file, 'utf8') || '{}')
-  } catch {
+
+    const buffer = fs.readFileSync(file)
+
+    // Attempt to decrypt (for encrypted data)
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const decrypted = safeStorage.decryptString(buffer)
+        return JSON.parse(decrypted)
+      } catch (decryptError) {
+        // Decryption failed - this is likely legacy plain-text data
+        console.log('Decryption failed, attempting legacy plain-text parse...')
+
+        try {
+          // Try reading as plain text (legacy format)
+          const plainText = buffer.toString('utf8')
+          const data = JSON.parse(plainText)
+
+          // Successfully parsed legacy data - auto-upgrade to encrypted format
+          console.log('Legacy data detected. Auto-upgrading to encrypted format...')
+          writeSettings(data)
+          console.log('Data successfully encrypted.')
+
+          return data
+        } catch (legacyError) {
+          console.error('Failed to parse as legacy data:', legacyError)
+          return {}
+        }
+      }
+    } else {
+      // Encryption not available - fallback to plain text
+      console.warn('Encryption not available on this system. Using plain text storage.')
+      return JSON.parse(buffer.toString('utf8') || '{}')
+    }
+  } catch (error) {
+    console.error('Failed to read settings:', error)
     return {}
   }
 }
 
 function writeSettings(next) {
   const file = getUserDataFile()
-  fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf8')
+  const json = JSON.stringify(next, null, 2)
+
+  // Encrypt if available
+  if (safeStorage.isEncryptionAvailable()) {
+    try {
+      const encrypted = safeStorage.encryptString(json)
+      fs.writeFileSync(file, encrypted)
+    } catch (error) {
+      console.error('Encryption failed, falling back to plain text:', error)
+      fs.writeFileSync(file, json, 'utf8')
+    }
+  } else {
+    // Encryption not available - write plain text
+    console.warn('Encryption not available on this system. Writing plain text.')
+    fs.writeFileSync(file, json, 'utf8')
+  }
 }
 
 function createWindow() {
@@ -216,14 +264,20 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
   }
 })
 
-ipcMain.handle('print:dialog', async () => {
+ipcMain.handle('print:dialog', async (_evt, filename) => {
   if (!mainWindow) return { success: false, error: 'No window' }
   try {
     await mainWindow.webContents.print({
       silent: false,
-      printBackground: false,
+      printBackground: true,
       color: true,
-      margins: { marginType: 'printableArea' },
+      margins: {
+        marginType: 'custom',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0
+      },
       pageSize: 'Letter'
     })
     return { success: true }
@@ -255,6 +309,37 @@ ipcMain.handle('print:previewPdf', async () => {
     await previewWindow.loadURL(pathToFileURL(pdfPath).toString())
 
     return { success: true }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Backup all settings data
+ipcMain.handle('backup:save', async () => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: `CheckSpree_Backup_${today}.json`,
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+
+  if (result.canceled || !result.filePath) return { success: false }
+
+  try {
+    // Read the settings (decrypted if necessary)
+    const settings = readSettings()
+    // Write as plain JSON for portability
+    const json = JSON.stringify(settings, null, 2)
+    fs.writeFileSync(result.filePath, json, 'utf8')
+
+    // Open the file location
+    shell.showItemInFolder(result.filePath)
+
+    return { success: true, path: result.filePath }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }
