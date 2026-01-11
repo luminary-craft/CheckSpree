@@ -1,7 +1,30 @@
+# Dependencies
 node_modules/
+
+# Build output folders
 out/
 dist/
 release/
-.DS_Store
+
+# Local database and encrypted settings (NEVER COMMIT!)
+*.settings.json
+checkspree2.settings.json
+
+# Debug logs
 *.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
 
