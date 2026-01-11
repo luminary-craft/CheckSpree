@@ -39,6 +39,7 @@ const DEFAULT_FIELDS = {
 const DEFAULT_PROFILE = {
   id: 'default',
   name: 'Standard Check',
+  layoutMode: 'standard', // 'standard' or 'three_up'
   layout: DEFAULT_LAYOUT,
   fields: DEFAULT_FIELDS,
   template: { path: null, opacity: 0, fit: 'cover' },
@@ -678,6 +679,9 @@ export default function App() {
   const [showProfileManager, setShowProfileManager] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Three-up layout mode
+  const [threeUpSlot, setThreeUpSlot] = useState('top') // 'top', 'middle', 'bottom'
 
   // Multi-Ledger system
   const [ledgers, setLedgers] = useState([
@@ -2245,6 +2249,11 @@ export default function App() {
   const projectedBalance = ledgerBalance - pendingAmount
   const isOverdrawn = pendingAmount > 0 && projectedBalance < 0
 
+  // Calculate Y-offset for three-up mode
+  const threeUpYOffset = activeProfile?.layoutMode === 'three_up'
+    ? (threeUpSlot === 'top' ? 0 : threeUpSlot === 'middle' ? 3.66 : 7.33)
+    : 0
+
   return (
     <div
       className={`app ${isPrinting ? 'printing' : ''}`}
@@ -2314,6 +2323,47 @@ export default function App() {
               )}
             </>
           )}
+
+          {/* Three-Up Slot Position Selector */}
+          {activeProfile?.layoutMode === 'three_up' && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '0 8px', borderLeft: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Position:</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="radio"
+                  name="threeUpSlot"
+                  value="top"
+                  checked={threeUpSlot === 'top'}
+                  onChange={(e) => setThreeUpSlot(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                Top
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="radio"
+                  name="threeUpSlot"
+                  value="middle"
+                  checked={threeUpSlot === 'middle'}
+                  onChange={(e) => setThreeUpSlot(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                Middle
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="radio"
+                  name="threeUpSlot"
+                  value="bottom"
+                  checked={threeUpSlot === 'bottom'}
+                  onChange={(e) => setThreeUpSlot(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                Bottom
+              </label>
+            </div>
+          )}
+
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           <button className="btn primary" onClick={handlePrintAndRecord}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -2645,6 +2695,34 @@ export default function App() {
                   </button>
                 )}
               </div>
+
+              {/* Layout Mode Selector - Admin Only */}
+              {!preferences.adminLocked && activeProfile && (
+                <div className="field" style={{ marginTop: '12px' }}>
+                  <label>Layout Mode</label>
+                  <select
+                    value={activeProfile.layoutMode || 'standard'}
+                    onChange={(e) => {
+                      const newMode = e.target.value
+                      setProfiles(profiles.map(p =>
+                        p.id === activeProfileId
+                          ? { ...p, layoutMode: newMode }
+                          : p
+                      ))
+                      // Auto-adjust check height for three_up mode
+                      if (newMode === 'three_up' && model.layout.heightIn !== 3.66) {
+                        setModel(m => ({
+                          ...m,
+                          layout: { ...m.layout, heightIn: 3.66 }
+                        }))
+                      }
+                    }}
+                  >
+                    <option value="standard">Standard (Check + 2 Stubs)</option>
+                    <option value="three_up">3-Up (3 Checks per Page)</option>
+                  </select>
+                </div>
+              )}
 
               {/* Admin-only action buttons */}
               {!preferences.adminLocked && (
@@ -2984,7 +3062,7 @@ export default function App() {
           )}
 
           {/* Stub Management - Payee Copy */}
-          {model.layout.stub1Enabled && (
+          {model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
             <section className="section">
               <div className="stub-section">
                 <div className="stub-header">
@@ -3037,7 +3115,7 @@ export default function App() {
           )}
 
           {/* Stub Management - Bookkeeper Copy */}
-          {model.layout.stub2Enabled && (
+          {model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
             <section className="section">
               <div className="stub-section">
                 <div className="stub-header">
@@ -3418,7 +3496,7 @@ export default function App() {
                   className="checkStage"
                   style={{
                     '--offset-x': `${model.placement.offsetXIn}in`,
-                    '--offset-y': `${model.placement.offsetYIn}in`,
+                    '--offset-y': `${model.placement.offsetYIn + threeUpYOffset}in`,
                     ...stageVars
                   }}
                 >
@@ -3453,7 +3531,7 @@ export default function App() {
                 </div>
 
                 {/* Draggable Fold Lines (no-print) */}
-                {editMode && model.layout.stub1Enabled && (
+                {editMode && model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
                   <div
                     className="fold-line no-print"
                     style={{
@@ -3503,7 +3581,7 @@ export default function App() {
                   </div>
                 )}
 
-                {editMode && model.layout.stub2Enabled && (
+                {editMode && model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
                   <div
                     className="fold-line no-print"
                     style={{
@@ -3559,9 +3637,9 @@ export default function App() {
                   const isStub1Field = key.startsWith('stub1_')
                   const isStub2Field = key.startsWith('stub2_')
 
-                  // Skip rendering stub fields if their stub is disabled
-                  if (isStub1Field && !model.layout.stub1Enabled) return null
-                  if (isStub2Field && !model.layout.stub2Enabled) return null
+                  // Skip rendering stub fields if their stub is disabled OR in three_up mode
+                  if (isStub1Field && (!model.layout.stub1Enabled || activeProfile?.layoutMode === 'three_up')) return null
+                  if (isStub2Field && (!model.layout.stub2Enabled || activeProfile?.layoutMode === 'three_up')) return null
 
                   // Skip stub2 admin fields if their preferences are disabled
                   if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
@@ -3707,7 +3785,7 @@ export default function App() {
                       zIndex: 10
                     }}
                   >
-                    {model.layout.stub1Enabled ? (
+                    {model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' ? (
                       <div className="stub-divider-with-remove">
                         <div className="stub-divider-line" />
                         <button
@@ -3738,7 +3816,7 @@ export default function App() {
                   </div>
 
                   {/* After stub 1 section */}
-                  {model.layout.stub1Enabled && (
+                  {model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
                     <div
                       className="stub-control-row"
                       style={{
@@ -3749,7 +3827,7 @@ export default function App() {
                         zIndex: 10
                       }}
                     >
-                      {model.layout.stub2Enabled ? (
+                      {model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' ? (
                         <div className="stub-divider-with-remove">
                           <div className="stub-divider-line" />
                           <button
