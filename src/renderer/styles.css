@@ -570,11 +570,38 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 150ms ease;
+  position: relative;
 }
 
 .import-item:hover {
   background: rgba(139, 92, 246, 0.15);
   border-color: rgba(139, 92, 246, 0.3);
+}
+
+.import-item.selected {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.import-item.selected:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.6);
+}
+
+.import-selected-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 .import-main {
@@ -1332,6 +1359,8 @@ body {
   height: var(--stage-h, 3in);
   transform-origin: top left;
   z-index: 1;
+  /* Apply Y-offset for three-up mode in both preview and print */
+  transform: translateY(var(--offset-y, 0in));
 }
 
 /* Rigid check face container - prevents background image from expanding */
@@ -1953,6 +1982,8 @@ body {
     min-width: auto !important;
     display: flex !important;
     visibility: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   /* Force check paper to be visible */
@@ -1965,6 +1996,8 @@ body {
     visibility: visible !important;
     position: relative !important;
     z-index: 9999 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   /* Ensure checkStage is visible */
@@ -1973,10 +2006,10 @@ body {
     visibility: visible !important;
   }
 
-  /* Apply calibration offset only when printing */
+  /* Apply calibration offset and three-up offset when printing */
   .checkStage {
     transform: translate(
-      calc(var(--offset-x, 0in) - 0.25in),
+      var(--offset-x, 0in),
       var(--offset-y, 0in)
     ) !important;
   }
@@ -2099,4 +2132,188 @@ body {
 /* Adjust toast position when update notification is shown */
 .update-notification ~ div[style*="bottom: 24px"] {
   bottom: 120px !important;
+}
+
+/* ===== Tailwind-style Toggle Switch Utilities ===== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.peer:checked ~ .peer-checked\:bg-blue-600 {
+  background-color: #2563eb;
+}
+
+.peer:checked ~ .peer-checked\:after\:translate-x-full::after {
+  transform: translateX(100%);
+}
+
+.peer:checked ~ .peer-checked\:after\:border-white::after {
+  border-color: #fff;
+}
+
+.peer:focus ~ .peer-focus\:outline-none {
+  outline: none;
+}
+
+.peer:focus ~ .peer-focus\:ring-4 {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+.peer:focus ~ .peer-focus\:ring-blue-300 {
+  box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.5);
+}
+
+/* Flexbox utilities */
+.flex {
+  display: flex;
+}
+
+.inline-flex {
+  display: inline-flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.space-x-3 > * + * {
+  margin-left: 0.75rem;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
+}
+
+.mt-3 {
+  margin-top: 0.75rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.ml-3 {
+  margin-left: 0.75rem;
+}
+
+/* Size utilities */
+.w-11 {
+  width: 2.75rem;
+}
+
+.h-6 {
+  height: 1.5rem;
+}
+
+.h-5 {
+  height: 1.25rem;
+}
+
+.w-5 {
+  width: 1.25rem;
+}
+
+/* Other utilities */
+.relative {
+  position: relative;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.rounded-full {
+  border-radius: 9999px;
+}
+
+.bg-gray-200 {
+  background-color: #e5e7eb;
+}
+
+.bg-white {
+  background-color: #fff;
+}
+
+.border-gray-300 {
+  border-color: #d1d5db;
+}
+
+.border-white {
+  border-color: #fff;
+}
+
+.border {
+  border-width: 1px;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.text-gray-300 {
+  color: #d1d5db;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+/* After pseudo-element for toggle */
+.after\:content-\[\'\'\]::after {
+  content: '';
+}
+
+.after\:absolute::after {
+  position: absolute;
+}
+
+.after\:top-\[2px\]::after {
+  top: 2px;
+}
+
+.after\:left-\[2px\]::after {
+  left: 2px;
+}
+
+.after\:bg-white::after {
+  background-color: #fff;
+}
+
+.after\:border-gray-300::after {
+  border-color: #d1d5db;
+}
+
+.after\:border::after {
+  border-width: 1px;
+}
+
+.after\:rounded-full::after {
+  border-radius: 9999px;
+}
+
+.after\:h-5::after {
+  height: 1.25rem;
+}
+
+.after\:w-5::after {
+  width: 1.25rem;
+}
+
+.after\:transition-all::after {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }

@@ -25,7 +25,10 @@ const DEFAULT_LAYOUT = {
   stub1Enabled: false,
   stub1HeightIn: 3.0,
   stub2Enabled: false,
-  stub2HeightIn: 3.0
+  stub2HeightIn: 3.0,
+  // Three-up cut line positions (relative to placement offset)
+  cutLine1In: 3.66,
+  cutLine2In: 7.33
 }
 
 const DEFAULT_FIELDS = {
@@ -33,7 +36,8 @@ const DEFAULT_FIELDS = {
   payee: { x: 0.75, y: 1.05, w: 6.2, h: 0.45, fontIn: 0.32, label: 'Pay to the Order of' },
   amount: { x: 6.95, y: 1.05, w: 1.25, h: 0.45, fontIn: 0.32, label: 'Amount ($)' },
   amountWords: { x: 0.75, y: 1.55, w: 7.5, h: 0.45, fontIn: 0.30, label: 'Amount in Words' },
-  memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' }
+  memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' },
+  checkNumber: { x: 7.8, y: 0.15, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' }
 }
 
 const DEFAULT_PROFILE = {
@@ -44,6 +48,7 @@ const DEFAULT_PROFILE = {
   fields: DEFAULT_FIELDS,
   template: { path: null, opacity: 0, fit: 'cover' },
   placement: { offsetXIn: 0, offsetYIn: 0 },
+  nextCheckNumber: 1001, // Next check number to use
   dateFormat: {
     dateSlot1: 'MM',
     dateSlot2: 'DD',
@@ -69,6 +74,7 @@ const DEFAULT_PREFERENCES = {
   stub2ShowLedger: true,
   stub2ShowApproved: true,
   stub2ShowGLCode: true,
+  showCheckNumber: true, // Show/hide check number field
   adminLocked: true,
   adminPin: '0000',
   enableSnapping: false
@@ -80,7 +86,13 @@ const DEFAULT_MODEL = {
   layout: DEFAULT_LAYOUT,
   view: { zoom: 0.9 },
   template: { path: null, opacity: 0, fit: 'cover' },
-  fields: DEFAULT_FIELDS
+  fields: DEFAULT_FIELDS,
+  // Three-up mode: independent field positions per slot
+  slotFields: {
+    top: DEFAULT_FIELDS,
+    middle: DEFAULT_FIELDS,
+    bottom: DEFAULT_FIELDS
+  }
 }
 
 function clamp(n, min, max) {
@@ -128,14 +140,28 @@ function formatDate(dateStr) {
 function formatDateByPreference(dateStr, prefs) {
   if (!dateStr) return ''
 
+  // Try to parse the date - handle various formats
+  let d
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    // YYYY-MM-DD format
+    d = new Date(dateStr + 'T00:00:00')
+  } else {
+    // Try parsing as-is
+    d = new Date(dateStr)
+  }
+
+  // If date is invalid, return empty string
+  if (isNaN(d.getTime())) {
+    console.warn('Invalid date format:', dateStr)
+    return ''
+  }
+
   // If long date is enabled, use full written format
   if (prefs.useLongDate) {
-    const d = new Date(dateStr + 'T00:00:00')
     return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
   // Build date using slots and separator
-  const d = new Date(dateStr + 'T00:00:00') // Force local timezone
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   const year = d.getFullYear()
@@ -705,6 +731,7 @@ export default function App() {
   // Import queue
   const [importQueue, setImportQueue] = useState([])
   const [showImportQueue, setShowImportQueue] = useState(false)
+  const [selectedQueueItems, setSelectedQueueItems] = useState([]) // Track selected items (up to 3 in three-up mode)
 
   // Batch print & record
   const [isBatchPrinting, setIsBatchPrinting] = useState(false)
@@ -755,6 +782,11 @@ export default function App() {
   const [showBatchCompleteModal, setShowBatchCompleteModal] = useState(false)
   const [batchCompleteData, setBatchCompleteData] = useState({ processed: 0, total: 0, cancelled: false })
 
+  // Batch print confirmation modal state
+  const [showBatchPrintConfirm, setShowBatchPrintConfirm] = useState(false)
+  const [batchAutoNumber, setBatchAutoNumber] = useState(true)
+  const [batchStartNumber, setBatchStartNumber] = useState('1001')
+
   const [data, setData] = useState({
     date: new Date().toISOString().slice(0, 10),
     payee: '',
@@ -765,8 +797,55 @@ export default function App() {
     internal_memo: '',
     line_items: [],
     line_items_text: '',
-    ledger_snapshot: null
+    ledger_snapshot: null,
+    checkNumber: '' // For optional check numbering
   })
+
+  // Three-up sheet editor state
+  const [sheetData, setSheetData] = useState({
+    top: {
+      date: new Date().toISOString().slice(0, 10),
+      payee: '',
+      amount: '',
+      amountWords: '',
+      memo: '',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledger_snapshot: null,
+      checkNumber: ''
+    },
+    middle: {
+      date: new Date().toISOString().slice(0, 10),
+      payee: '',
+      amount: '',
+      amountWords: '',
+      memo: '',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledger_snapshot: null,
+      checkNumber: ''
+    },
+    bottom: {
+      date: new Date().toISOString().slice(0, 10),
+      payee: '',
+      amount: '',
+      amountWords: '',
+      memo: '',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledger_snapshot: null,
+      checkNumber: ''
+    }
+  })
+
+  const [activeSlot, setActiveSlot] = useState('top') // 'top' | 'middle' | 'bottom'
+  const [autoIncrementCheckNumbers, setAutoIncrementCheckNumbers] = useState(true)
 
   // Load settings from disk on launch
   useEffect(() => {
@@ -777,6 +856,9 @@ export default function App() {
 
       if (persisted?.model) setModel(normalizeModel(persisted.model))
       if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
+      if (persisted?.sheetData) setSheetData(persisted.sheetData)
+      if (persisted?.activeSlot) setActiveSlot(persisted.activeSlot)
+      if (persisted?.autoIncrementCheckNumbers != null) setAutoIncrementCheckNumbers(persisted.autoIncrementCheckNumbers)
       if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
       if (persisted?.profiles?.length) setProfiles(persisted.profiles)
       if (persisted?.activeProfileId) setActiveProfileId(persisted.activeProfileId)
@@ -810,6 +892,9 @@ export default function App() {
     window.cs2.settingsSet({
       model,
       data,
+      sheetData,
+      activeSlot,
+      autoIncrementCheckNumbers,
       editMode,
       profiles,
       activeProfileId,
@@ -819,7 +904,7 @@ export default function App() {
       preferences,
       importQueue
     })
-  }, [importQueue, checkHistory, ledgers, activeLedgerId, profiles, activeProfileId])
+  }, [importQueue, checkHistory, ledgers, activeLedgerId, profiles, activeProfileId, sheetData, activeSlot])
 
   // Debounced save for UI state changes (model, data, editMode, preferences)
   useEffect(() => {
@@ -827,6 +912,9 @@ export default function App() {
       window.cs2.settingsSet({
         model,
         data,
+        sheetData,
+        activeSlot,
+        autoIncrementCheckNumbers,
         editMode,
         profiles,
         activeProfileId,
@@ -838,7 +926,7 @@ export default function App() {
       })
     }, 250)
     return () => clearTimeout(t)
-  }, [model, data, editMode, preferences])
+  }, [model, data, editMode, preferences, sheetData, activeSlot, autoIncrementCheckNumbers])
 
   // Force exit Edit Layout mode when Admin is locked
   useEffect(() => {
@@ -847,14 +935,86 @@ export default function App() {
     }
   }, [preferences.adminLocked, editMode])
 
-  // Auto-generate amount words
-  useEffect(() => {
-    if (!data.amount) {
-      setData((p) => ({ ...p, amountWords: '' }))
-      return
+  // ===== HELPER FUNCTIONS FOR THREE-UP MODE =====
+
+  // Get default empty slot data
+  const getEmptySlotData = () => ({
+    date: new Date().toISOString().slice(0, 10),
+    payee: '',
+    amount: '',
+    amountWords: '',
+    memo: '',
+    external_memo: '',
+    internal_memo: '',
+    line_items: [],
+    line_items_text: '',
+    ledger_snapshot: null,
+    checkNumber: ''
+  })
+
+  // Check if a slot is empty (no meaningful data)
+  const isSlotEmpty = (slotData) => {
+    if (!slotData) return true
+    return !slotData.payee?.trim() &&
+           !slotData.amount?.trim() &&
+           !slotData.memo?.trim() &&
+           !slotData.external_memo?.trim() &&
+           !slotData.internal_memo?.trim() &&
+           !slotData.line_items_text?.trim()
+  }
+
+  // Get the current data based on active mode
+  const getCurrentCheckData = () => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      return sheetData[activeSlot]
     }
-    setData((p) => ({ ...p, amountWords: numberToWords(p.amount) }))
-  }, [data.amount])
+    return data
+  }
+
+  // Update current check data based on active mode
+  const updateCurrentCheckData = (updates) => {
+    // Note: This function will be called after activeProfile is defined,
+    // so it's safe to use activeProfile here
+    const profile = profiles.find(p => p.id === activeProfileId) || profiles[0]
+    if (profile?.layoutMode === 'three_up') {
+      setSheetData(prev => ({
+        ...prev,
+        [activeSlot]: { ...prev[activeSlot], ...updates }
+      }))
+    } else {
+      setData(prev => ({ ...prev, ...updates }))
+    }
+  }
+
+  const clearCurrentSlot = () => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      setSheetData(prev => ({
+        ...prev,
+        [activeSlot]: getEmptySlotData()
+      }))
+    } else {
+      setData(getEmptySlotData())
+    }
+  }
+
+  const clearAllSlots = () => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      showConfirm(
+        'Clear All Slots?',
+        'This will clear all three slots (Top, Middle, and Bottom). This cannot be undone.',
+        () => {
+          setSheetData({
+            top: getEmptySlotData(),
+            middle: getEmptySlotData(),
+            bottom: getEmptySlotData()
+          })
+          setActiveSlot('top')
+        }
+      )
+    } else {
+      setData(getEmptySlotData())
+    }
+  }
 
   // Parent-to-child data flow: Check details (parent) ALWAYS update stub details (children)
   // This is one-way only - stub edits don't affect parent, but parent edits always overwrite stubs
@@ -930,6 +1090,189 @@ export default function App() {
 
   // Profile helpers
   const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0]
+
+  // Initialize slotFields if not present (backward compatibility)
+  useEffect(() => {
+    if (!model.slotFields) {
+      setModel(m => ({
+        ...m,
+        slotFields: {
+          top: { ...DEFAULT_FIELDS },
+          middle: { ...DEFAULT_FIELDS },
+          bottom: { ...DEFAULT_FIELDS }
+        }
+      }))
+    }
+  }, [model.slotFields])
+
+  // Migration effect: handle switching between standard and three_up modes
+  useEffect(() => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      // Entering three_up mode - check if sheetData is initialized
+      const hasInitializedSheet = sheetData.top.payee || sheetData.top.amount ||
+                                    sheetData.middle.payee || sheetData.middle.amount ||
+                                    sheetData.bottom.payee || sheetData.bottom.amount
+
+      if (!hasInitializedSheet) {
+        // First time entering three_up mode - initialize from current data if it has data
+        if (data.payee || data.amount) {
+          setSheetData({
+            top: { ...data },
+            middle: getEmptySlotData(),
+            bottom: getEmptySlotData()
+          })
+          setActiveSlot('top')
+        }
+      }
+    } else if (activeProfile?.layoutMode === 'standard') {
+      // Exiting three_up mode - preserve current slot data back to single data
+      const currentSlot = sheetData[activeSlot]
+      if (currentSlot && !isSlotEmpty(currentSlot)) {
+        setData(currentSlot)
+      }
+    }
+  }, [activeProfile?.layoutMode])
+
+  // Auto-increment check numbers when switching slots
+  useEffect(() => {
+    if (!autoIncrementCheckNumbers || activeProfile?.layoutMode !== 'three_up') return
+
+    const slots = ['top', 'middle', 'bottom']
+    const currentIndex = slots.indexOf(activeSlot)
+
+    if (currentIndex > 0) {
+      const previousSlot = slots[currentIndex - 1]
+      const previousNumber = sheetData[previousSlot]?.checkNumber
+
+      if (previousNumber && !isNaN(parseInt(previousNumber))) {
+        const nextNumber = (parseInt(previousNumber) + 1).toString()
+
+        // Only auto-populate if current slot's checkNumber is empty
+        if (!sheetData[activeSlot]?.checkNumber) {
+          setSheetData(prev => ({
+            ...prev,
+            [activeSlot]: { ...prev[activeSlot], checkNumber: nextNumber }
+          }))
+        }
+      }
+    }
+  }, [activeSlot, autoIncrementCheckNumbers, activeProfile?.layoutMode])
+
+  // Initialize check numbers for all slots when auto-increment is enabled
+  useEffect(() => {
+    if (!autoIncrementCheckNumbers || activeProfile?.layoutMode !== 'three_up') return
+
+    const slots = ['top', 'middle', 'bottom']
+    let hasChanges = false
+    const updates = {}
+
+    slots.forEach((slot, index) => {
+      if (!sheetData[slot]?.checkNumber) {
+        const baseNumber = parseInt(activeProfile.nextCheckNumber) || 1001
+        const checkNumber = String(baseNumber + index)
+        updates[slot] = { ...sheetData[slot], checkNumber }
+        hasChanges = true
+      }
+    })
+
+    if (hasChanges) {
+      setSheetData(prev => ({ ...prev, ...updates }))
+    }
+  }, [autoIncrementCheckNumbers, activeProfile?.layoutMode, activeProfile?.nextCheckNumber])
+
+  // Keyboard shortcuts for switching slots (Alt+1/2/3)
+  useEffect(() => {
+    if (activeProfile?.layoutMode !== 'three_up') return
+
+    const handleKeyDown = (e) => {
+      // Alt+1 = Top, Alt+2 = Middle, Alt+3 = Bottom
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+        const slotMap = { '1': 'top', '2': 'middle', '3': 'bottom' }
+        const targetSlot = slotMap[e.key]
+
+        if (targetSlot) {
+          e.preventDefault()
+          setActiveSlot(targetSlot)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeProfile?.layoutMode])
+
+  // Auto-generate amount words
+  useEffect(() => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      const currentSlot = sheetData[activeSlot]
+      if (!currentSlot?.amount) {
+        setSheetData(prev => ({
+          ...prev,
+          [activeSlot]: { ...prev[activeSlot], amountWords: '' }
+        }))
+        return
+      }
+      setSheetData(prev => ({
+        ...prev,
+        [activeSlot]: { ...prev[activeSlot], amountWords: numberToWords(currentSlot.amount) }
+      }))
+    } else {
+      if (!data.amount) {
+        setData((p) => ({ ...p, amountWords: '' }))
+        return
+      }
+      setData((p) => ({ ...p, amountWords: numberToWords(p.amount) }))
+    }
+  }, [activeProfile?.layoutMode === 'three_up' ? sheetData[activeSlot]?.amount : data.amount, activeSlot, activeProfile?.layoutMode])
+
+  // Auto-load queue items into slots based on layout mode
+  // Load selected queue items into slots
+  useEffect(() => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      // Three-up mode: Load selected items into top/middle/bottom slots (overwrite existing data)
+      const slots = ['top', 'middle', 'bottom']
+      const newSheetData = {
+        top: getEmptySlotData(),
+        middle: getEmptySlotData(),
+        bottom: getEmptySlotData()
+      }
+
+      // Fill slots with selected items (in order)
+      for (let i = 0; i < selectedQueueItems.length; i++) {
+        const item = selectedQueueItems[i]
+        const slot = slots[i]
+
+        // Normalize date to YYYY-MM-DD format
+        let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
+        if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+          // Date is not in YYYY-MM-DD format, convert it
+          const parsedDate = new Date(item.date)
+          if (!isNaN(parsedDate.getTime())) {
+            normalizedDate = parsedDate.toISOString().slice(0, 10)
+          }
+        }
+
+        newSheetData[slot] = {
+          date: normalizedDate,
+          payee: item.payee || '',
+          amount: item.amount || '',
+          amountWords: item.amount ? numberToWords(item.amount) : '',
+          memo: item.memo || '',
+          external_memo: item.external_memo || '',
+          internal_memo: item.internal_memo || '',
+          line_items: item.line_items || [],
+          line_items_text: item.line_items_text || '',
+          ledger_snapshot: null,
+          checkNumber: item.checkNumber || ''
+        }
+      }
+      setSheetData(newSheetData)
+    } else if (selectedQueueItems.length === 0) {
+      // Standard mode: clear data when no items selected
+      setData(getEmptySlotData())
+    }
+    // Standard mode: data is already loaded in loadFromQueue function when item is selected
+  }, [selectedQueueItems, activeProfile?.layoutMode])
 
   // Detect unsaved changes by comparing current model with saved profile
   useEffect(() => {
@@ -1621,20 +1964,47 @@ export default function App() {
   }
 
   const loadFromQueue = (queueItem) => {
-    setData({
-      date: queueItem.date || new Date().toISOString().slice(0, 10),
-      payee: queueItem.payee || '',
-      amount: queueItem.amount || '',
-      amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
-      memo: queueItem.memo || '',
-      external_memo: queueItem.external_memo || '',
-      internal_memo: queueItem.internal_memo || '',
-      line_items: queueItem.line_items || [],
-      line_items_text: queueItem.line_items_text || '',
-      ledger_snapshot: null
-    })
-    // Remove from queue
-    setImportQueue(prev => prev.filter(item => item.id !== queueItem.id))
+    if (activeProfile?.layoutMode === 'three_up') {
+      // Three-up mode: Toggle selection (up to 3 items)
+      setSelectedQueueItems(prev => {
+        const isSelected = prev.some(item => item.id === queueItem.id)
+        if (isSelected) {
+          // Unselect: remove from selection
+          return prev.filter(item => item.id !== queueItem.id)
+        } else {
+          // Select: add if less than 3 items selected
+          if (prev.length < 3) {
+            return [...prev, queueItem]
+          }
+          return prev // Already have 3 selected
+        }
+      })
+    } else {
+      // Standard mode: Load into single check form and select
+      // Normalize date to YYYY-MM-DD format
+      let normalizedDate = queueItem.date || new Date().toISOString().slice(0, 10)
+      if (queueItem.date && !/^\d{4}-\d{2}-\d{2}$/.test(queueItem.date)) {
+        const parsedDate = new Date(queueItem.date)
+        if (!isNaN(parsedDate.getTime())) {
+          normalizedDate = parsedDate.toISOString().slice(0, 10)
+        }
+      }
+
+      setData({
+        date: normalizedDate,
+        payee: queueItem.payee || '',
+        amount: queueItem.amount || '',
+        amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
+        memo: queueItem.memo || '',
+        external_memo: queueItem.external_memo || '',
+        internal_memo: queueItem.internal_memo || '',
+        line_items: queueItem.line_items || [],
+        line_items_text: queueItem.line_items_text || '',
+        ledger_snapshot: null,
+        checkNumber: queueItem.checkNumber || ''
+      })
+      setSelectedQueueItems([queueItem])
+    }
   }
 
   const processAllQueue = async () => {
@@ -1701,13 +2071,17 @@ export default function App() {
   const handleBatchPrintAndRecord = async () => {
     if (importQueue.length === 0) return
 
-    showConfirm(
-      'Print & Record All Checks?',
-      `Print and record ${importQueue.length} checks? This will print each check and deduct amounts from your ledger balance.`,
-      async () => {
-        await executeBatchPrintAndRecord()
-      }
-    )
+    // Show batch print confirmation modal
+    setShowBatchPrintConfirm(true)
+  }
+
+  const confirmBatchPrint = async () => {
+    setShowBatchPrintConfirm(false)
+    await executeBatchPrintAndRecord()
+  }
+
+  const cancelBatchPrintConfirm = () => {
+    setShowBatchPrintConfirm(false)
   }
 
   // Helper function to find or create a ledger by name (case-insensitive match)
@@ -1741,8 +2115,8 @@ export default function App() {
     return newLedgerId
   }
 
-  const executeBatchPrintAndRecord = async () => {
-
+  // Standard mode: One check at a time
+  const executeBatchPrintStandard = async () => {
     // Initialize batch print state
     setIsBatchPrinting(true)
     setBatchPrintCancelled(false)
@@ -1759,6 +2133,9 @@ export default function App() {
 
     // Create a copy of the queue to iterate through
     const queueCopy = [...importQueue]
+
+    // Apply check numbering if enabled
+    let currentCheckNumber = batchAutoNumber ? parseInt(batchStartNumber) || 1001 : null
 
     for (let i = 0; i < queueCopy.length; i++) {
       // Check if user cancelled
@@ -1804,7 +2181,8 @@ export default function App() {
         internal_memo: item.internal_memo || '',
         line_items: item.line_items || [],
         line_items_text: item.line_items_text || '',
-        ledger_snapshot: null
+        ledger_snapshot: null,
+        checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
       })
 
       // Wait a brief moment for the UI to update with the new data
@@ -1862,9 +2240,15 @@ export default function App() {
           new_balance: newBalance
         },
         timestamp: Date.now(),
-        balanceAfter: newBalance
+        balanceAfter: newBalance,
+        checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
       })
       processed++
+
+      // Increment check number if auto-numbering
+      if (batchAutoNumber) {
+        currentCheckNumber++
+      }
     }
 
     // Update all affected ledger balances
@@ -1872,6 +2256,15 @@ export default function App() {
       updateLedgerBalance(ledgerId, balance)
     })
     setCheckHistory(newHistory)
+
+    // Update profile's next check number if auto-numbering was used
+    if (batchAutoNumber && processed > 0) {
+      setProfiles(prev => prev.map(p =>
+        p.id === activeProfileId
+          ? { ...p, nextCheckNumber: parseInt(batchStartNumber) + processed }
+          : p
+      ))
+    }
 
     // Clear the queue and reset batch state
     setImportQueue([])
@@ -1884,6 +2277,214 @@ export default function App() {
 
     if (!batchPrintCancelled) {
       setShowImportQueue(false)
+    }
+  }
+
+  // Three-up mode: Chunks of 3 checks per sheet
+  const executeBatchPrintThreeUp = async () => {
+    // Initialize batch print state
+    setIsBatchPrinting(true)
+    setBatchPrintCancelled(false)
+    setBatchPrintProgress({ current: 0, total: importQueue.length })
+
+    let processed = 0
+    const newHistory = [...checkHistory]
+
+    // Track balances per ledger (ledgerId -> balance)
+    const ledgerBalances = {}
+    ledgers.forEach(l => {
+      ledgerBalances[l.id] = l.balance
+    })
+
+    // Create a copy of the queue to iterate through
+    const queueCopy = [...importQueue]
+
+    // Apply check numbering if enabled
+    let currentCheckNumber = batchAutoNumber ? parseInt(batchStartNumber) || 1001 : null
+
+    // Process in chunks of 3
+    for (let chunkStart = 0; chunkStart < queueCopy.length; chunkStart += 3) {
+      // Check if user cancelled
+      if (batchPrintCancelled) {
+        break
+      }
+
+      const chunk = queueCopy.slice(chunkStart, chunkStart + 3)
+      const slotNames = ['top', 'middle', 'bottom']
+      const newSheetData = {
+        top: getEmptySlotData(),
+        middle: getEmptySlotData(),
+        bottom: getEmptySlotData()
+      }
+
+      // Load items into sheet slots
+      const slotMetadata = []
+      for (let i = 0; i < chunk.length; i++) {
+        const item = chunk[i]
+        const slot = slotNames[i]
+        const amount = sanitizeCurrencyInput(item.amount)
+
+        // Skip invalid items
+        if (amount <= 0 || !item.payee?.trim()) {
+          continue
+        }
+
+        // Determine which ledger to use
+        const targetLedgerId = findOrCreateLedger(item.ledger)
+
+        // Initialize balance for newly created ledgers
+        if (ledgerBalances[targetLedgerId] === undefined) {
+          ledgerBalances[targetLedgerId] = 0
+        }
+
+        // Normalize the date
+        let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
+        if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+          normalizedDate = convertExcelDate(item.date)
+        }
+
+        // Populate slot data
+        newSheetData[slot] = {
+          date: normalizedDate,
+          payee: item.payee,
+          amount: item.amount,
+          amountWords: numberToWords(item.amount),
+          memo: item.memo || '',
+          external_memo: item.external_memo || '',
+          internal_memo: item.internal_memo || '',
+          line_items: item.line_items || [],
+          line_items_text: item.line_items_text || '',
+          ledger_snapshot: null,
+          checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
+        }
+
+        // Store metadata for recording
+        slotMetadata.push({
+          slot,
+          item,
+          targetLedgerId,
+          amount,
+          checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
+        })
+
+        // Increment check number if auto-numbering
+        if (batchAutoNumber) {
+          currentCheckNumber++
+        }
+      }
+
+      // Skip this chunk if no valid items
+      if (slotMetadata.length === 0) {
+        setBatchPrintProgress({ current: chunkStart + chunk.length, total: queueCopy.length })
+        continue
+      }
+
+      // Load sheet data into state
+      setSheetData(newSheetData)
+
+      // Update progress
+      setBatchPrintProgress({ current: chunkStart + chunk.length, total: queueCopy.length })
+
+      // Wait for UI to update with the new data
+      await new Promise(resolve => setTimeout(resolve, 300))
+
+      // Set document title for PDF filename (use first slot's data)
+      const originalTitle = document.title
+      document.title = generatePrintFilename(slotMetadata[0].item)
+
+      // Trigger print ONCE for the entire sheet
+      setIsPrinting(true)
+      try {
+        const filename = generatePrintFilename(slotMetadata[0].item)
+        const res = await window.cs2.printDialog(filename)
+
+        // Restore original title
+        document.title = originalTitle
+
+        if (res?.success === false) {
+          console.error(`Print failed for sheet:`, res.error)
+          // Continue even if print fails - user might have cancelled
+        }
+      } catch (error) {
+        console.error(`Print error for sheet:`, error)
+        // Restore original title on error
+        document.title = originalTitle
+      }
+      setIsPrinting(false)
+
+      // Wait for printer spooler to receive the job
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Record all filled slots to history
+      const timestamp = Date.now()
+      for (const { slot, item, targetLedgerId, amount, checkNumber } of slotMetadata) {
+        const previousBalance = ledgerBalances[targetLedgerId]
+        ledgerBalances[targetLedgerId] -= amount
+        const newBalance = ledgerBalances[targetLedgerId]
+
+        newHistory.unshift({
+          id: generateId(),
+          date: item.date || new Date().toISOString().slice(0, 10),
+          payee: item.payee,
+          amount: amount,
+          memo: item.memo || '',
+          external_memo: item.external_memo || '',
+          internal_memo: item.internal_memo || '',
+          line_items: item.line_items || [],
+          line_items_text: item.line_items_text || '',
+          ledgerId: targetLedgerId,
+          profileId: activeProfileId,
+          ledgerName: ledgers.find(l => l.id === targetLedgerId)?.name || '',
+          profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
+          ledger_snapshot: {
+            previous_balance: previousBalance,
+            transaction_amount: amount,
+            new_balance: newBalance
+          },
+          timestamp: timestamp,
+          balanceAfter: newBalance,
+          sheetSlot: slot,
+          checkNumber: checkNumber
+        })
+        processed++
+      }
+    }
+
+    // Update all affected ledger balances
+    Object.entries(ledgerBalances).forEach(([ledgerId, balance]) => {
+      updateLedgerBalance(ledgerId, balance)
+    })
+    setCheckHistory(newHistory)
+
+    // Update profile's next check number if auto-numbering was used
+    if (batchAutoNumber && processed > 0) {
+      setProfiles(prev => prev.map(p =>
+        p.id === activeProfileId
+          ? { ...p, nextCheckNumber: parseInt(batchStartNumber) + processed }
+          : p
+      ))
+    }
+
+    // Clear the queue and reset batch state
+    setImportQueue([])
+    setIsBatchPrinting(false)
+    setBatchPrintProgress({ current: 0, total: 0 })
+
+    // Show completion modal
+    setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled })
+    setShowBatchCompleteModal(true)
+
+    if (!batchPrintCancelled) {
+      setShowImportQueue(false)
+    }
+  }
+
+  // Wrapper function that routes to standard or three-up version
+  const executeBatchPrintAndRecord = async () => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      return executeBatchPrintThreeUp()
+    } else {
+      return executeBatchPrintStandard()
     }
   }
 
@@ -1930,10 +2531,24 @@ export default function App() {
   const dragRef = useRef(null)
 
   const setField = (key, patch) => {
-    setModel((m) => ({
-      ...m,
-      fields: { ...m.fields, [key]: { ...m.fields[key], ...patch } }
-    }))
+    // In three-up mode, update slot-specific fields instead of shared fields
+    if (activeProfile?.layoutMode === 'three_up') {
+      setModel((m) => ({
+        ...m,
+        slotFields: {
+          ...m.slotFields,
+          [activeSlot]: {
+            ...m.slotFields[activeSlot],
+            [key]: { ...m.slotFields[activeSlot][key], ...patch }
+          }
+        }
+      }))
+    } else {
+      setModel((m) => ({
+        ...m,
+        fields: { ...m.fields, [key]: { ...m.fields[key], ...patch } }
+      }))
+    }
   }
 
   const ensureStub = (which, enabled) => {
@@ -2040,6 +2655,21 @@ export default function App() {
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
 
+  const onPointerDownCutLine = (e, lineNumber) => {
+    e.stopPropagation()
+    const fieldName = lineNumber === 1 ? 'cutLine1In' : 'cutLine2In'
+    const startValue = model.layout[fieldName]
+
+    dragRef.current = {
+      mode: 'cutLine',
+      lineNumber,
+      fieldName,
+      startY: e.clientY,
+      startValue
+    }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
   const onPointerMove = (e) => {
     const d = dragRef.current
     if (!d) return
@@ -2060,6 +2690,20 @@ export default function App() {
         w: clamp(nw, 0.2, model.layout.widthIn - d.startField.x),
         h: clamp(nh, 0.18, stageHeightIn - d.startField.y)
       })
+    } else if (d.mode === 'cutLine') {
+      const newY = roundTo(d.startValue + dyIn, snapStepIn)
+      // Constrain cut line 1 between 1" and 6" (before second cut line)
+      // Constrain cut line 2 between cutLine1 + 1" and 10"
+      const minY = d.lineNumber === 1 ? 1.0 : model.layout.cutLine1In + 1.0
+      const maxY = d.lineNumber === 1 ? model.layout.cutLine2In - 1.0 : 10.0
+
+      setModel(m => ({
+        ...m,
+        layout: {
+          ...m.layout,
+          [d.fieldName]: clamp(newY, minY, maxY)
+        }
+      }))
     }
   }
 
@@ -2101,6 +2745,10 @@ export default function App() {
   }
 
   const handlePrint = async () => {
+    // Temporarily disable edit mode for printing
+    const wasInEditMode = editMode
+    if (wasInEditMode) setEditMode(false)
+
     setIsPrinting(true)
 
     // Set document title for PDF filename
@@ -2111,15 +2759,17 @@ export default function App() {
       const filename = generatePrintFilename(data)
       const res = await window.cs2.printDialog(filename)
 
-      // Restore original title
+      // Restore original title and edit mode
       document.title = originalTitle
+      if (wasInEditMode) setEditMode(true)
 
       if (res?.success === false) alert(`Print failed: ${res.error || 'Unknown error'}`)
       setIsPrinting(false)
     }, 250)
   }
 
-  const handlePrintAndRecord = async () => {
+  // Single check print and record (standard mode)
+  const handlePrintAndRecordSingle = async () => {
     const amount = sanitizeCurrencyInput(data.amount)
     if (amount <= 0) {
       alert('Please enter a valid amount')
@@ -2141,8 +2791,13 @@ export default function App() {
       internal_memo: data.internal_memo,
       line_items: data.line_items,
       line_items_text: data.line_items_text,
-      ledger_snapshot: data.ledger_snapshot
+      ledger_snapshot: data.ledger_snapshot,
+      checkNumber: data.checkNumber
     }
+
+    // Temporarily disable edit mode for printing
+    const wasInEditMode = editMode
+    if (wasInEditMode) setEditMode(false)
 
     setIsPrinting(true)
 
@@ -2172,6 +2827,7 @@ export default function App() {
         if (res?.success === false) {
           window.removeEventListener('afterprint', handleAfterPrint)
           setIsPrinting(false)
+          if (wasInEditMode) setEditMode(true)
           alert(`Print failed: ${res.error || 'Unknown error'}`)
           return
         }
@@ -2199,9 +2855,25 @@ export default function App() {
         // Clean up listener
         window.removeEventListener('afterprint', handleAfterPrint)
         setIsPrinting(false)
+        if (wasInEditMode) setEditMode(true)
 
         // NOW it's safe to record and clear - print has fully completed
         recordCheck(checkDataSnapshot)
+
+        // Increment the profile's next check number
+        setProfiles(prev => prev.map(p =>
+          p.id === activeProfileId
+            ? { ...p, nextCheckNumber: (p.nextCheckNumber || 1001) + 1 }
+            : p
+        ))
+
+        // Remove printed items from import queue
+        if (selectedQueueItems.length > 0) {
+          setImportQueue(prev => prev.filter(item =>
+            !selectedQueueItems.some(selected => selected.id === item.id)
+          ))
+          setSelectedQueueItems([])
+        }
 
         // Clear form for next check
         setData({
@@ -2214,13 +2886,195 @@ export default function App() {
           internal_memo: '',
           line_items: [],
           line_items_text: '',
-          ledger_snapshot: null
+          ledger_snapshot: null,
+          checkNumber: ''
         })
       } catch (error) {
         setIsPrinting(false)
+        if (wasInEditMode) setEditMode(true)
         alert(`Print error: ${error?.message || 'Unknown error'}`)
       }
     }, 250)
+  }
+
+  // Sheet print and record (three-up mode)
+  const handlePrintAndRecordSheet = async () => {
+    // Collect all filled slots
+    const filledSlots = []
+    const slotNames = ['top', 'middle', 'bottom']
+
+    for (const slot of slotNames) {
+      const slotData = sheetData[slot]
+      if (!isSlotEmpty(slotData)) {
+        const amount = sanitizeCurrencyInput(slotData.amount)
+        if (amount <= 0) {
+          alert(`Please enter a valid amount for ${slot} slot`)
+          return
+        }
+        if (!slotData.payee?.trim()) {
+          alert(`Please enter a payee for ${slot} slot`)
+          return
+        }
+        filledSlots.push({
+          slot,
+          data: {
+            date: slotData.date,
+            payee: slotData.payee,
+            amount: slotData.amount,
+            amountWords: slotData.amountWords,
+            memo: slotData.memo,
+            external_memo: slotData.external_memo,
+            internal_memo: slotData.internal_memo,
+            line_items: slotData.line_items,
+            line_items_text: slotData.line_items_text,
+            ledger_snapshot: slotData.ledger_snapshot,
+            checkNumber: slotData.checkNumber
+          }
+        })
+      }
+    }
+
+    if (filledSlots.length === 0) {
+      alert('Please fill at least one slot before printing')
+      return
+    }
+
+    // Temporarily disable edit mode for printing
+    const wasInEditMode = editMode
+    if (wasInEditMode) setEditMode(false)
+
+    setIsPrinting(true)
+
+    // Set document title for PDF filename (use first slot's data)
+    const originalTitle = document.title
+    document.title = generatePrintFilename(filledSlots[0].data)
+
+    // Small delay to ensure DOM is ready for printing
+    setTimeout(async () => {
+      try {
+        // Set up afterprint handler BEFORE opening print dialog
+        let afterPrintFired = false
+        const handleAfterPrint = () => {
+          afterPrintFired = true
+          window.removeEventListener('afterprint', handleAfterPrint)
+        }
+        window.addEventListener('afterprint', handleAfterPrint)
+
+        // Open print dialog and wait for it to close
+        const filename = generatePrintFilename(filledSlots[0].data)
+        const res = await window.cs2.printDialog(filename)
+
+        // Restore original title
+        document.title = originalTitle
+
+        // Remove the event listener if dialog failed
+        if (res?.success === false) {
+          window.removeEventListener('afterprint', handleAfterPrint)
+          setIsPrinting(false)
+          if (wasInEditMode) setEditMode(true)
+          alert(`Print failed: ${res.error || 'Unknown error'}`)
+          return
+        }
+
+        // Give afterprint a chance to fire
+        if (!afterPrintFired) {
+          await new Promise(resolve => {
+            const checkInterval = setInterval(() => {
+              if (afterPrintFired) {
+                clearInterval(checkInterval)
+                clearTimeout(fallbackTimeout)
+                resolve()
+              }
+            }, 50)
+
+            const fallbackTimeout = setTimeout(() => {
+              clearInterval(checkInterval)
+              resolve()
+            }, 2000)
+          })
+        }
+
+        // Clean up listener
+        window.removeEventListener('afterprint', handleAfterPrint)
+        setIsPrinting(false)
+        if (wasInEditMode) setEditMode(true)
+
+        // Record all filled slots to history (each gets its own entry with sheetSlot field)
+        const timestamp = Date.now()
+        let currentBalance = ledgerBalance
+
+        for (const { slot, data: checkData } of filledSlots) {
+          const amount = sanitizeCurrencyInput(checkData.amount)
+          const previousBalance = currentBalance
+          const newBalance = currentBalance - amount
+
+          const checkEntry = {
+            id: generateId(),
+            date: checkData.date || new Date().toISOString().slice(0, 10),
+            payee: checkData.payee,
+            amount: amount,
+            memo: checkData.memo || '',
+            external_memo: checkData.external_memo || '',
+            internal_memo: checkData.internal_memo || '',
+            line_items: checkData.line_items || [],
+            line_items_text: checkData.line_items_text || '',
+            ledgerId: activeLedgerId,
+            profileId: activeProfileId,
+            ledger_snapshot: {
+              previous_balance: previousBalance,
+              transaction_amount: amount,
+              new_balance: newBalance
+            },
+            timestamp: timestamp,
+            balanceAfter: newBalance,
+            sheetSlot: slot,
+            checkNumber: checkData.checkNumber || ''
+          }
+
+          setCheckHistory(prev => [checkEntry, ...prev])
+          currentBalance = newBalance
+        }
+
+        // Update ledger balance once with final balance
+        updateLedgerBalance(activeLedgerId, currentBalance)
+
+        // Increment the profile's next check number by the number of checks printed
+        setProfiles(prev => prev.map(p =>
+          p.id === activeProfileId
+            ? { ...p, nextCheckNumber: (p.nextCheckNumber || 1001) + filledSlots.length }
+            : p
+        ))
+
+        // Remove printed items from import queue
+        if (selectedQueueItems.length > 0) {
+          setImportQueue(prev => prev.filter(item =>
+            !selectedQueueItems.some(selected => selected.id === item.id)
+          ))
+          setSelectedQueueItems([])
+        }
+
+        // Clear all slots
+        setSheetData({
+          top: getEmptySlotData(),
+          middle: getEmptySlotData(),
+          bottom: getEmptySlotData()
+        })
+        setActiveSlot('top')
+      } catch (error) {
+        setIsPrinting(false)
+        if (wasInEditMode) setEditMode(true)
+        alert(`Print error: ${error?.message || 'Unknown error'}`)
+      }
+    }, 250)
+  }
+
+  // Wrapper function that routes to single or sheet version
+  const handlePrintAndRecord = async () => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      return handlePrintAndRecordSheet()
+    } else {
+      return handlePrintAndRecordSingle()
+    }
   }
 
   const resetModel = () => {
@@ -2245,7 +3099,8 @@ export default function App() {
   const templateBgSize = templateFit === 'cover' ? 'cover' : templateFit === 'contain' ? 'contain' : '100% 100%'
 
   // Calculate if balance will go negative
-  const pendingAmount = sanitizeCurrencyInput(data.amount)
+  const currentData = getCurrentCheckData()
+  const pendingAmount = sanitizeCurrencyInput(currentData.amount)
   const projectedBalance = ledgerBalance - pendingAmount
   const isOverdrawn = pendingAmount > 0 && projectedBalance < 0
 
@@ -2324,45 +3179,6 @@ export default function App() {
             </>
           )}
 
-          {/* Three-Up Slot Position Selector */}
-          {activeProfile?.layoutMode === 'three_up' && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '0 8px', borderLeft: '1px solid var(--border)' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Position:</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
-                <input
-                  type="radio"
-                  name="threeUpSlot"
-                  value="top"
-                  checked={threeUpSlot === 'top'}
-                  onChange={(e) => setThreeUpSlot(e.target.value)}
-                  style={{ cursor: 'pointer' }}
-                />
-                Top
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
-                <input
-                  type="radio"
-                  name="threeUpSlot"
-                  value="middle"
-                  checked={threeUpSlot === 'middle'}
-                  onChange={(e) => setThreeUpSlot(e.target.value)}
-                  style={{ cursor: 'pointer' }}
-                />
-                Middle
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
-                <input
-                  type="radio"
-                  name="threeUpSlot"
-                  value="bottom"
-                  checked={threeUpSlot === 'bottom'}
-                  onChange={(e) => setThreeUpSlot(e.target.value)}
-                  style={{ cursor: 'pointer' }}
-                />
-                Bottom
-              </label>
-            </div>
-          )}
 
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           <button className="btn primary" onClick={handlePrintAndRecord}>
@@ -2651,20 +3467,36 @@ export default function App() {
                 </div>
 
                 <div className="import-list">
-                  {importQueue.map(item => (
-                    <div key={item.id} className="import-item" onClick={() => loadFromQueue(item)}>
-                      <div className="import-main">
-                        <span className="import-payee">{item.payee || '(no payee)'}</span>
-                        <span className="import-amount">{item.amount ? formatCurrency(sanitizeCurrencyInput(item.amount)) : '-'}</span>
+                  {importQueue.map(item => {
+                    const isSelected = selectedQueueItems.some(selected => selected.id === item.id)
+                    return (
+                      <div
+                        key={item.id}
+                        className={`import-item ${isSelected ? 'selected' : ''}`}
+                        onClick={() => loadFromQueue(item)}
+                      >
+                        <div className="import-main">
+                          <span className="import-payee">{item.payee || '(no payee)'}</span>
+                          <span className="import-amount">{item.amount ? formatCurrency(sanitizeCurrencyInput(item.amount)) : '-'}</span>
+                        </div>
+                        <div className="import-meta">
+                          {item.date && <span>{item.date}</span>}
+                          {item.memo && <span>{item.memo}</span>}
+                        </div>
+                        {isSelected && (
+                          <div className="import-selected-badge">
+                            ✓
+                          </div>
+                        )}
                       </div>
-                      <div className="import-meta">
-                        {item.date && <span>{item.date}</span>}
-                        {item.memo && <span>{item.memo}</span>}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
-                <p className="hint">Click an item to load it into the form</p>
+                <p className="hint">
+                  {activeProfile?.layoutMode === 'three_up'
+                    ? 'Click items to select (up to 3 for sheet)'
+                    : 'Click an item to load it into the form'}
+                </p>
               </div>
             </section>
           )}
@@ -2807,21 +3639,111 @@ export default function App() {
 
           {/* Check Data - Main focus */}
           <section className="section-main">
+            {/* Sheet Editor Tabs - only in three_up mode */}
+            {activeProfile?.layoutMode === 'three_up' && (
+              <div style={{
+                display: 'flex',
+                gap: '4px',
+                borderBottom: '1px solid var(--border)',
+                marginBottom: '16px'
+              }}>
+                {['top', 'middle', 'bottom'].map(slot => {
+                  const slotData = sheetData[slot]
+                  const isEmpty = isSlotEmpty(slotData)
+                  const isActive = activeSlot === slot
+
+                  return (
+                    <button
+                      key={slot}
+                      onClick={() => setActiveSlot(slot)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 16px',
+                        background: isActive ? 'var(--accent-soft)' : 'transparent',
+                        color: isActive ? 'var(--accent)' : 'var(--text)',
+                        border: 'none',
+                        borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: isActive ? '600' : '400',
+                        transition: 'all 0.2s',
+                        position: 'relative'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.target.style.background = 'var(--surface-hover)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.target.style.background = 'transparent'
+                        }
+                      }}
+                    >
+                      {slot.charAt(0).toUpperCase() + slot.slice(1)}
+                      {!isEmpty && (
+                        <span style={{
+                          position: 'absolute',
+                          top: '6px',
+                          right: '6px',
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: 'var(--success)'
+                        }} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Clear Slot Buttons (three-up mode only) */}
+            {activeProfile?.layoutMode === 'three_up' && (
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '16px'
+              }}>
+                <button
+                  className="btn btn-sm"
+                  onClick={clearCurrentSlot}
+                  style={{
+                    flex: 1,
+                    background: 'var(--surface-hover)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border)'
+                  }}
+                  title="Clear the current slot"
+                >
+                  Clear {activeSlot.charAt(0).toUpperCase() + activeSlot.slice(1)}
+                </button>
+                <button
+                  className="btn btn-sm danger"
+                  onClick={clearAllSlots}
+                  style={{ flex: 1 }}
+                  title="Clear all three slots"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+
             <h2>Check Details</h2>
             <div className="card card-main">
               <div className="field">
                 <label>Date</label>
                 <input
                   type="date"
-                  value={data.date}
-                  onChange={(e) => setData((p) => ({ ...p, date: e.target.value }))}
+                  value={getCurrentCheckData().date}
+                  onChange={(e) => updateCurrentCheckData({ date: e.target.value })}
                 />
               </div>
               <div className="field">
                 <label>Pay to the Order of</label>
                 <input
-                  value={data.payee}
-                  onChange={(e) => setData((p) => ({ ...p, payee: e.target.value }))}
+                  value={getCurrentCheckData().payee}
+                  onChange={(e) => updateCurrentCheckData({ payee: e.target.value })}
                   placeholder="Recipient name"
                 />
               </div>
@@ -2831,12 +3753,12 @@ export default function App() {
                   <div className={`input-prefix ${isOverdrawn ? 'warning' : ''}`}>
                     <span>$</span>
                     <input
-                      value={data.amount}
-                      onChange={(e) => setData((p) => ({ ...p, amount: e.target.value }))}
+                      value={getCurrentCheckData().amount}
+                      onChange={(e) => updateCurrentCheckData({ amount: e.target.value })}
                       onBlur={(e) => {
                         const value = e.target.value.trim()
                         if (value && value !== '') {
-                          setData((p) => ({ ...p, amount: formatAmountForDisplay(value) }))
+                          updateCurrentCheckData({ amount: formatAmountForDisplay(value) })
                         }
                       }}
                       placeholder="0.00"
@@ -2851,37 +3773,66 @@ export default function App() {
               )}
               <div className="field">
                 <label>Amount in Words</label>
-                <input value={data.amountWords} readOnly className="readonly" />
+                <input value={getCurrentCheckData().amountWords} readOnly className="readonly" />
               </div>
               <div className="field">
                 <label>Memo</label>
                 <input
-                  value={data.memo}
-                  onChange={(e) => setData((p) => ({ ...p, memo: e.target.value }))}
+                  value={getCurrentCheckData().memo}
+                  onChange={(e) => updateCurrentCheckData({ memo: e.target.value })}
                   placeholder="Optional note"
                 />
               </div>
+              {preferences.showCheckNumber && (
+                <>
+                  <div className="field">
+                    <label>Check Number</label>
+                    <input
+                      value={getCurrentCheckData().checkNumber || activeProfile.nextCheckNumber || ''}
+                      onChange={(e) => updateCurrentCheckData({ checkNumber: e.target.value })}
+                      placeholder="Check #"
+                    />
+                  </div>
+
+                  {/* FORCE FIX: Toggle Switch */}
+                  {activeProfile?.layoutMode === 'three_up' && (
+                    <div className="flex items-center mt-3 mb-4">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={autoIncrementCheckNumbers}
+                          onChange={(e) => setAutoIncrementCheckNumbers(e.target.checked)}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span className="ml-3 text-sm font-medium text-gray-300">Auto-increment across slots</span>
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+
               <div className="field">
                 <label>External Memo (Payee Copy)</label>
                 <input
-                  value={data.external_memo}
-                  onChange={(e) => setData((p) => ({ ...p, external_memo: e.target.value }))}
+                  value={getCurrentCheckData().external_memo}
+                  onChange={(e) => updateCurrentCheckData({ external_memo: e.target.value })}
                   placeholder="Public memo for payee stub"
                 />
               </div>
               <div className="field">
                 <label>Internal Memo (Bookkeeper Copy)</label>
                 <input
-                  value={data.internal_memo}
-                  onChange={(e) => setData((p) => ({ ...p, internal_memo: e.target.value }))}
+                  value={getCurrentCheckData().internal_memo}
+                  onChange={(e) => updateCurrentCheckData({ internal_memo: e.target.value })}
                   placeholder="Private memo for bookkeeper stub"
                 />
               </div>
               <div className="field">
                 <label>Line Items / Detail</label>
                 <textarea
-                  value={data.line_items_text || ''}
-                  onChange={(e) => setData((p) => ({ ...p, line_items_text: e.target.value }))}
+                  value={getCurrentCheckData().line_items_text || ''}
+                  onChange={(e) => updateCurrentCheckData({ line_items_text: e.target.value })}
                   placeholder="Enter line items, one per line (e.g., Item 1 - $100.00)"
                   rows="4"
                   style={{
@@ -3210,6 +4161,35 @@ export default function App() {
             </section>
           )}
 
+          {/* Check Number Toggle - Always visible in admin mode */}
+          {!preferences.adminLocked && (
+            <section className="section">
+              <h3>Check Number Settings</h3>
+              <div className="card">
+                <div style={{ marginBottom: '8px' }}>
+                  <label style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+                    Check Number Field
+                  </label>
+                  <div className="flex items-center mt-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={preferences.showCheckNumber}
+                        onChange={(e) => setPreferences(p => ({ ...p, showCheckNumber: e.target.checked }))}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <span className="ml-3 text-sm font-medium text-gray-300">Show Check Number</span>
+                    </label>
+                  </div>
+                  <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                    Hide this if using pre-numbered check stock
+                  </small>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Template - compact */}
           {!preferences.adminLocked && (
             <section className="section">
@@ -3492,14 +4472,105 @@ export default function App() {
           ) : (
             <div className="paperWrap">
               <div className="paper" style={paperStyle}>
-                <div
-                  className="checkStage"
-                  style={{
-                    '--offset-x': `${model.placement.offsetXIn}in`,
-                    '--offset-y': `${model.placement.offsetYIn + threeUpYOffset}in`,
-                    ...stageVars
-                  }}
-                >
+                {/* Three-up visual cut lines (perforation marks) - FIXED position */}
+                {activeProfile?.layoutMode === 'three_up' && (
+                  <>
+                    {/* Cut Line 1 - Draggable */}
+                    <div
+                      className="three-up-cut-line no-print"
+                      onPointerDown={(e) => onPointerDownCutLine(e, 1)}
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine1In}in)`,
+                        height: '20px',
+                        marginTop: '-10px',
+                        borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
+                        zIndex: 100,
+                        cursor: 'ns-resize',
+                        pointerEvents: 'auto'
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute',
+                        left: '4px',
+                        top: '-10px',
+                        background: 'rgba(128, 128, 128, 0.2)',
+                        color: 'rgba(128, 128, 128, 0.9)',
+                        padding: '2px 8px',
+                        borderRadius: '3px',
+                        fontSize: '10px',
+                        fontWeight: '600',
+                        pointerEvents: 'none',
+                        userSelect: 'none'
+                      }}>
+                        ✂ Cut 1 ({model.layout.cutLine1In.toFixed(2)}")
+                      </div>
+                    </div>
+
+                    {/* Cut Line 2 - Draggable */}
+                    <div
+                      className="three-up-cut-line no-print"
+                      onPointerDown={(e) => onPointerDownCutLine(e, 2)}
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine2In}in)`,
+                        height: '20px',
+                        marginTop: '-10px',
+                        borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
+                        zIndex: 100,
+                        cursor: 'ns-resize',
+                        pointerEvents: 'auto'
+                      }}
+                    >
+                      <div style={{
+                        position: 'absolute',
+                        left: '4px',
+                        top: '-10px',
+                        background: 'rgba(128, 128, 128, 0.2)',
+                        color: 'rgba(128, 128, 128, 0.9)',
+                        padding: '2px 8px',
+                        borderRadius: '3px',
+                        fontSize: '10px',
+                        fontWeight: '600',
+                        pointerEvents: 'none',
+                        userSelect: 'none'
+                      }}>
+                        ✂ Cut 2 ({model.layout.cutLine2In.toFixed(2)}")
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Render check(s) - single for standard mode, multiple for three_up mode */}
+                {(activeProfile?.layoutMode === 'three_up'
+                  ? ['top', 'middle', 'bottom'].map((slot, index) => ({ slot, index, yOffset: [0, model.layout.cutLine1In, model.layout.cutLine2In][index] }))
+                  : [{ slot: null, index: 0, yOffset: threeUpYOffset }]
+                ).map(({ slot, index, yOffset }) => {
+                  // Get data for this slot (three-up uses slot data, standard uses data)
+                  const checkData = slot ? sheetData[slot] : data
+                  const isActiveSlot = slot ? (activeSlot === slot) : true
+
+                  // In three-up mode, skip empty slots unless it's the active slot in edit mode
+                  if (slot && isSlotEmpty(checkData) && !(editMode && isActiveSlot)) {
+                    return null
+                  }
+
+                  return (
+                    <div
+                      key={slot || 'single'}
+                      className="checkStage"
+                      style={{
+                        '--offset-x': `${model.placement.offsetXIn}in`,
+                        '--offset-y': `${isPrinting ? yOffset : (model.placement.offsetYIn + yOffset)}in`,
+                        ...stageVars,
+                        opacity: editMode && !isActiveSlot ? 0.3 : 1,
+                        pointerEvents: editMode && !isActiveSlot ? 'none' : 'auto'
+                      }}
+                    >
                   {/* Rigid check face container with background image */}
                   <div
                     className="check-face-container"
@@ -3632,7 +4703,8 @@ export default function App() {
                   </div>
                 )}
 
-                {Object.entries(model.fields).map(([key, f]) => {
+                {/* Use slot-specific fields in three-up mode, shared fields in standard mode */}
+                {Object.entries(slot ? model.slotFields[slot] : model.fields).map(([key, f]) => {
                   // Check if this field belongs to a disabled stub
                   const isStub1Field = key.startsWith('stub1_')
                   const isStub2Field = key.startsWith('stub2_')
@@ -3646,10 +4718,18 @@ export default function App() {
                   if (key === 'stub2_approved' && !preferences.stub2ShowApproved) return null
                   if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
 
+                  // Skip check number field if preference is disabled
+                  if (key === 'checkNumber' && !preferences.showCheckNumber) return null
+
                   // Smart field value handling
-                  let value = data[key] ?? ''
+                  let value = checkData[key] ?? ''
                   let isTextarea = false
                   let isReadOnly = editMode || key === 'amountWords'
+
+                  // Special handling for check number - default to profile's nextCheckNumber
+                  if (key === 'checkNumber' && !value) {
+                    value = String(activeProfile.nextCheckNumber || '')
+                  }
 
                   // Special handling for date formatting (check and stubs)
                   if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
@@ -3666,13 +4746,13 @@ export default function App() {
 
                   // Special handling for smart stub fields
                   if (key.endsWith('_line_items')) {
-                    value = data.line_items_text || ''
+                    value = checkData.line_items_text || ''
                     isTextarea = true
                     isReadOnly = true
                   } else if (key.endsWith('_ledger')) {
-                    const snapshot = data.ledger_snapshot || {
-                      previous_balance: ledgerBalance + sanitizeCurrencyInput(data.amount),
-                      transaction_amount: sanitizeCurrencyInput(data.amount),
+                    const snapshot = checkData.ledger_snapshot || {
+                      previous_balance: ledgerBalance + sanitizeCurrencyInput(checkData.amount),
+                      transaction_amount: sanitizeCurrencyInput(checkData.amount),
                       new_balance: ledgerBalance
                     }
                     value = formatLedgerSnapshot(snapshot)
@@ -3740,7 +4820,7 @@ export default function App() {
                         <textarea
                           value={value}
                           readOnly={isReadOnly}
-                          onChange={(e) => !isReadOnly && setData((p) => ({ ...p, [key]: e.target.value }))}
+                          onChange={(e) => !isReadOnly && updateCurrentCheckData({ [key]: e.target.value })}
                           style={{
                             fontSize: `${fontSizePt}pt`,
                             fontFamily: activeFontFamily,
@@ -3757,7 +4837,7 @@ export default function App() {
                         <input
                           value={value}
                           readOnly={isReadOnly}
-                          onChange={(e) => setData((p) => ({ ...p, [key]: e.target.value }))}
+                          onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
                           style={{
                             fontSize: `${fontSizePt}pt`,
                             fontFamily: activeFontFamily,
@@ -3769,10 +4849,105 @@ export default function App() {
                     </div>
                   )
                 })}
+
+                {/* FORCE FIX: Manual Check Number Render */}
+                {preferences.showCheckNumber && !Object.keys(slot ? model.slotFields[slot] : model.fields).includes('checkNumber') && (
+                  <div
+                    key="manual-check-number"
+                    className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected === 'checkNumber' ? 'selected' : ''}`}
+                    style={{
+                      left: '7.8in',
+                      top: '0.15in',
+                      width: '1.5in',
+                      height: '0.30in'
+                    }}
+                    onPointerDown={(e) => {
+                      if (!editMode) return
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setSelected('checkNumber')
+                      // Create synthetic field in the model if it doesn't exist
+                      const checkNumberField = DEFAULT_FIELDS.checkNumber
+                      if (slot) {
+                        // Three-up mode: add to slotFields
+                        if (!model.slotFields[slot].checkNumber) {
+                          setModel(m => ({
+                            ...m,
+                            slotFields: {
+                              ...m.slotFields,
+                              [slot]: {
+                                ...m.slotFields[slot],
+                                checkNumber: checkNumberField
+                              }
+                            }
+                          }))
+                        }
+                        dragRef.current = {
+                          key: 'checkNumber',
+                          mode: 'move',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startField: { ...checkNumberField }
+                        }
+                      } else {
+                        // Standard mode: add to fields
+                        if (!model.fields.checkNumber) {
+                          setModel(m => ({
+                            ...m,
+                            fields: {
+                              ...m.fields,
+                              checkNumber: checkNumberField
+                            }
+                          }))
+                        }
+                        dragRef.current = {
+                          key: 'checkNumber',
+                          mode: 'move',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startField: { ...checkNumberField }
+                        }
+                      }
+                      e.currentTarget.setPointerCapture?.(e.pointerId)
+                    }}
+                  >
+                    {editMode && (
+                      <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                        Check #
+                      </div>
+                    )}
+                    <input
+                      value={checkData.checkNumber || String(activeProfile.nextCheckNumber || '1001')}
+                      readOnly={editMode}
+                      onChange={(e) => !editMode && updateCurrentCheckData({ checkNumber: e.target.value })}
+                      style={{
+                        fontSize: `${preferences.checkFontSizePt}pt`,
+                        fontFamily: activeFontFamily
+                      }}
+                    />
+                    {editMode && <div className="handle" onPointerDown={(e) => {
+                      if (!editMode) return
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setSelected('checkNumber')
+                      const checkNumberField = DEFAULT_FIELDS.checkNumber
+                      dragRef.current = {
+                        key: 'checkNumber',
+                        mode: 'resize',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        startField: { ...checkNumberField }
+                      }
+                      e.currentTarget.setPointerCapture?.(e.pointerId)
+                    }} />}
+                  </div>
+                )}
               </div>
+            )
+          })}
 
               {/* Stub Add/Remove Buttons - positioned at specific heights within the paper */}
-              {!editMode && (
+              {!editMode && activeProfile?.layoutMode !== 'three_up' && (
                 <>
                   {/* After check section */}
                   <div
@@ -3785,7 +4960,7 @@ export default function App() {
                       zIndex: 10
                     }}
                   >
-                    {model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' ? (
+                    {model.layout.stub1Enabled ? (
                       <div className="stub-divider-with-remove">
                         <div className="stub-divider-line" />
                         <button
@@ -3816,7 +4991,7 @@ export default function App() {
                   </div>
 
                   {/* After stub 1 section */}
-                  {model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
+                  {model.layout.stub1Enabled && (
                     <div
                       className="stub-control-row"
                       style={{
@@ -3827,7 +5002,7 @@ export default function App() {
                         zIndex: 10
                       }}
                     >
-                      {model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' ? (
+                      {model.layout.stub2Enabled ? (
                         <div className="stub-divider-with-remove">
                           <div className="stub-divider-line" />
                           <button
@@ -4065,6 +5240,64 @@ export default function App() {
               <button className="btn ghost" onClick={handleConfirmModalCancel}>Cancel</button>
               <button className="btn primary" onClick={handleConfirmModalConfirm}>
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Print Confirmation Modal */}
+      {showBatchPrintConfirm && (
+        <div className="modal-overlay no-print" onClick={cancelBatchPrintConfirm}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Print & Record All Checks?</h2>
+              <button className="btn-icon" onClick={cancelBatchPrintConfirm}>×</button>
+            </div>
+            <div className="modal-body" style={{ padding: '24px' }}>
+              <p style={{ marginBottom: '20px' }}>
+                Print and record {importQueue.length} checks? This will {activeProfile?.layoutMode === 'three_up' ? 'print checks in sheets of 3' : 'print each check'} and deduct amounts from your ledger balance.
+              </p>
+
+              {/* Auto-number checkbox */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={batchAutoNumber}
+                    onChange={(e) => setBatchAutoNumber(e.target.checked)}
+                    style={{ marginRight: '8px', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span>Auto-number checks sequentially</span>
+                </label>
+              </div>
+
+              {/* Starting number input (only visible when auto-number is enabled) */}
+              {batchAutoNumber && (
+                <div style={{ marginLeft: '26px', marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: '#6b7280' }}>
+                    Starting check number:
+                  </label>
+                  <input
+                    type="text"
+                    value={batchStartNumber}
+                    onChange={(e) => setBatchStartNumber(e.target.value)}
+                    placeholder="1001"
+                    style={{
+                      padding: '8px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      width: '150px'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" onClick={cancelBatchPrintConfirm}>Cancel</button>
+              <button className="btn primary" onClick={confirmBatchPrint}>
+                Print & Record
               </button>
             </div>
           </div>
