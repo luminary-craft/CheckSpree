@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('cs2', {
 
   // Backup
   backupSave: () => ipcRenderer.invoke('backup:save'),
+  backupRestore: () => ipcRenderer.invoke('backup:restore'),
+  backupList: () => ipcRenderer.invoke('backup:list'),
+  backupRestoreLatest: () => ipcRenderer.invoke('backup:restore-latest'),
+  backupRestoreFile: (filePath) => ipcRenderer.invoke('backup:restore-file', filePath),
 
   // Auto-Updater
   updaterCheck: () => ipcRenderer.invoke('updater:check'),

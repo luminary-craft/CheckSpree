@@ -71,10 +71,17 @@ const DEFAULT_PREFERENCES = {
   dateSlot3: 'YYYY',
   dateSeparator: '/',
   useLongDate: false,
+  stub1ShowLedger: true,
+  stub1ShowApproved: true,
+  stub1ShowGLCode: true,
+  stub1ShowLineItems: true,
+  stub1ShowCheckNumber: true,
   stub2ShowLedger: true,
   stub2ShowApproved: true,
   stub2ShowGLCode: true,
-  showCheckNumber: true, // Show/hide check number field
+  stub2ShowLineItems: true,
+  stub2ShowCheckNumber: true,
+  showCheckNumber: true, // Show/hide check number field on check itself
   adminLocked: true,
   adminPin: '0000',
   enableSnapping: false
@@ -784,6 +791,11 @@ export default function App() {
 
   // Batch print confirmation modal state
   const [showBatchPrintConfirm, setShowBatchPrintConfirm] = useState(false)
+
+  // Backup restore modal state
+  const [showBackupModal, setShowBackupModal] = useState(false)
+  const [availableBackups, setAvailableBackups] = useState([])
+  const [selectedBackup, setSelectedBackup] = useState(null)
   const [batchAutoNumber, setBatchAutoNumber] = useState(true)
   const [batchStartNumber, setBatchStartNumber] = useState('1001')
 
@@ -1142,6 +1154,62 @@ export default function App() {
     }
   }, [profiles])
 
+  // Migrate model to add missing stub fields (checkNumber and line_items for both stubs)
+  useEffect(() => {
+    if (!model.layout.stub1Enabled && !model.layout.stub2Enabled) return
+
+    const nextFields = { ...model.fields }
+    let hasChanges = false
+
+    // Add missing stub1 fields if stub1 is enabled
+    if (model.layout.stub1Enabled) {
+      const checkY = model.layout.checkHeightIn
+      const stub1Y = checkY
+      const baseY = stub1Y
+
+      if (!nextFields.stub1_checkNumber) {
+        nextFields.stub1_checkNumber = { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' }
+        hasChanges = true
+      }
+      if (!nextFields.stub1_line_items) {
+        nextFields.stub1_line_items = { x: 0.55, y: baseY + 1.15, w: model.layout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' }
+        hasChanges = true
+      }
+      if (!nextFields.stub1_ledger) {
+        nextFields.stub1_ledger = { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' }
+        hasChanges = true
+      }
+      if (!nextFields.stub1_approved) {
+        nextFields.stub1_approved = { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' }
+        hasChanges = true
+      }
+      if (!nextFields.stub1_glcode) {
+        nextFields.stub1_glcode = { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+        hasChanges = true
+      }
+    }
+
+    // Add missing stub2 fields if stub2 is enabled
+    if (model.layout.stub2Enabled) {
+      const checkY = model.layout.checkHeightIn
+      const stub2Y = checkY + (model.layout.stub1Enabled ? model.layout.stub1HeightIn : 0)
+      const baseY = stub2Y
+
+      if (!nextFields.stub2_checkNumber) {
+        nextFields.stub2_checkNumber = { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' }
+        hasChanges = true
+      }
+      if (!nextFields.stub2_line_items) {
+        nextFields.stub2_line_items = { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
+        hasChanges = true
+      }
+    }
+
+    if (hasChanges) {
+      setModel(m => ({ ...m, fields: nextFields }))
+    }
+  }, [model.layout.stub1Enabled, model.layout.stub2Enabled, model.layout.widthIn])
+
   // Migration effect: handle switching between standard and three_up modes
   useEffect(() => {
     if (activeProfile?.layoutMode === 'three_up') {
@@ -1200,19 +1268,17 @@ export default function App() {
     if (!autoIncrementCheckNumbers || activeProfile?.layoutMode !== 'three_up') return
 
     const slots = ['top', 'middle', 'bottom']
-    let hasChanges = false
-    const updates = {}
+    const baseNumber = parseInt(activeProfile?.nextCheckNumber) || 1001
 
-    slots.forEach((slot, index) => {
-      if (!sheetData[slot]?.checkNumber) {
-        const baseNumber = parseInt(activeProfile.nextCheckNumber) || 1001
-        const checkNumber = String(baseNumber + index)
-        updates[slot] = { ...sheetData[slot], checkNumber }
-        hasChanges = true
-      }
-    })
+    // Check if ALL slots need initialization
+    const needsInit = slots.every(slot => !sheetData[slot]?.checkNumber)
 
-    if (hasChanges) {
+    if (needsInit) {
+      const updates = {}
+      slots.forEach((slot, index) => {
+        const expectedNumber = String(baseNumber + index)
+        updates[slot] = { ...sheetData[slot], checkNumber: expectedNumber }
+      })
       setSheetData(prev => ({ ...prev, ...updates }))
     }
   }, [autoIncrementCheckNumbers, activeProfile?.layoutMode, activeProfile?.nextCheckNumber])
@@ -1688,6 +1754,70 @@ export default function App() {
       }
     } catch (e) {
       showToast(`Error creating backup: ${e.message}`, 'error')
+    }
+  }
+
+  const handleRestoreBackup = async () => {
+    try {
+      // Check if there are any auto-backups available
+      const backupsResult = await window.cs2.backupList()
+
+      if (backupsResult.success && backupsResult.backups.length > 0) {
+        // Show backup selection modal
+        setAvailableBackups(backupsResult.backups)
+        setSelectedBackup(backupsResult.backups[0]) // Select most recent by default
+        setShowBackupModal(true)
+      } else {
+        // No auto-backups available, ask user to select a file
+        showToast('No auto-backups found. Please select a backup file.', 'info')
+        handleRestoreFromFile()
+      }
+    } catch (e) {
+      showToast(`Error checking backups: ${e.message}`, 'error')
+    }
+  }
+
+  const handleRestoreFromFile = async () => {
+    try {
+      const result = await window.cs2.backupRestore()
+      if (result.success) {
+        showToast('Backup restored successfully. Reloading application...', 'success')
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
+      } else if (result.error) {
+        showToast(`Restore failed: ${result.error}`, 'error')
+      } else {
+        showToast('Restore cancelled', 'info')
+      }
+    } catch (e) {
+      showToast(`Error restoring backup: ${e.message}`, 'error')
+    }
+  }
+
+  const confirmRestoreBackup = async (backupPath = null) => {
+    // No confirmation dialog - warnings are in the modal itself
+    try {
+      let result
+      if (backupPath) {
+        // Restore from specific backup file
+        result = await window.cs2.backupRestoreFile(backupPath)
+      } else {
+        // Restore from latest auto-backup
+        result = await window.cs2.backupRestoreLatest()
+      }
+
+      if (result.success) {
+        showToast('Backup restored successfully. Reloading application...', 'success')
+        setShowBackupModal(false)
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
+      } else if (result.error) {
+        showToast(`Restore failed: ${result.error}`, 'error')
+      }
+    } catch (e) {
+      showToast(`Error restoring backup: ${e.message}`, 'error')
     }
   }
 
@@ -2611,22 +2741,28 @@ export default function App() {
       const isPayeeCopy = which === 'stub1'
       const defaults = isPayeeCopy
         ? {
-            // PAYEE COPY (Stub 1) - External Memo & Line Items
+            // PAYEE COPY (Stub 1) - External Memo, Line Items & Admin Fields
             [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
             [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
             [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+            [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
             [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
-            [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' }
+            [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' },
+            [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+            [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+            [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
           }
         : {
             // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
             [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
             [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
             [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+            [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
             [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
             [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
             [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-            [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+            [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
+            [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
           }
 
       const nextFields = { ...m.fields }
@@ -3197,6 +3333,9 @@ export default function App() {
             <>
               <button className="btn ghost" onClick={handleBackupData} title="Backup all data to file">
                 💾 Backup
+              </button>
+              <button className="btn ghost" onClick={handleRestoreBackup} title="Restore data from backup file">
+                📥 Restore
               </button>
               <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
                 <span className={`status-dot ${editMode ? 'active' : ''}`} />
@@ -4098,6 +4237,71 @@ export default function App() {
                     <input value={data.stub1_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub1_memo: e.target.value }))} />
                   </div>
                 </div>
+
+                {/* Stub Preferences */}
+                {!preferences.adminLocked && (
+                  <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub1ShowLedger}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLedger: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Ledger Snapshot</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub1ShowApproved}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowApproved: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Approved By</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub1ShowGLCode}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowGLCode: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show GL Code</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub1ShowLineItems}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLineItems: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Line Items</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub1ShowCheckNumber}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowCheckNumber: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Check Number</span>
+                    </label>
+                  </div>
+                    <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                      Toggle which fields appear on the Payee Copy stub
+                    </small>
+                  </div>
+                )}
               </div>
             </section>
           )}
@@ -4189,8 +4393,30 @@ export default function App() {
                       <span className="toggle-label">Show GL Code</span>
                     </label>
                   </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub2ShowLineItems}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLineItems: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Line Items</span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub2ShowCheckNumber}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowCheckNumber: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Check Number</span>
+                    </label>
+                  </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
-                      Toggle which administrative fields appear on the Bookkeeper Copy stub
+                      Toggle which fields appear on the Bookkeeper Copy stub
                     </small>
                   </div>
                 )}
@@ -4750,12 +4976,21 @@ export default function App() {
                   if (isStub1Field && (!model.layout.stub1Enabled || activeProfile?.layoutMode === 'three_up')) return null
                   if (isStub2Field && (!model.layout.stub2Enabled || activeProfile?.layoutMode === 'three_up')) return null
 
-                  // Skip stub2 admin fields if their preferences are disabled
+                  // Skip stub1 fields if their preferences are disabled
+                  if (key === 'stub1_ledger' && !preferences.stub1ShowLedger) return null
+                  if (key === 'stub1_approved' && !preferences.stub1ShowApproved) return null
+                  if (key === 'stub1_glcode' && !preferences.stub1ShowGLCode) return null
+                  if (key === 'stub1_line_items' && !preferences.stub1ShowLineItems) return null
+                  if (key === 'stub1_checkNumber' && !preferences.stub1ShowCheckNumber) return null
+
+                  // Skip stub2 fields if their preferences are disabled
                   if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
                   if (key === 'stub2_approved' && !preferences.stub2ShowApproved) return null
                   if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
+                  if (key === 'stub2_line_items' && !preferences.stub2ShowLineItems) return null
+                  if (key === 'stub2_checkNumber' && !preferences.stub2ShowCheckNumber) return null
 
-                  // Skip check number field if preference is disabled
+                  // Skip check number field on check if preference is disabled
                   if (key === 'checkNumber' && !preferences.showCheckNumber) return null
 
                   // Smart field value handling
@@ -4766,6 +5001,12 @@ export default function App() {
                   // Special handling for check number - default to profile's nextCheckNumber
                   if (key === 'checkNumber' && !value) {
                     value = String(activeProfile.nextCheckNumber || '')
+                  }
+
+                  // Sync stub check numbers from check data
+                  if ((key === 'stub1_checkNumber' || key === 'stub2_checkNumber')) {
+                    value = checkData.checkNumber || String(activeProfile.nextCheckNumber || '')
+                    isReadOnly = true
                   }
 
                   // Special handling for date formatting (check and stubs)
@@ -5256,6 +5497,108 @@ export default function App() {
               <button className="btn ghost" onClick={cancelDeleteHistoryEntry}>Cancel</button>
               <button className="btn danger" onClick={confirmDeleteHistoryEntry}>
                 Delete Check
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backup Restore Modal */}
+      {showBackupModal && (
+        <div className="modal-overlay no-print" onClick={() => setShowBackupModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2>Restore from Backup</h2>
+              <button className="btn-icon" onClick={() => setShowBackupModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: '16px', color: '#94a3b8' }}>
+                Select a backup to restore. The most recent backup is selected by default.
+              </p>
+
+              <div style={{
+                maxHeight: '300px',
+                overflowY: 'auto',
+                border: '1px solid #334155',
+                borderRadius: '6px',
+                backgroundColor: '#1e293b'
+              }}>
+                {availableBackups.map((backup, index) => (
+                  <div
+                    key={backup.path}
+                    onClick={() => setSelectedBackup(backup)}
+                    style={{
+                      padding: '12px',
+                      cursor: 'pointer',
+                      borderBottom: index < availableBackups.length - 1 ? '1px solid #334155' : 'none',
+                      backgroundColor: selectedBackup?.path === backup.path ? '#334155' : 'transparent',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedBackup?.path !== backup.path) {
+                        e.currentTarget.style.backgroundColor = '#2d3748'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedBackup?.path !== backup.path) {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: '500', color: '#f1f5f9' }}>{backup.filename}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                          {new Date(backup.created).toLocaleString()} • {(backup.size / 1024).toFixed(1)} KB
+                        </div>
+                      </div>
+                      {selectedBackup?.path === backup.path && (
+                        <div style={{ color: '#3b82f6', fontSize: '18px' }}>✓</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                marginTop: '16px',
+                padding: '16px',
+                backgroundColor: '#7f1d1d',
+                borderRadius: '6px',
+                border: '1px solid #ef4444'
+              }}>
+                <div style={{ fontWeight: '600', color: '#fecaca', marginBottom: '8px', fontSize: '14px' }}>
+                  ⚠️ WARNING: This action cannot be undone
+                </div>
+                <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.6' }}>
+                  Restoring this backup will replace ALL current data:
+                  <ul style={{ marginTop: '8px', marginBottom: '0', paddingLeft: '20px' }}>
+                    <li>All profiles and settings</li>
+                    <li>All field positions and layouts</li>
+                    <li>All check history</li>
+                    <li>All ledger data</li>
+                    <li>Current session data</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  setShowBackupModal(false)
+                  handleRestoreFromFile()
+                }}
+              >
+                Select File Instead
+              </button>
+              <button className="btn ghost" onClick={() => setShowBackupModal(false)}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={() => confirmRestoreBackup(selectedBackup?.path)}
+                disabled={!selectedBackup}
+              >
+                Restore Selected
               </button>
             </div>
           </div>

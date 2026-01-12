@@ -19,6 +19,39 @@ function getUserDataFile() {
   return path.join(app.getPath('userData'), 'checkspree2.settings.json')
 }
 
+function getBackupDirectory() {
+  const backupDir = path.join(app.getPath('userData'), 'backups')
+  if (!fs.existsSync(backupDir)) {
+    fs.mkdirSync(backupDir, { recursive: true })
+  }
+  return backupDir
+}
+
+function getAvailableBackups() {
+  try {
+    const backupDir = getBackupDirectory()
+    const files = fs.readdirSync(backupDir)
+
+    const backups = files
+      .filter(f => f.endsWith('.json'))
+      .map(filename => {
+        const filePath = path.join(backupDir, filename)
+        const stats = fs.statSync(filePath)
+        return {
+          filename,
+          path: filePath,
+          created: stats.mtime.toISOString(),
+          size: stats.size
+        }
+      })
+      .sort((a, b) => new Date(b.created) - new Date(a.created)) // Most recent first
+
+    return backups
+  } catch (e) {
+    return []
+  }
+}
+
 function readSettings() {
   try {
     const file = getUserDataFile()
@@ -328,6 +361,8 @@ ipcMain.handle('backup:save', async () => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
   const today = new Date().toISOString().slice(0, 10)
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5) // Format: 2026-01-12T14-30-45
+
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: `CheckSpree_Backup_${today}.json`,
     filters: [
@@ -343,12 +378,113 @@ ipcMain.handle('backup:save', async () => {
     const settings = readSettings()
     // Write as plain JSON for portability
     const json = JSON.stringify(settings, null, 2)
+
+    // Save to user-selected location
     fs.writeFileSync(result.filePath, json, 'utf8')
+
+    // Also save auto-backup to app data directory
+    const backupDir = getBackupDirectory()
+    const autoBackupPath = path.join(backupDir, `CheckSpree_AutoBackup_${timestamp}.json`)
+    fs.writeFileSync(autoBackupPath, json, 'utf8')
 
     // Open the file location
     shell.showItemInFolder(result.filePath)
 
-    return { success: true, path: result.filePath }
+    return { success: true, path: result.filePath, autoBackupPath }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Restore backup from JSON file
+ipcMain.handle('backup:restore', async () => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+
+  if (result.canceled || !result.filePaths?.length) return { success: false }
+
+  try {
+    const filePath = result.filePaths[0]
+    const fileContent = fs.readFileSync(filePath, 'utf8')
+    const backupData = JSON.parse(fileContent)
+
+    // Validate that this looks like a CheckSpree backup
+    if (!backupData.model || !backupData.profiles) {
+      return { success: false, error: 'Invalid backup file format' }
+    }
+
+    // Write the backup data as the new settings
+    writeSettings(backupData)
+
+    return { success: true, path: filePath }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// List available auto-backups
+ipcMain.handle('backup:list', async () => {
+  try {
+    const backups = getAvailableBackups()
+    return { success: true, backups }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e), backups: [] }
+  }
+})
+
+// Restore from latest auto-backup
+ipcMain.handle('backup:restore-latest', async () => {
+  try {
+    const backups = getAvailableBackups()
+
+    if (backups.length === 0) {
+      return { success: false, error: 'No backups available' }
+    }
+
+    const latestBackup = backups[0] // Already sorted by most recent first
+    const fileContent = fs.readFileSync(latestBackup.path, 'utf8')
+    const backupData = JSON.parse(fileContent)
+
+    // Validate that this looks like a CheckSpree backup
+    if (!backupData.model || !backupData.profiles) {
+      return { success: false, error: 'Invalid backup file format' }
+    }
+
+    // Write the backup data as the new settings
+    writeSettings(backupData)
+
+    return { success: true, backup: latestBackup }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Restore from specific backup file path
+ipcMain.handle('backup:restore-file', async (_evt, filePath) => {
+  try {
+    if (!filePath) {
+      return { success: false, error: 'No file path provided' }
+    }
+
+    const fileContent = fs.readFileSync(filePath, 'utf8')
+    const backupData = JSON.parse(fileContent)
+
+    // Validate that this looks like a CheckSpree backup
+    if (!backupData.model || !backupData.profiles) {
+      return { success: false, error: 'Invalid backup file format' }
+    }
+
+    // Write the backup data as the new settings
+    writeSettings(backupData)
+
+    return { success: true, path: filePath }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }
