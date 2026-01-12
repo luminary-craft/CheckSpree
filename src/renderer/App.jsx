@@ -2731,8 +2731,8 @@ export default function App() {
       const newY = roundTo(d.startValue + dyIn, snapStepIn)
       // Constrain cut line 1 between 1" and 6" (before second cut line)
       // Constrain cut line 2 between cutLine1 + 1" and 10"
-      const minY = d.lineNumber === 1 ? 1.0 : model.layout.cutLine1In + 1.0
-      const maxY = d.lineNumber === 1 ? model.layout.cutLine2In - 1.0 : 10.0
+      const minY = d.lineNumber === 1 ? 1.0 : (model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In) + 1.0
+      const maxY = d.lineNumber === 1 ? (model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In) - 1.0 : 10.0
 
       setModel(m => ({
         ...m,
@@ -4520,7 +4520,7 @@ export default function App() {
                         position: 'absolute',
                         left: 0,
                         right: 0,
-                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine1In}in)`,
+                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In}in)`,
                         height: '20px',
                         marginTop: '-10px',
                         borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
@@ -4542,7 +4542,7 @@ export default function App() {
                         pointerEvents: 'none',
                         userSelect: 'none'
                       }}>
-                        ✂ Cut 1 ({model.layout.cutLine1In.toFixed(2)}")
+                        ✂ Cut 1 ({(model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In).toFixed(2)}")
                       </div>
                     </div>
 
@@ -4554,7 +4554,7 @@ export default function App() {
                         position: 'absolute',
                         left: 0,
                         right: 0,
-                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine2In}in)`,
+                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In}in)`,
                         height: '20px',
                         marginTop: '-10px',
                         borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
@@ -4576,7 +4576,7 @@ export default function App() {
                         pointerEvents: 'none',
                         userSelect: 'none'
                       }}>
-                        ✂ Cut 2 ({model.layout.cutLine2In.toFixed(2)}")
+                        ✂ Cut 2 ({(model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In).toFixed(2)}")
                       </div>
                     </div>
                   </>
@@ -4584,7 +4584,7 @@ export default function App() {
 
                 {/* Render check(s) - single for standard mode, multiple for three_up mode */}
                 {(activeProfile?.layoutMode === 'three_up'
-                  ? ['top', 'middle', 'bottom'].map((slot, index) => ({ slot, index, yOffset: [0, model.layout.cutLine1In, model.layout.cutLine2In][index] }))
+                  ? ['top', 'middle', 'bottom'].map((slot, index) => ({ slot, index, yOffset: [0, model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In, model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In][index] }))
                   : [{ slot: null, index: 0, yOffset: threeUpYOffset }]
                 ).map(({ slot, index, yOffset }) => {
                   // Get data for this slot (three-up uses slot data, standard uses data)
