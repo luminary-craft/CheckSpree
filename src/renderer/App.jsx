@@ -3735,14 +3735,14 @@ export default function App() {
                 <label>Date</label>
                 <input
                   type="date"
-                  value={getCurrentCheckData().date}
+                  value={getCurrentCheckData().date || ''}
                   onChange={(e) => updateCurrentCheckData({ date: e.target.value })}
                 />
               </div>
               <div className="field">
                 <label>Pay to the Order of</label>
                 <input
-                  value={getCurrentCheckData().payee}
+                  value={getCurrentCheckData().payee || ''}
                   onChange={(e) => updateCurrentCheckData({ payee: e.target.value })}
                   placeholder="Recipient name"
                 />
@@ -3753,7 +3753,7 @@ export default function App() {
                   <div className={`input-prefix ${isOverdrawn ? 'warning' : ''}`}>
                     <span>$</span>
                     <input
-                      value={getCurrentCheckData().amount}
+                      value={getCurrentCheckData().amount || ''}
                       onChange={(e) => updateCurrentCheckData({ amount: e.target.value })}
                       onBlur={(e) => {
                         const value = e.target.value.trim()
@@ -3773,12 +3773,12 @@ export default function App() {
               )}
               <div className="field">
                 <label>Amount in Words</label>
-                <input value={getCurrentCheckData().amountWords} readOnly className="readonly" />
+                <input value={getCurrentCheckData().amountWords || ''} readOnly className="readonly" />
               </div>
               <div className="field">
                 <label>Memo</label>
                 <input
-                  value={getCurrentCheckData().memo}
+                  value={getCurrentCheckData().memo || ''}
                   onChange={(e) => updateCurrentCheckData({ memo: e.target.value })}
                   placeholder="Optional note"
                 />
@@ -3801,7 +3801,7 @@ export default function App() {
                         <input
                           type="checkbox"
                           className="sr-only peer"
-                          checked={autoIncrementCheckNumbers}
+                          checked={!!autoIncrementCheckNumbers}
                           onChange={(e) => setAutoIncrementCheckNumbers(e.target.checked)}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -3815,7 +3815,7 @@ export default function App() {
               <div className="field">
                 <label>External Memo (Payee Copy)</label>
                 <input
-                  value={getCurrentCheckData().external_memo}
+                  value={getCurrentCheckData().external_memo || ''}
                   onChange={(e) => updateCurrentCheckData({ external_memo: e.target.value })}
                   placeholder="Public memo for payee stub"
                 />
@@ -3823,7 +3823,7 @@ export default function App() {
               <div className="field">
                 <label>Internal Memo (Bookkeeper Copy)</label>
                 <input
-                  value={getCurrentCheckData().internal_memo}
+                  value={getCurrentCheckData().internal_memo || ''}
                   onChange={(e) => updateCurrentCheckData({ internal_memo: e.target.value })}
                   placeholder="Private memo for bookkeeper stub"
                 />
@@ -4175,7 +4175,7 @@ export default function App() {
                       <input
                         type="checkbox"
                         className="sr-only peer"
-                        checked={preferences.showCheckNumber}
+                        checked={!!preferences.showCheckNumber}
                         onChange={(e) => setPreferences(p => ({ ...p, showCheckNumber: e.target.checked }))}
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
