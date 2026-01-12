@@ -1105,6 +1105,43 @@ export default function App() {
     }
   }, [model.slotFields])
 
+  // Initialize cut lines if not present (backward compatibility for three-up mode)
+  useEffect(() => {
+    if (model.layout && (model.layout.cutLine1In === undefined || model.layout.cutLine2In === undefined)) {
+      setModel(m => ({
+        ...m,
+        layout: {
+          ...m.layout,
+          cutLine1In: m.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In,
+          cutLine2In: m.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In
+        }
+      }))
+    }
+  }, [model.layout])
+
+  // Migrate profiles to include cut lines (backward compatibility)
+  useEffect(() => {
+    let needsMigration = false
+    const migratedProfiles = profiles.map(profile => {
+      if (profile.layout && (profile.layout.cutLine1In === undefined || profile.layout.cutLine2In === undefined)) {
+        needsMigration = true
+        return {
+          ...profile,
+          layout: {
+            ...profile.layout,
+            cutLine1In: profile.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In,
+            cutLine2In: profile.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In
+          }
+        }
+      }
+      return profile
+    })
+
+    if (needsMigration) {
+      setProfiles(migratedProfiles)
+    }
+  }, [profiles])
+
   // Migration effect: handle switching between standard and three_up modes
   useEffect(() => {
     if (activeProfile?.layoutMode === 'three_up') {
