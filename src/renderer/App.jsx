@@ -796,6 +796,11 @@ export default function App() {
   const [showBackupModal, setShowBackupModal] = useState(false)
   const [availableBackups, setAvailableBackups] = useState([])
   const [selectedBackup, setSelectedBackup] = useState(null)
+
+  // Manual backup modal state
+  const [showManualBackupModal, setShowManualBackupModal] = useState(false)
+  const [backupFilename, setBackupFilename] = useState('')
+  const [backupLocation, setBackupLocation] = useState('downloads')
   const [batchAutoNumber, setBatchAutoNumber] = useState(true)
   const [batchStartNumber, setBatchStartNumber] = useState('1001')
 
@@ -1608,6 +1613,12 @@ export default function App() {
 
     setCheckHistory(prev => [checkEntry, ...prev])
     updateLedgerBalance(activeLedgerId, newBalance)
+
+    // Trigger auto-backup (debounced, silent)
+    window.cs2.backupTriggerAuto().catch(err => {
+      console.error('Auto-backup trigger failed:', err)
+    })
+
     return true
   }
 
@@ -1744,11 +1755,81 @@ export default function App() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Helper: Format backup with friendly name and grouping
+  const formatBackup = (backup) => {
+    const date = new Date(backup.created)
+    const now = new Date()
+    const diffMs = now - date
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+
+    let friendlyName = ''
+    let group = ''
+
+    if (diffMinutes < 1) {
+      friendlyName = 'Just now'
+      group = 'Recent (Last 3 Days)'
+    } else if (diffMinutes < 60) {
+      friendlyName = `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`
+      group = 'Recent (Last 3 Days)'
+    } else if (diffHours < 24) {
+      friendlyName = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+      group = 'Recent (Last 3 Days)'
+    } else if (diffDays === 1) {
+      friendlyName = `Yesterday at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      group = 'Recent (Last 3 Days)'
+    } else if (diffDays <= 3) {
+      friendlyName = `${diffDays} days ago at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      group = 'Recent (Last 3 Days)'
+    } else if (diffDays <= 365) {
+      friendlyName = date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      group = 'This Year'
+    } else if (diffDays / 365 <= 3) {
+      friendlyName = date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+      group = `${date.getFullYear()}`
+    } else {
+      const quarter = Math.floor(date.getMonth() / 3) + 1
+      friendlyName = date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+      group = `${date.getFullYear()} Q${quarter}`
+    }
+
+    return {
+      ...backup,
+      friendlyName,
+      group,
+      fullDate: date.toLocaleString()
+    }
+  }
+
+  // Helper: Group backups by time period
+  const groupBackups = (backups) => {
+    const formatted = backups.map(formatBackup)
+    const groups = {}
+
+    formatted.forEach(backup => {
+      if (!groups[backup.group]) {
+        groups[backup.group] = []
+      }
+      groups[backup.group].push(backup)
+    })
+
+    return groups
+  }
+
   const handleBackupData = async () => {
+    // Set default filename
+    const today = new Date().toISOString().slice(0, 10)
+    setBackupFilename(`CheckSpree_Backup_${today}`)
+    setShowManualBackupModal(true)
+  }
+
+  const confirmManualBackup = async () => {
     try {
       const result = await window.cs2.backupSave()
       if (result.success) {
-        showToast(`Backup saved: ${result.path}`, 'success')
+        setShowManualBackupModal(false)
+        showToast(`Backup saved successfully!`, 'success')
       } else {
         showToast('Backup cancelled or failed', 'error')
       }
@@ -5512,52 +5593,95 @@ export default function App() {
               <button className="btn-icon" onClick={() => setShowBackupModal(false)}>×</button>
             </div>
             <div className="modal-body">
-              <p style={{ marginBottom: '16px', color: '#94a3b8' }}>
-                Select a backup to restore. The most recent backup is selected by default.
-              </p>
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px',
+                backgroundColor: '#1e3a5f',
+                borderRadius: '6px',
+                border: '1px solid #3b82f6'
+              }}>
+                <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                  🔒 <strong>Secure Auto-Backups:</strong> These backups are encrypted and stored securely in your app data folder. Select the most recent backup or choose an older version.
+                </div>
+              </div>
 
               <div style={{
-                maxHeight: '300px',
+                maxHeight: '400px',
                 overflowY: 'auto',
                 border: '1px solid #334155',
                 borderRadius: '6px',
                 backgroundColor: '#1e293b'
               }}>
-                {availableBackups.map((backup, index) => (
-                  <div
-                    key={backup.path}
-                    onClick={() => setSelectedBackup(backup)}
-                    style={{
-                      padding: '12px',
-                      cursor: 'pointer',
-                      borderBottom: index < availableBackups.length - 1 ? '1px solid #334155' : 'none',
-                      backgroundColor: selectedBackup?.path === backup.path ? '#334155' : 'transparent',
-                      transition: 'background-color 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedBackup?.path !== backup.path) {
-                        e.currentTarget.style.backgroundColor = '#2d3748'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedBackup?.path !== backup.path) {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                      }
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontWeight: '500', color: '#f1f5f9' }}>{backup.filename}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                          {new Date(backup.created).toLocaleString()} • {(backup.size / 1024).toFixed(1)} KB
+                {(() => {
+                  const grouped = groupBackups(availableBackups)
+                  const groupOrder = ['Recent (Last 3 Days)', 'This Year']
+
+                  // Add year groups
+                  const years = Object.keys(grouped).filter(k => /^\d{4}$/.test(k)).sort().reverse()
+                  groupOrder.push(...years)
+
+                  // Add quarter groups
+                  const quarters = Object.keys(grouped).filter(k => /Q\d/.test(k)).sort().reverse()
+                  groupOrder.push(...quarters)
+
+                  return groupOrder.map(groupName => {
+                    if (!grouped[groupName]) return null
+
+                    return (
+                      <div key={groupName}>
+                        <div style={{
+                          padding: '8px 12px',
+                          backgroundColor: '#0f172a',
+                          fontWeight: '600',
+                          fontSize: '12px',
+                          color: '#94a3b8',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          borderBottom: '1px solid #334155'
+                        }}>
+                          {groupName}
                         </div>
+                        {grouped[groupName].map((backup, index) => (
+                          <div
+                            key={backup.path}
+                            onClick={() => setSelectedBackup(backup)}
+                            style={{
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #1e293b',
+                              backgroundColor: selectedBackup?.path === backup.path ? '#334155' : 'transparent',
+                              transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (selectedBackup?.path !== backup.path) {
+                                e.currentTarget.style.backgroundColor = '#2d3748'
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (selectedBackup?.path !== backup.path) {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                              }
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <div style={{ fontWeight: '500', color: '#f1f5f9', fontSize: '14px' }}>
+                                  {backup.friendlyName}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                  {backup.fullDate} • {(backup.size / 1024).toFixed(1)} KB
+                                </div>
+                              </div>
+                              {selectedBackup?.path === backup.path && (
+                                <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>✓</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      {selectedBackup?.path === backup.path && (
-                        <div style={{ color: '#3b82f6', fontSize: '18px' }}>✓</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                    )
+                  })
+                })()}
               </div>
 
               <div style={{
@@ -5599,6 +5723,68 @@ export default function App() {
                 disabled={!selectedBackup}
               >
                 Restore Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Backup Modal */}
+      {showManualBackupModal && (
+        <div className="modal-overlay no-print" onClick={() => setShowManualBackupModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+            <div className="modal-header">
+              <h2>Create Manual Backup</h2>
+              <button className="btn-icon" onClick={() => setShowManualBackupModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div style={{
+                marginBottom: '20px',
+                padding: '16px',
+                backgroundColor: '#7f1d1d',
+                borderRadius: '6px',
+                border: '1px solid #ef4444'
+              }}>
+                <div style={{ fontWeight: '600', color: '#fecaca', marginBottom: '8px', fontSize: '14px' }}>
+                  🔒 SECURITY WARNING
+                </div>
+                <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.6' }}>
+                  This backup file will contain ALL your data in <strong>PLAIN TEXT</strong> (unencrypted) including:
+                  <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }}>
+                    <li>All check history and transactions</li>
+                    <li>Payee names and amounts</li>
+                    <li>Ledger balances</li>
+                    <li>All memo fields</li>
+                  </ul>
+                  <strong>⚠️ Save this file in a SECURE location.</strong> Anyone with access can read all your financial data.
+                </div>
+              </div>
+
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px',
+                backgroundColor: '#1e3a5f',
+                borderRadius: '6px',
+                border: '1px solid #3b82f6'
+              }}>
+                <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                  ✓ An <strong>encrypted</strong> copy will also be saved automatically to your secure app data folder.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#e2e8f0', fontSize: '14px' }}>
+                  You will be prompted to choose where to save this file
+                </label>
+                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  Recommended locations: Password manager, encrypted drive, or secure cloud storage
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" onClick={() => setShowManualBackupModal(false)}>Cancel</button>
+              <button className="btn primary" onClick={confirmManualBackup}>
+                Choose Location & Save
               </button>
             </div>
           </div>

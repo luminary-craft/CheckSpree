@@ -37,11 +37,25 @@ function getAvailableBackups() {
       .map(filename => {
         const filePath = path.join(backupDir, filename)
         const stats = fs.statSync(filePath)
+
+        // Parse timestamp from filename: backup_YYYY-MM-DD_HH-mm-ss.json
+        const match = filename.match(/backup_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.json/)
+        let timestamp = null
+        if (match) {
+          // Convert filename format to ISO format: 2026-01-12_14-30-45 -> 2026-01-12T14:30:45
+          const dateTimeParts = match[1].split('_')
+          const datePart = dateTimeParts[0] // 2026-01-12
+          const timePart = dateTimeParts[1].replace(/-/g, ':') // 14:30:45
+          const dateStr = `${datePart}T${timePart}`
+          timestamp = new Date(dateStr)
+        }
+
         return {
           filename,
           path: filePath,
-          created: stats.mtime.toISOString(),
-          size: stats.size
+          created: timestamp ? timestamp.toISOString() : stats.mtime.toISOString(),
+          size: stats.size,
+          timestamp: timestamp || new Date(stats.mtime)
         }
       })
       .sort((a, b) => new Date(b.created) - new Date(a.created)) // Most recent first
@@ -50,6 +64,167 @@ function getAvailableBackups() {
   } catch (e) {
     return []
   }
+}
+
+// Smart pruning with Time Machine retention policy
+function pruneBackups() {
+  try {
+    const backups = getAvailableBackups()
+    if (backups.length === 0) return
+
+    const now = new Date()
+    const toDelete = []
+
+    // Group backups by age buckets
+    const bucketA = [] // 0-3 days: Keep ALL
+    const bucketB = [] // 4 days - 1 year: Keep last of each day
+    const bucketC = [] // 1-3 years: Keep last of each week
+    const bucketD = [] // 3+ years: Keep last of each quarter
+
+    backups.forEach(backup => {
+      const age = now - backup.timestamp
+      const days = age / (1000 * 60 * 60 * 24)
+      const years = days / 365
+
+      if (days <= 3) {
+        bucketA.push(backup)
+      } else if (days <= 365) {
+        bucketB.push(backup)
+      } else if (years <= 3) {
+        bucketC.push(backup)
+      } else {
+        bucketD.push(backup)
+      }
+    })
+
+    // Bucket A: Keep all (no pruning)
+
+    // Bucket B: Keep only last file of each day
+    const bucketBByDay = {}
+    bucketB.forEach(backup => {
+      const day = backup.timestamp.toISOString().split('T')[0]
+      if (!bucketBByDay[day]) {
+        bucketBByDay[day] = []
+      }
+      bucketBByDay[day].push(backup)
+    })
+    Object.values(bucketBByDay).forEach(dayBackups => {
+      dayBackups.sort((a, b) => b.timestamp - a.timestamp)
+      // Keep first (most recent), delete rest
+      for (let i = 1; i < dayBackups.length; i++) {
+        toDelete.push(dayBackups[i].path)
+      }
+    })
+
+    // Bucket C: Keep only last file of each week
+    const bucketCByWeek = {}
+    bucketC.forEach(backup => {
+      const weekStart = new Date(backup.timestamp)
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+      const weekKey = weekStart.toISOString().split('T')[0]
+      if (!bucketCByWeek[weekKey]) {
+        bucketCByWeek[weekKey] = []
+      }
+      bucketCByWeek[weekKey].push(backup)
+    })
+    Object.values(bucketCByWeek).forEach(weekBackups => {
+      weekBackups.sort((a, b) => b.timestamp - a.timestamp)
+      for (let i = 1; i < weekBackups.length; i++) {
+        toDelete.push(weekBackups[i].path)
+      }
+    })
+
+    // Bucket D: Keep only last file of each quarter
+    const bucketDByQuarter = {}
+    bucketD.forEach(backup => {
+      const year = backup.timestamp.getFullYear()
+      const month = backup.timestamp.getMonth()
+      const quarter = Math.floor(month / 3) + 1
+      const quarterKey = `${year}-Q${quarter}`
+      if (!bucketDByQuarter[quarterKey]) {
+        bucketDByQuarter[quarterKey] = []
+      }
+      bucketDByQuarter[quarterKey].push(backup)
+    })
+    Object.values(bucketDByQuarter).forEach(quarterBackups => {
+      quarterBackups.sort((a, b) => b.timestamp - a.timestamp)
+      for (let i = 1; i < quarterBackups.length; i++) {
+        toDelete.push(quarterBackups[i].path)
+      }
+    })
+
+    // Safety: Never delete the very last backup file
+    if (backups.length > 0) {
+      const lastBackupPath = backups[0].path
+      const deleteIndex = toDelete.indexOf(lastBackupPath)
+      if (deleteIndex !== -1) {
+        toDelete.splice(deleteIndex, 1)
+      }
+    }
+
+    // Execute deletions
+    toDelete.forEach(filePath => {
+      try {
+        fs.unlinkSync(filePath)
+        console.log(`Pruned backup: ${path.basename(filePath)}`)
+      } catch (e) {
+        console.error(`Failed to delete backup: ${filePath}`, e)
+      }
+    })
+
+    if (toDelete.length > 0) {
+      console.log(`Pruned ${toDelete.length} backup(s). Kept ${backups.length - toDelete.length} backup(s).`)
+    }
+  } catch (e) {
+    console.error('Failed to prune backups:', e)
+  }
+}
+
+// Debounced auto-backup trigger
+let autoBackupTimeout = null
+function triggerAutoBackup() {
+  // Clear existing timeout
+  if (autoBackupTimeout) {
+    clearTimeout(autoBackupTimeout)
+  }
+
+  // Set new timeout (3 seconds debounce)
+  autoBackupTimeout = setTimeout(async () => {
+    try {
+      const settings = readSettings()
+      const json = JSON.stringify(settings, null, 2)
+
+      // Generate filename with seconds precision
+      const now = new Date()
+      const timestamp = now.toISOString()
+        .replace(/:/g, '-')
+        .replace(/\..+/, '')
+        .replace('T', '_')
+      const filename = `backup_${timestamp}.json`
+
+      const backupDir = getBackupDirectory()
+      const backupPath = path.join(backupDir, filename)
+
+      // Encrypt and save
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          const encrypted = safeStorage.encryptString(json)
+          fs.writeFileSync(backupPath, encrypted)
+          console.log(`Auto-backup created: ${filename}`)
+        } catch (encryptError) {
+          console.error('Failed to encrypt auto-backup:', encryptError)
+          fs.writeFileSync(backupPath, json, 'utf8')
+        }
+      } else {
+        fs.writeFileSync(backupPath, json, 'utf8')
+      }
+
+      // Run pruning after backup
+      pruneBackups()
+    } catch (e) {
+      console.error('Auto-backup failed:', e)
+    }
+  }, 3000) // 3 second debounce
 }
 
 function readSettings() {
@@ -379,24 +554,37 @@ ipcMain.handle('backup:save', async () => {
     // Write as plain JSON for portability
     const json = JSON.stringify(settings, null, 2)
 
-    // Save to user-selected location
+    // Save to user-selected location as PLAIN JSON (not encrypted)
     fs.writeFileSync(result.filePath, json, 'utf8')
 
-    // Also save auto-backup to app data directory
+    // Also save ENCRYPTED auto-backup to app data directory
     const backupDir = getBackupDirectory()
     const autoBackupPath = path.join(backupDir, `CheckSpree_AutoBackup_${timestamp}.json`)
-    fs.writeFileSync(autoBackupPath, json, 'utf8')
+
+    // Encrypt the auto-backup if encryption is available
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const encrypted = safeStorage.encryptString(json)
+        fs.writeFileSync(autoBackupPath, encrypted)
+      } catch (encryptError) {
+        console.error('Failed to encrypt auto-backup, saving as plain text:', encryptError)
+        fs.writeFileSync(autoBackupPath, json, 'utf8')
+      }
+    } else {
+      // No encryption available - save plain text
+      fs.writeFileSync(autoBackupPath, json, 'utf8')
+    }
 
     // Open the file location
     shell.showItemInFolder(result.filePath)
 
-    return { success: true, path: result.filePath, autoBackupPath }
+    return { success: true, path: result.filePath, autoBackupPath, isEncrypted: false }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }
 })
 
-// Restore backup from JSON file
+// Restore backup from JSON file (handles both encrypted and plain)
 ipcMain.handle('backup:restore', async () => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
@@ -412,8 +600,26 @@ ipcMain.handle('backup:restore', async () => {
 
   try {
     const filePath = result.filePaths[0]
-    const fileContent = fs.readFileSync(filePath, 'utf8')
-    const backupData = JSON.parse(fileContent)
+    const buffer = fs.readFileSync(filePath)
+    let backupData
+
+    // Try to decrypt first (in case it's an encrypted backup)
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const decrypted = safeStorage.decryptString(buffer)
+        backupData = JSON.parse(decrypted)
+      } catch (decryptError) {
+        // Failed to decrypt - try as plain text
+        try {
+          backupData = JSON.parse(buffer.toString('utf8'))
+        } catch (parseError) {
+          return { success: false, error: 'Failed to read backup file' }
+        }
+      }
+    } else {
+      // No encryption available - read as plain text
+      backupData = JSON.parse(buffer.toString('utf8'))
+    }
 
     // Validate that this looks like a CheckSpree backup
     if (!backupData.model || !backupData.profiles) {
@@ -439,7 +645,7 @@ ipcMain.handle('backup:list', async () => {
   }
 })
 
-// Restore from latest auto-backup
+// Restore from latest auto-backup (encrypted)
 ipcMain.handle('backup:restore-latest', async () => {
   try {
     const backups = getAvailableBackups()
@@ -449,8 +655,27 @@ ipcMain.handle('backup:restore-latest', async () => {
     }
 
     const latestBackup = backups[0] // Already sorted by most recent first
-    const fileContent = fs.readFileSync(latestBackup.path, 'utf8')
-    const backupData = JSON.parse(fileContent)
+    const buffer = fs.readFileSync(latestBackup.path)
+
+    let backupData
+
+    // Try to decrypt first (auto-backups are encrypted)
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const decrypted = safeStorage.decryptString(buffer)
+        backupData = JSON.parse(decrypted)
+      } catch (decryptError) {
+        // Failed to decrypt - try as plain text (legacy or manual backups)
+        try {
+          backupData = JSON.parse(buffer.toString('utf8'))
+        } catch (parseError) {
+          return { success: false, error: 'Failed to read backup file' }
+        }
+      }
+    } else {
+      // No encryption available - read as plain text
+      backupData = JSON.parse(buffer.toString('utf8'))
+    }
 
     // Validate that this looks like a CheckSpree backup
     if (!backupData.model || !backupData.profiles) {
@@ -466,15 +691,33 @@ ipcMain.handle('backup:restore-latest', async () => {
   }
 })
 
-// Restore from specific backup file path
+// Restore from specific backup file path (handles both encrypted and plain)
 ipcMain.handle('backup:restore-file', async (_evt, filePath) => {
   try {
     if (!filePath) {
       return { success: false, error: 'No file path provided' }
     }
 
-    const fileContent = fs.readFileSync(filePath, 'utf8')
-    const backupData = JSON.parse(fileContent)
+    const buffer = fs.readFileSync(filePath)
+    let backupData
+
+    // Try to decrypt first (in case it's an encrypted backup)
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const decrypted = safeStorage.decryptString(buffer)
+        backupData = JSON.parse(decrypted)
+      } catch (decryptError) {
+        // Failed to decrypt - try as plain text
+        try {
+          backupData = JSON.parse(buffer.toString('utf8'))
+        } catch (parseError) {
+          return { success: false, error: 'Failed to read backup file' }
+        }
+      }
+    } else {
+      // No encryption available - read as plain text
+      backupData = JSON.parse(buffer.toString('utf8'))
+    }
 
     // Validate that this looks like a CheckSpree backup
     if (!backupData.model || !backupData.profiles) {
@@ -485,6 +728,16 @@ ipcMain.handle('backup:restore-file', async (_evt, filePath) => {
     writeSettings(backupData)
 
     return { success: true, path: filePath }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Trigger auto-backup (debounced)
+ipcMain.handle('backup:trigger-auto', async () => {
+  try {
+    triggerAutoBackup()
+    return { success: true }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }

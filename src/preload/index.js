@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('cs2', {
   backupList: () => ipcRenderer.invoke('backup:list'),
   backupRestoreLatest: () => ipcRenderer.invoke('backup:restore-latest'),
   backupRestoreFile: (filePath) => ipcRenderer.invoke('backup:restore-file', filePath),
+  backupTriggerAuto: () => ipcRenderer.invoke('backup:trigger-auto'),
 
   // Auto-Updater
   updaterCheck: () => ipcRenderer.invoke('updater:check'),
