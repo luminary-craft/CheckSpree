@@ -718,7 +718,13 @@ export default function App() {
 
   // Multi-Ledger system
   const [ledgers, setLedgers] = useState([
-    { id: 'default', name: 'Primary Ledger', balance: 0 }
+    {
+      id: 'default',
+      name: 'Primary Ledger',
+      balance: 0,
+      startingBalance: 0,
+      lockLedgerStart: true
+    }
   ])
   const [activeLedgerId, setActiveLedgerId] = useState('default')
   const [checkHistory, setCheckHistory] = useState([])
@@ -864,6 +870,19 @@ export default function App() {
   const [activeSlot, setActiveSlot] = useState('top') // 'top' | 'middle' | 'bottom'
   const [autoIncrementCheckNumbers, setAutoIncrementCheckNumbers] = useState(true)
 
+  // Deposit/Adjustment modal state
+  const [showDepositModal, setShowDepositModal] = useState(false)
+  const [depositData, setDepositData] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    description: '',
+    amount: ''
+  })
+
+  // Check Builder mode state
+  const [checkMode, setCheckMode] = useState('simple') // 'simple' or 'itemized'
+  const [lineItems, setLineItems] = useState([])
+  const [nextLineItemId, setNextLineItemId] = useState(1)
+
   // Load settings from disk on launch
   useEffect(() => {
     let cancelled = false
@@ -882,11 +901,23 @@ export default function App() {
 
       // Migrate old single-ledger system to multi-ledger
       if (persisted?.ledgers?.length) {
-        setLedgers(persisted.ledgers)
+        // Ensure all ledgers have the new hybrid ledger fields
+        const migratedLedgers = persisted.ledgers.map(ledger => ({
+          ...ledger,
+          startingBalance: ledger.startingBalance ?? 0,
+          lockLedgerStart: ledger.lockLedgerStart ?? true
+        }))
+        setLedgers(migratedLedgers)
         if (persisted?.activeLedgerId) setActiveLedgerId(persisted.activeLedgerId)
       } else if (persisted?.ledgerBalance != null) {
         // Migration: old system had a single ledgerBalance, convert to new system
-        setLedgers([{ id: 'default', name: 'Primary Ledger', balance: persisted.ledgerBalance }])
+        setLedgers([{
+          id: 'default',
+          name: 'Primary Ledger',
+          balance: persisted.ledgerBalance,
+          startingBalance: 0,
+          lockLedgerStart: true
+        }])
         setActiveLedgerId('default')
       }
 
@@ -1422,6 +1453,30 @@ export default function App() {
     setHasUnsavedChanges(hasChanges)
   }, [model.layout, model.fields, model.template, model.placement, activeProfile])
 
+  // Sync line items with check data in itemized mode
+  useEffect(() => {
+    if (checkMode === 'itemized') {
+      // Calculate total amount from line items
+      const total = lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0)
+
+      // Generate line items text (for the stub)
+      const lineItemsText = lineItems
+        .filter(item => item.description || item.amount)
+        .map(item => `${item.description} - $${parseFloat(item.amount || 0).toFixed(2)}`)
+        .join('\n')
+
+      // Update current check data with calculated values
+      updateCurrentCheckData({
+        amount: total.toFixed(2),
+        line_items_text: lineItemsText,
+        line_items: lineItems.map(item => ({
+          description: item.description,
+          amount: parseFloat(item.amount || 0)
+        }))
+      })
+    }
+  }, [checkMode, lineItems])
+
   const createNewProfile = () => {
     const newProfile = {
       id: generateId(),
@@ -1550,11 +1605,34 @@ export default function App() {
   const activeLedger = ledgers.find(l => l.id === activeLedgerId) || ledgers[0]
   const ledgerBalance = activeLedger?.balance || 0
 
+  // Hybrid Ledger: Calculate balance from startingBalance + deposits - checks
+  const calculateHybridBalance = (ledgerId) => {
+    const ledger = ledgers.find(l => l.id === ledgerId)
+    if (!ledger) return 0
+
+    const startingBalance = ledger.startingBalance || 0
+    const transactions = checkHistory.filter(t => t.ledgerId === ledgerId)
+
+    const deposits = transactions
+      .filter(t => t.type === 'deposit')
+      .reduce((sum, t) => sum + (t.amount || 0), 0)
+
+    const checks = transactions
+      .filter(t => t.type === 'check' || !t.type) // Include legacy entries without type
+      .reduce((sum, t) => sum + (t.amount || 0), 0)
+
+    return startingBalance + deposits - checks
+  }
+
+  const hybridBalance = calculateHybridBalance(activeLedgerId)
+
   const createNewLedger = () => {
     const newLedger = {
       id: generateId(),
       name: `Ledger ${ledgers.length + 1}`,
-      balance: 0
+      balance: 0,
+      startingBalance: 0,
+      lockLedgerStart: true
     }
     setLedgers([...ledgers, newLedger])
     setActiveLedgerId(newLedger.id)
@@ -1610,11 +1688,13 @@ export default function App() {
     if (amount <= 0) return false
     if (!checkData.payee?.trim()) return false
 
-    const previousBalance = ledgerBalance
-    const newBalance = ledgerBalance - amount
+    // Use hybridBalance for accurate balance tracking
+    const previousBalance = hybridBalance
+    const newBalance = hybridBalance - amount
 
     const checkEntry = {
       id: generateId(),
+      type: 'check', // Transaction type
       date: checkData.date || new Date().toISOString().slice(0, 10),
       payee: checkData.payee,
       amount: amount,
@@ -1635,7 +1715,49 @@ export default function App() {
     }
 
     setCheckHistory(prev => [checkEntry, ...prev])
-    updateLedgerBalance(activeLedgerId, newBalance)
+    // Note: We don't update ledger.balance anymore - hybrid balance is calculated from transactions
+
+    // Trigger auto-backup (debounced, silent)
+    window.cs2.backupTriggerAuto().catch(err => {
+      console.error('Auto-backup trigger failed:', err)
+    })
+
+    return true
+  }
+
+  const recordDeposit = (depositInfo = depositData) => {
+    const amount = sanitizeCurrencyInput(depositInfo.amount)
+    if (amount <= 0) return false
+    if (!depositInfo.description?.trim()) return false
+
+    // Use hybridBalance for accurate balance tracking
+    const previousBalance = hybridBalance
+    const newBalance = hybridBalance + amount
+
+    const depositEntry = {
+      id: generateId(),
+      type: 'deposit', // Transaction type
+      date: depositInfo.date || new Date().toISOString().slice(0, 10),
+      payee: depositInfo.description, // Using payee field for deposit description
+      amount: amount,
+      memo: depositInfo.description || '',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledgerId: activeLedgerId,
+      profileId: activeProfileId,
+      ledger_snapshot: {
+        previous_balance: previousBalance,
+        transaction_amount: amount,
+        new_balance: newBalance
+      },
+      timestamp: Date.now(),
+      balanceAfter: newBalance
+    }
+
+    setCheckHistory(prev => [depositEntry, ...prev])
+    // Note: We don't update ledger.balance anymore - hybrid balance is calculated from transactions
 
     // Trigger auto-backup (debounced, silent)
     window.cs2.backupTriggerAuto().catch(err => {
@@ -1660,20 +1782,8 @@ export default function App() {
     // Use functional updates to ensure we're working with latest state
     setCheckHistory(prev => prev.filter(e => e.id !== deleteTarget.id))
 
-    // Restore balance using functional update to avoid stale closure
-    setLedgers(prev => {
-      const ledger = prev.find(l => l.id === deleteTarget.ledgerId)
-      if (!ledger) {
-        console.warn(`Ledger ${deleteTarget.ledgerId} not found for deleted check entry`)
-        return prev
-      }
-
-      return prev.map(l =>
-        l.id === deleteTarget.ledgerId
-          ? { ...l, balance: l.balance + deleteTarget.amount }
-          : l
-      )
-    })
+    // Note: We don't update ledger.balance anymore - hybrid balance is calculated from transactions
+    // Deleting a transaction will automatically update the hybrid balance calculation
 
     // Close modal and clear target
     setShowDeleteConfirm(false)
@@ -1712,7 +1822,10 @@ export default function App() {
     }
 
     const newBal = parseFloat(tempBalance) || 0
-    updateLedgerBalance(activeLedgerId, newBal)
+    // Update startingBalance instead of balance for hybrid ledger
+    setLedgers(ledgers.map(l =>
+      l.id === activeLedgerId ? { ...l, startingBalance: newBal } : l
+    ))
     setEditingBalance(false)
     setTempBalance('')
   }
@@ -3166,6 +3279,10 @@ export default function App() {
           ledger_snapshot: null,
           checkNumber: ''
         })
+
+        // Clear itemized mode line items and reset to simple mode
+        setLineItems([])
+        setCheckMode('simple')
       } catch (error) {
         setIsPrinting(false)
         if (wasInEditMode) setEditMode(true)
@@ -3278,7 +3395,7 @@ export default function App() {
 
         // Record all filled slots to history (each gets its own entry with sheetSlot field)
         const timestamp = Date.now()
-        let currentBalance = ledgerBalance
+        let currentBalance = hybridBalance
 
         for (const { slot, data: checkData } of filledSlots) {
           const amount = sanitizeCurrencyInput(checkData.amount)
@@ -3287,6 +3404,7 @@ export default function App() {
 
           const checkEntry = {
             id: generateId(),
+            type: 'check', // Transaction type
             date: checkData.date || new Date().toISOString().slice(0, 10),
             payee: checkData.payee,
             amount: amount,
@@ -3312,8 +3430,7 @@ export default function App() {
           currentBalance = newBalance
         }
 
-        // Update ledger balance once with final balance
-        updateLedgerBalance(activeLedgerId, currentBalance)
+        // Note: We don't update ledger.balance anymore - hybrid balance is calculated from transactions
 
         // Increment the profile's next check number by the number of checks printed
         setProfiles(prev => prev.map(p =>
@@ -3337,6 +3454,10 @@ export default function App() {
           bottom: getEmptySlotData()
         })
         setActiveSlot('top')
+
+        // Clear itemized mode line items and reset to simple mode
+        setLineItems([])
+        setCheckMode('simple')
       } catch (error) {
         setIsPrinting(false)
         if (wasInEditMode) setEditMode(true)
@@ -3378,7 +3499,7 @@ export default function App() {
   // Calculate if balance will go negative
   const currentData = getCurrentCheckData()
   const pendingAmount = sanitizeCurrencyInput(currentData.amount)
-  const projectedBalance = ledgerBalance - pendingAmount
+  const projectedBalance = hybridBalance - pendingAmount
   const isOverdrawn = pendingAmount > 0 && projectedBalance < 0
 
   // Calculate Y-offset for three-up mode
@@ -3508,42 +3629,107 @@ export default function App() {
                   <div className="profile-manager" style={{ marginTop: '12px' }}>
                     <div className="profile-list">
                       {ledgers.map(l => (
-                        <div key={l.id} className={`profile-item ${l.id === activeLedgerId ? 'active' : ''}`}>
-                          {editingLedgerName === l.id ? (
-                            <input
-                              className="profile-name-input"
-                              defaultValue={l.name}
-                              autoFocus
-                              onBlur={(e) => {
-                                if (e.target.value.trim()) {
-                                  renameLedger(l.id, e.target.value.trim())
-                                } else {
-                                  setEditingLedgerName(null)
+                        <div key={l.id} style={{ marginBottom: '12px' }}>
+                          <div className={`profile-item ${l.id === activeLedgerId ? 'active' : ''}`}>
+                            {editingLedgerName === l.id ? (
+                              <input
+                                className="profile-name-input"
+                                defaultValue={l.name}
+                                autoFocus
+                                onBlur={(e) => {
+                                  if (e.target.value.trim()) {
+                                    renameLedger(l.id, e.target.value.trim())
+                                  } else {
+                                    setEditingLedgerName(null)
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && e.target.value.trim()) {
+                                    renameLedger(l.id, e.target.value.trim())
+                                  } else if (e.key === 'Escape') {
+                                    setEditingLedgerName(null)
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <>
+                                <span className="profile-name" onClick={() => setEditingLedgerName(l.id)}>
+                                  {l.name}
+                                </span>
+                                {ledgers.length > 1 && (
+                                  <button
+                                    className="profile-delete"
+                                    onClick={() => deleteLedger(l.id)}
+                                    title="Delete ledger"
+                                  >
+                                    <TrashIcon />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          {/* Ledger Settings (Hybrid Ledger) */}
+                          {l.id === activeLedgerId && (
+                            <div style={{
+                              marginTop: '8px',
+                              padding: '12px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              borderRadius: '6px',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              fontSize: '13px'
+                            }}>
+                              <div style={{ marginBottom: '10px' }}>
+                                <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '12px' }}>
+                                  Initial Account Balance
+                                </label>
+                                <input
+                                  type="text"
+                                  value={l.startingBalance || 0}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.-]/g, '')
+                                    setLedgers(ledgers.map(ledger =>
+                                      ledger.id === l.id ? { ...ledger, startingBalance: parseFloat(val) || 0 } : ledger
+                                    ))
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    padding: '6px 10px',
+                                    backgroundColor: '#1e293b',
+                                    border: '1px solid #475569',
+                                    borderRadius: '4px',
+                                    color: '#f1f5f9',
+                                    fontSize: '13px'
+                                  }}
+                                  placeholder="0.00"
+                                />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <label style={{ color: '#94a3b8', fontSize: '12px', flex: 1 }}>
+                                  Allow Standard Users to Edit Balance
+                                </label>
+                                <input
+                                  type="checkbox"
+                                  checked={!l.lockLedgerStart}
+                                  onChange={(e) => {
+                                    setLedgers(ledgers.map(ledger =>
+                                      ledger.id === l.id ? { ...ledger, lockLedgerStart: !e.target.checked } : ledger
+                                    ))
+                                  }}
+                                  style={{
+                                    width: '16px',
+                                    height: '16px',
+                                    cursor: 'pointer'
+                                  }}
+                                />
+                              </div>
+                              <div style={{ marginTop: '8px', fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
+                                {l.lockLedgerStart
+                                  ? '🔒 Balance is locked. Users must add deposits/adjustments.'
+                                  : '🔓 Users can directly edit the starting balance.'
                                 }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && e.target.value.trim()) {
-                                  renameLedger(l.id, e.target.value.trim())
-                                } else if (e.key === 'Escape') {
-                                  setEditingLedgerName(null)
-                                }
-                              }}
-                            />
-                          ) : (
-                            <>
-                              <span className="profile-name" onClick={() => setEditingLedgerName(l.id)}>
-                                {l.name}
-                              </span>
-                              {ledgers.length > 1 && (
-                                <button
-                                  className="profile-delete"
-                                  onClick={() => deleteLedger(l.id)}
-                                  title="Delete ledger"
-                                >
-                                  <TrashIcon />
-                                </button>
-                              )}
-                            </>
+                              </div>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -3607,20 +3793,61 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <div
-                    onClick={() => { setTempBalance(ledgerBalance.toString()); setEditingBalance(true) }}
-                    style={{ cursor: 'pointer', textAlign: 'center' }}
-                  >
+                  <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>Current Balance</div>
-                    <div style={{
-                      fontSize: '32px',
-                      fontWeight: '700',
-                      color: ledgerBalance < 0 ? '#ef4444' : '#10b981',
-                      marginBottom: '4px'
-                    }}>
-                      {formatCurrency(ledgerBalance)}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <div
+                        onClick={() => {
+                          if (activeLedger?.lockLedgerStart) {
+                            setToast({ message: 'Balance is managed by Admin. Please add a Deposit/Adjustment instead.', type: 'warning' })
+                            setTimeout(() => setToast(null), 3000)
+                          } else {
+                            setTempBalance(activeLedger?.startingBalance?.toString() || '0')
+                            setEditingBalance(true)
+                          }
+                        }}
+                        style={{
+                          cursor: 'pointer',
+                          fontSize: '32px',
+                          fontWeight: '700',
+                          color: hybridBalance < 0 ? '#ef4444' : '#10b981'
+                        }}
+                      >
+                        {formatCurrency(hybridBalance)}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDepositData({
+                            date: new Date().toISOString().slice(0, 10),
+                            description: '',
+                            amount: ''
+                          })
+                          setShowDepositModal(true)
+                        }}
+                        className="btn-icon"
+                        title="Add Deposit/Adjustment"
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '20px',
+                          fontWeight: '700',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0
+                        }}
+                      >
+                        +
+                      </button>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>Click to edit</div>
+                    <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
+                      {activeLedger?.lockLedgerStart ? 'Click to view • Use + to adjust' : 'Click to edit starting balance'}
+                    </div>
                   </div>
                 )}
 
@@ -4027,25 +4254,209 @@ export default function App() {
                   placeholder="Recipient name"
                 />
               </div>
-              <div className="field-row">
-                <div className="field">
-                  <label>Amount</label>
-                  <div className={`input-prefix ${isOverdrawn ? 'warning' : ''}`}>
-                    <span>$</span>
-                    <input
-                      value={getCurrentCheckData().amount || ''}
-                      onChange={(e) => updateCurrentCheckData({ amount: e.target.value })}
-                      onBlur={(e) => {
-                        const value = e.target.value.trim()
-                        if (value && value !== '') {
-                          updateCurrentCheckData({ amount: formatAmountForDisplay(value) })
-                        }
-                      }}
-                      placeholder="0.00"
-                    />
-                  </div>
+
+              {/* Check Builder Mode Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '12px',
+                padding: '8px 12px',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '6px',
+                border: '1px solid rgba(255, 255, 255, 0.08)'
+              }}>
+                <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>Mode:</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      setCheckMode('simple')
+                      // When switching to simple, keep the current calculated amount if in itemized mode
+                      if (checkMode === 'itemized' && lineItems.length > 0) {
+                        const total = lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0)
+                        updateCurrentCheckData({ amount: total.toFixed(2) })
+                      }
+                    }}
+                    style={{
+                      padding: '6px 16px',
+                      borderRadius: '4px',
+                      border: checkMode === 'simple' ? '1px solid #3b82f6' : '1px solid #475569',
+                      backgroundColor: checkMode === 'simple' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                      color: checkMode === 'simple' ? '#60a5fa' : '#94a3b8',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Simple
+                  </button>
+                  <button
+                    onClick={() => setCheckMode('itemized')}
+                    style={{
+                      padding: '6px 16px',
+                      borderRadius: '4px',
+                      border: checkMode === 'itemized' ? '1px solid #3b82f6' : '1px solid #475569',
+                      backgroundColor: checkMode === 'itemized' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                      color: checkMode === 'itemized' ? '#60a5fa' : '#94a3b8',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Itemized
+                  </button>
                 </div>
               </div>
+
+              {checkMode === 'simple' ? (
+                // Simple Mode: Manual Amount Entry
+                <div className="field-row">
+                  <div className="field">
+                    <label>Amount</label>
+                    <div className={`input-prefix ${isOverdrawn ? 'warning' : ''}`}>
+                      <span>$</span>
+                      <input
+                        value={getCurrentCheckData().amount || ''}
+                        onChange={(e) => updateCurrentCheckData({ amount: e.target.value })}
+                        onBlur={(e) => {
+                          const value = e.target.value.trim()
+                          if (value && value !== '') {
+                            updateCurrentCheckData({ amount: formatAmountForDisplay(value) })
+                          }
+                        }}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Itemized Mode: Line Items Table
+                <div className="field">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label>Amount (Calculated from Line Items)</label>
+                    <span style={{
+                      fontSize: '18px',
+                      fontWeight: '700',
+                      color: '#10b981',
+                      padding: '4px 12px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(16, 185, 129, 0.3)'
+                    }}>
+                      {formatCurrency(lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0))}
+                    </span>
+                  </div>
+
+                  {/* Line Items Table */}
+                  <div style={{
+                    border: '1px solid #475569',
+                    borderRadius: '6px',
+                    overflow: 'hidden',
+                    marginBottom: '8px'
+                  }}>
+                    {lineItems.length === 0 ? (
+                      <div style={{
+                        padding: '20px',
+                        textAlign: 'center',
+                        color: '#64748b',
+                        fontSize: '13px'
+                      }}>
+                        No line items yet. Click "Add Item" below.
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        {lineItems.map((item, index) => (
+                          <div key={item.id} style={{
+                            display: 'grid',
+                            gridTemplateColumns: '2fr 1fr auto',
+                            gap: '8px',
+                            padding: '8px',
+                            borderBottom: index < lineItems.length - 1 ? '1px solid #334155' : 'none',
+                            alignItems: 'center',
+                            backgroundColor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent'
+                          }}>
+                            <input
+                              type="text"
+                              value={item.description}
+                              onChange={(e) => {
+                                const updated = lineItems.map(li =>
+                                  li.id === item.id ? { ...li, description: e.target.value } : li
+                                )
+                                setLineItems(updated)
+                              }}
+                              placeholder="Description / Invoice #"
+                              style={{
+                                padding: '6px 10px',
+                                backgroundColor: '#1e293b',
+                                border: '1px solid #475569',
+                                borderRadius: '4px',
+                                color: '#f1f5f9',
+                                fontSize: '13px'
+                              }}
+                            />
+                            <input
+                              type="text"
+                              value={item.amount}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, '')
+                                const updated = lineItems.map(li =>
+                                  li.id === item.id ? { ...li, amount: val } : li
+                                )
+                                setLineItems(updated)
+                              }}
+                              placeholder="Amount"
+                              style={{
+                                padding: '6px 10px',
+                                backgroundColor: '#1e293b',
+                                border: '1px solid #475569',
+                                borderRadius: '4px',
+                                color: '#f1f5f9',
+                                fontSize: '13px',
+                                textAlign: 'right'
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                setLineItems(lineItems.filter(li => li.id !== item.id))
+                              }}
+                              title="Remove item"
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '4px',
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setLineItems([...lineItems, { id: nextLineItemId, description: '', amount: '' }])
+                      setNextLineItemId(nextLineItemId + 1)
+                    }}
+                    className="btn btn-sm"
+                    style={{ width: '100%' }}
+                  >
+                    + Add Item
+                  </button>
+                </div>
+              )}
               {isOverdrawn && (
                 <div className="overdraft-warning">
                   ⚠️ This will overdraw your account
@@ -5574,6 +5985,80 @@ export default function App() {
         </div>
       )}
 
+      {/* Deposit/Adjustment Modal */}
+      {showDepositModal && (
+        <div className="modal-overlay no-print" onClick={() => setShowDepositModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Add Funds / Adjustment</h2>
+              <button className="btn-icon" onClick={() => setShowDepositModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="field">
+                <label>Date</label>
+                <input
+                  type="date"
+                  value={depositData.date}
+                  onChange={(e) => setDepositData({ ...depositData, date: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Description</label>
+                <input
+                  type="text"
+                  value={depositData.description}
+                  onChange={(e) => setDepositData({ ...depositData, description: e.target.value })}
+                  placeholder="e.g., Deposit, Cash Adjustment, Transfer In"
+                  autoFocus
+                />
+              </div>
+              <div className="field">
+                <label>Amount</label>
+                <input
+                  type="text"
+                  value={depositData.amount}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, '')
+                    setDepositData({ ...depositData, amount: val })
+                  }}
+                  placeholder="0.00"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && depositData.amount && depositData.description) {
+                      const success = recordDeposit(depositData)
+                      if (success) {
+                        setShowDepositModal(false)
+                        setToast({ message: 'Deposit recorded successfully!', type: 'success' })
+                        setTimeout(() => setToast(null), 3000)
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn ghost" onClick={() => setShowDepositModal(false)}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  const success = recordDeposit(depositData)
+                  if (success) {
+                    setShowDepositModal(false)
+                    setToast({ message: 'Deposit recorded successfully!', type: 'success' })
+                    setTimeout(() => setToast(null), 3000)
+                  } else {
+                    setToast({ message: 'Please enter a valid amount and description.', type: 'error' })
+                    setTimeout(() => setToast(null), 3000)
+                  }
+                }}
+                disabled={!depositData.amount || !depositData.description}
+              >
+                Record Deposit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Check Confirmation Modal */}
       {showDeleteConfirm && deleteTarget && (
         <div className="modal-overlay no-print" onClick={cancelDeleteHistoryEntry}>
@@ -6459,7 +6944,7 @@ export default function App() {
           position: 'fixed',
           bottom: '24px',
           right: '24px',
-          backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#ef4444' : '#3b82f6',
+          backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#ef4444' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6',
           color: 'white',
           padding: '12px 20px',
           borderRadius: '8px',
