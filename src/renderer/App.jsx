@@ -76,12 +76,15 @@ const DEFAULT_PREFERENCES = {
   stub1ShowGLCode: true,
   stub1ShowLineItems: true,
   stub1ShowCheckNumber: true,
+  stub1ShowDate: true,
   stub2ShowLedger: true,
   stub2ShowApproved: true,
   stub2ShowGLCode: true,
   stub2ShowLineItems: true,
   stub2ShowCheckNumber: true,
+  stub2ShowDate: true,
   showCheckNumber: true, // Show/hide check number field on check itself
+  showDate: true, // Show/hide date field on check itself
   adminLocked: true,
   adminPin: '0000',
   enableSnapping: false
@@ -344,7 +347,8 @@ function parseCSV(content, delimiter = ',') {
     amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total'],
     memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
     external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
-    internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo']
+    internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
+    ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
   }
 
   // Find column indices
@@ -383,7 +387,8 @@ function parseCSV(content, delimiter = ',') {
       amount: columnIndices.amount !== undefined ? values[columnIndices.amount]?.replace(/[$,]/g, '') || '' : '',
       memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
       external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
-      internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : ''
+      internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : '',
+      ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : ''
     }
 
     // Only include if we have at least payee or amount
@@ -436,7 +441,8 @@ function parseExcel(base64Content) {
       amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total'],
       memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
-      internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo']
+      internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
+      ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
     }
 
     // Process each row
@@ -760,7 +766,8 @@ export default function App() {
     amount: '',
     memo: '',
     external_memo: '',
-    internal_memo: ''
+    internal_memo: '',
+    ledger: ''
   })
   const [rawFileData, setRawFileData] = useState(null)
   const [fileExtension, setFileExtension] = useState('')
@@ -868,7 +875,7 @@ export default function App() {
   })
 
   const [activeSlot, setActiveSlot] = useState('top') // 'top' | 'middle' | 'bottom'
-  const [autoIncrementCheckNumbers, setAutoIncrementCheckNumbers] = useState(true)
+  const [autoIncrementCheckNumbers, setAutoIncrementCheckNumbers] = useState(false)
 
   // Deposit/Adjustment modal state
   const [showDepositModal, setShowDepositModal] = useState(false)
@@ -2554,6 +2561,15 @@ export default function App() {
         normalizedDate = convertExcelDate(item.date)
       }
 
+      // Calculate ledger snapshot for display on check
+      const previousBalanceForCheck = ledgerBalances[targetLedgerId]
+      const newBalanceForCheck = previousBalanceForCheck - amount
+      const ledgerSnapshotForDisplay = {
+        previous_balance: previousBalanceForCheck,
+        transaction_amount: amount,
+        new_balance: newBalanceForCheck
+      }
+
       // Load check data into the form for printing
       setData({
         date: normalizedDate,
@@ -2565,7 +2581,7 @@ export default function App() {
         internal_memo: item.internal_memo || '',
         line_items: item.line_items || [],
         line_items_text: item.line_items_text || '',
-        ledger_snapshot: null,
+        ledger_snapshot: ledgerSnapshotForDisplay,
         checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
       })
 
@@ -2599,10 +2615,8 @@ export default function App() {
       // Wait for printer spooler to receive the job
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Record to ledger/history
-      const previousBalance = ledgerBalances[targetLedgerId]
-      ledgerBalances[targetLedgerId] -= amount
-      const newBalance = ledgerBalances[targetLedgerId]
+      // Record to ledger/history (update ledger balance and use pre-calculated values)
+      ledgerBalances[targetLedgerId] = newBalanceForCheck
 
       newHistory.unshift({
         id: generateId(),
@@ -2619,12 +2633,12 @@ export default function App() {
         ledgerName: ledgers.find(l => l.id === targetLedgerId)?.name || '',
         profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
         ledger_snapshot: {
-          previous_balance: previousBalance,
+          previous_balance: previousBalanceForCheck,
           transaction_amount: amount,
-          new_balance: newBalance
+          new_balance: newBalanceForCheck
         },
         timestamp: Date.now(),
-        balanceAfter: newBalance,
+        balanceAfter: newBalanceForCheck,
         checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
       })
       processed++
@@ -2727,6 +2741,14 @@ export default function App() {
           normalizedDate = convertExcelDate(item.date)
         }
 
+        // Calculate ledger snapshot BEFORE deducting (so check shows correct balance)
+        const previousBalance = ledgerBalances[targetLedgerId]
+        const ledgerSnapshotForDisplay = {
+          previous_balance: previousBalance,
+          transaction_amount: amount,
+          new_balance: previousBalance - amount
+        }
+
         // Populate slot data
         newSheetData[slot] = {
           date: normalizedDate,
@@ -2738,16 +2760,21 @@ export default function App() {
           internal_memo: item.internal_memo || '',
           line_items: item.line_items || [],
           line_items_text: item.line_items_text || '',
-          ledger_snapshot: null,
+          ledger_snapshot: ledgerSnapshotForDisplay,
           checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
         }
 
-        // Store metadata for recording
+        // Deduct from balance NOW so next check in this batch gets the updated balance
+        ledgerBalances[targetLedgerId] -= amount
+
+        // Store metadata for recording (with the already-calculated new balance)
         slotMetadata.push({
           slot,
           item,
           targetLedgerId,
           amount,
+          previousBalance: previousBalance,
+          newBalance: ledgerBalances[targetLedgerId],
           checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
         })
 
@@ -2799,13 +2826,9 @@ export default function App() {
       // Wait for printer spooler to receive the job
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Record all filled slots to history
+      // Record all filled slots to history (balances already calculated and deducted)
       const timestamp = Date.now()
-      for (const { slot, item, targetLedgerId, amount, checkNumber } of slotMetadata) {
-        const previousBalance = ledgerBalances[targetLedgerId]
-        ledgerBalances[targetLedgerId] -= amount
-        const newBalance = ledgerBalances[targetLedgerId]
-
+      for (const { slot, item, targetLedgerId, amount, previousBalance, newBalance, checkNumber } of slotMetadata) {
         newHistory.unshift({
           id: generateId(),
           date: item.date || new Date().toISOString().slice(0, 10),
@@ -4474,51 +4497,40 @@ export default function App() {
                   placeholder="Optional note"
                 />
               </div>
-              {preferences.showCheckNumber && (
-                <>
-                  <div className="field">
-                    <label>Check Number</label>
-                    <input
-                      value={getCurrentCheckData().checkNumber || activeProfile.nextCheckNumber || ''}
-                      onChange={(e) => updateCurrentCheckData({ checkNumber: e.target.value })}
-                      placeholder="Check #"
-                    />
-                  </div>
 
-                  {/* FORCE FIX: Toggle Switch */}
-                  {activeProfile?.layoutMode === 'three_up' && (
-                    <div className="flex items-center mt-3 mb-4">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={!!autoIncrementCheckNumbers}
-                          onChange={(e) => setAutoIncrementCheckNumbers(e.target.checked)}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        <span className="ml-3 text-sm font-medium text-gray-300">Auto-increment across slots</span>
-                      </label>
-                    </div>
-                  )}
-                </>
+              {/* Check Number Input Field */}
+              {preferences.showCheckNumber && (
+                <div className="field">
+                  <label>Check Number</label>
+                  <input
+                    value={getCurrentCheckData().checkNumber || activeProfile.nextCheckNumber || ''}
+                    onChange={(e) => updateCurrentCheckData({ checkNumber: e.target.value })}
+                    placeholder="Check #"
+                  />
+                </div>
               )}
 
-              <div className="field">
-                <label>External Memo (Payee Copy)</label>
-                <input
-                  value={getCurrentCheckData().external_memo || ''}
-                  onChange={(e) => updateCurrentCheckData({ external_memo: e.target.value })}
-                  placeholder="Public memo for payee stub"
-                />
-              </div>
-              <div className="field">
-                <label>Internal Memo (Bookkeeper Copy)</label>
-                <input
-                  value={getCurrentCheckData().internal_memo || ''}
-                  onChange={(e) => updateCurrentCheckData({ internal_memo: e.target.value })}
-                  placeholder="Private memo for bookkeeper stub"
-                />
-              </div>
+              {/* External/Internal Memo - Only in standard mode (not in three-up) */}
+              {activeProfile?.layoutMode !== 'three_up' && (
+                <>
+                  <div className="field">
+                    <label>External Memo (Payee Copy)</label>
+                    <input
+                      value={getCurrentCheckData().external_memo || ''}
+                      onChange={(e) => updateCurrentCheckData({ external_memo: e.target.value })}
+                      placeholder="Public memo for payee stub"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>Internal Memo (Bookkeeper Copy)</label>
+                    <input
+                      value={getCurrentCheckData().internal_memo || ''}
+                      onChange={(e) => updateCurrentCheckData({ internal_memo: e.target.value })}
+                      placeholder="Private memo for bookkeeper stub"
+                    />
+                  </div>
+                </>
+              )}
               <div className="field">
                 <label>Line Items / Detail</label>
                 <textarea
@@ -4544,6 +4556,51 @@ export default function App() {
               </div>
             </div>
           </section>
+
+          {/* Check Display Preferences */}
+          {!preferences.adminLocked && (
+            <section className="section">
+              <h3>Check Display</h3>
+              <div className="card">
+                <div className="field">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={!!preferences.showCheckNumber}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked
+                        setPreferences(p => ({ ...p, showCheckNumber: isChecked }))
+                        // In three-up mode, sync autoIncrementCheckNumbers with showCheckNumber
+                        if (activeProfile?.layoutMode === 'three_up') {
+                          setAutoIncrementCheckNumbers(isChecked)
+                        }
+                      }}
+                    />
+                    <span className="toggle-slider"></span>
+                    <span className="toggle-label">
+                      {activeProfile?.layoutMode === 'three_up' ? 'Show Check Number & Auto-increment' : 'Show Check Number'}
+                    </span>
+                  </label>
+                </div>
+                <div className="field">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={!!preferences.showDate}
+                      onChange={(e) => setPreferences(p => ({ ...p, showDate: e.target.checked }))}
+                    />
+                    <span className="toggle-slider"></span>
+                    <span className="toggle-label">Show Date</span>
+                  </label>
+                </div>
+                <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                  {activeProfile?.layoutMode === 'three_up'
+                    ? 'Toggle visibility of fields on all checks. Hide check numbers if using pre-numbered check stock.'
+                    : 'Toggle visibility of fields on the check. Hide check numbers if using pre-numbered check stock.'}
+                </small>
+              </div>
+            </section>
+          )}
 
           {/* Text & Font Settings */}
           {!preferences.adminLocked && (
@@ -4812,6 +4869,17 @@ export default function App() {
                       <span className="toggle-label">Show Check Number</span>
                     </label>
                   </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub1ShowDate}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowDate: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Date</span>
+                    </label>
+                  </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
                       Toggle which fields appear on the Payee Copy stub
                     </small>
@@ -4930,40 +4998,22 @@ export default function App() {
                       <span className="toggle-label">Show Check Number</span>
                     </label>
                   </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.stub2ShowDate}
+                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowDate: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Date</span>
+                    </label>
+                  </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
                       Toggle which fields appear on the Bookkeeper Copy stub
                     </small>
                   </div>
                 )}
-              </div>
-            </section>
-          )}
-
-          {/* Check Number Toggle - Always visible in admin mode */}
-          {!preferences.adminLocked && (
-            <section className="section">
-              <h3>Check Number Settings</h3>
-              <div className="card">
-                <div style={{ marginBottom: '8px' }}>
-                  <label style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
-                    Check Number Field
-                  </label>
-                  <div className="flex items-center mt-2">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={!!preferences.showCheckNumber}
-                        onChange={(e) => setPreferences(p => ({ ...p, showCheckNumber: e.target.checked }))}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      <span className="ml-3 text-sm font-medium text-gray-300">Show Check Number</span>
-                    </label>
-                  </div>
-                  <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
-                    Hide this if using pre-numbered check stock
-                  </small>
-                </div>
               </div>
             </section>
           )}
@@ -5499,6 +5549,7 @@ export default function App() {
                   if (key === 'stub1_glcode' && !preferences.stub1ShowGLCode) return null
                   if (key === 'stub1_line_items' && !preferences.stub1ShowLineItems) return null
                   if (key === 'stub1_checkNumber' && !preferences.stub1ShowCheckNumber) return null
+                  if (key === 'stub1_date' && !preferences.stub1ShowDate) return null
 
                   // Skip stub2 fields if their preferences are disabled
                   if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
@@ -5506,9 +5557,13 @@ export default function App() {
                   if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
                   if (key === 'stub2_line_items' && !preferences.stub2ShowLineItems) return null
                   if (key === 'stub2_checkNumber' && !preferences.stub2ShowCheckNumber) return null
+                  if (key === 'stub2_date' && !preferences.stub2ShowDate) return null
 
                   // Skip check number field on check if preference is disabled
                   if (key === 'checkNumber' && !preferences.showCheckNumber) return null
+
+                  // Skip date field on check if preference is disabled
+                  if (key === 'date' && !preferences.showDate) return null
 
                   // Smart field value handling
                   let value = checkData[key] ?? ''
@@ -5523,6 +5578,12 @@ export default function App() {
                   // Sync stub check numbers from check data
                   if ((key === 'stub1_checkNumber' || key === 'stub2_checkNumber')) {
                     value = checkData.checkNumber || String(activeProfile.nextCheckNumber || '')
+                    isReadOnly = true
+                  }
+
+                  // Sync stub dates from check data
+                  if ((key === 'stub1_date' || key === 'stub2_date')) {
+                    value = checkData.date || ''
                     isReadOnly = true
                   }
 
