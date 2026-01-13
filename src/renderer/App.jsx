@@ -745,6 +745,7 @@ export default function App() {
   const [exportStartDate, setExportStartDate] = useState('')
   const [exportEndDate, setExportEndDate] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+  const [historyViewMode, setHistoryViewMode] = useState('all') // 'all' or 'current'
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
 
   // Import queue
@@ -2371,30 +2372,52 @@ export default function App() {
         }
       })
     } else {
-      // Standard mode: Load into single check form and select
-      // Normalize date to YYYY-MM-DD format
-      let normalizedDate = queueItem.date || new Date().toISOString().slice(0, 10)
-      if (queueItem.date && !/^\d{4}-\d{2}-\d{2}$/.test(queueItem.date)) {
-        const parsedDate = new Date(queueItem.date)
-        if (!isNaN(parsedDate.getTime())) {
-          normalizedDate = parsedDate.toISOString().slice(0, 10)
-        }
-      }
+      // Standard mode: Toggle selection
+      setSelectedQueueItems(prev => {
+        const isSelected = prev.some(item => item.id === queueItem.id)
+        if (isSelected) {
+          // Unselect: clear the form and remove from selection
+          setData({
+            date: new Date().toISOString().slice(0, 10),
+            payee: '',
+            amount: '',
+            amountWords: '',
+            memo: '',
+            external_memo: '',
+            internal_memo: '',
+            line_items: [],
+            line_items_text: '',
+            ledger_snapshot: null,
+            checkNumber: ''
+          })
+          return []
+        } else {
+          // Select: Load into single check form
+          // Normalize date to YYYY-MM-DD format
+          let normalizedDate = queueItem.date || new Date().toISOString().slice(0, 10)
+          if (queueItem.date && !/^\d{4}-\d{2}-\d{2}$/.test(queueItem.date)) {
+            const parsedDate = new Date(queueItem.date)
+            if (!isNaN(parsedDate.getTime())) {
+              normalizedDate = parsedDate.toISOString().slice(0, 10)
+            }
+          }
 
-      setData({
-        date: normalizedDate,
-        payee: queueItem.payee || '',
-        amount: queueItem.amount || '',
-        amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
-        memo: queueItem.memo || '',
-        external_memo: queueItem.external_memo || '',
-        internal_memo: queueItem.internal_memo || '',
-        line_items: queueItem.line_items || [],
-        line_items_text: queueItem.line_items_text || '',
-        ledger_snapshot: null,
-        checkNumber: queueItem.checkNumber || ''
+          setData({
+            date: normalizedDate,
+            payee: queueItem.payee || '',
+            amount: queueItem.amount || '',
+            amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
+            memo: queueItem.memo || '',
+            external_memo: queueItem.external_memo || '',
+            internal_memo: queueItem.internal_memo || '',
+            line_items: queueItem.line_items || [],
+            line_items_text: queueItem.line_items_text || '',
+            ledger_snapshot: null,
+            checkNumber: queueItem.checkNumber || ''
+          })
+          return [queueItem]
+        }
       })
-      setSelectedQueueItems([queueItem])
     }
   }
 
@@ -2516,10 +2539,10 @@ export default function App() {
     let processed = 0
     const newHistory = [...checkHistory]
 
-    // Track balances per ledger (ledgerId -> balance)
+    // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
     const ledgerBalances = {}
     ledgers.forEach(l => {
-      ledgerBalances[l.id] = l.balance
+      ledgerBalances[l.id] = calculateHybridBalance(l.id)
     })
 
     // Create a copy of the queue to iterate through
@@ -2620,6 +2643,7 @@ export default function App() {
 
       newHistory.unshift({
         id: generateId(),
+        type: 'check',
         date: item.date || new Date().toISOString().slice(0, 10),
         payee: item.payee,
         amount: amount,
@@ -2688,10 +2712,10 @@ export default function App() {
     let processed = 0
     const newHistory = [...checkHistory]
 
-    // Track balances per ledger (ledgerId -> balance)
+    // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
     const ledgerBalances = {}
     ledgers.forEach(l => {
-      ledgerBalances[l.id] = l.balance
+      ledgerBalances[l.id] = calculateHybridBalance(l.id)
     })
 
     // Create a copy of the queue to iterate through
@@ -2831,6 +2855,7 @@ export default function App() {
       for (const { slot, item, targetLedgerId, amount, previousBalance, newBalance, checkNumber } of slotMetadata) {
         newHistory.unshift({
           id: generateId(),
+          type: 'check',
           date: item.date || new Date().toISOString().slice(0, 10),
           payee: item.payee,
           amount: amount,
@@ -3549,17 +3574,20 @@ export default function App() {
             className={`tab-button ${showLedger && !showHistory ? 'active' : ''}`}
             onClick={() => { setShowLedger(true); setShowHistory(false); }}
           >
-            <span className="tab-label">Balance</span>
-            <span className={`tab-value ${ledgerBalance < 0 ? 'negative' : ''}`}>
-              {formatCurrency(ledgerBalance)}
+            <span className="tab-label">Total Balance</span>
+            <span className={`tab-value ${(() => {
+              const totalBalance = ledgers.reduce((sum, l) => sum + calculateHybridBalance(l.id), 0)
+              return totalBalance < 0 ? 'negative' : ''
+            })()}`}>
+              {formatCurrency(ledgers.reduce((sum, l) => sum + calculateHybridBalance(l.id), 0))}
             </span>
           </button>
           <button
             className={`tab-button ${showHistory ? 'active' : ''}`}
-            onClick={() => { setShowHistory(true); setShowLedger(false); }}
+            onClick={() => { setHistoryViewMode('all'); setShowHistory(true); setShowLedger(false); }}
           >
-            <span className="tab-label">History</span>
-            <span className="tab-value">{checkHistory.filter(c => c.ledgerId === activeLedgerId).length}</span>
+            <span className="tab-label">All History</span>
+            <span className="tab-value">{checkHistory.length}</span>
           </button>
         </div>
 
@@ -3956,9 +3984,9 @@ export default function App() {
                 {checkHistory.filter(c => c.ledgerId === activeLedgerId).length > 0 && (
                   <button
                     className="btn btn-sm full-width"
-                    onClick={() => { setShowHistory(true); setShowLedger(false); }}
+                    onClick={() => { setHistoryViewMode('current'); setShowHistory(true); setShowLedger(false); }}
                   >
-                    View Full History ({checkHistory.filter(c => c.ledgerId === activeLedgerId).length})
+                    View Ledger History ({checkHistory.filter(c => c.ledgerId === activeLedgerId).length})
                   </button>
                 )}
               </div>
@@ -4013,11 +4041,18 @@ export default function App() {
                           {item.date && <span>{item.date}</span>}
                           {item.memo && <span>{item.memo}</span>}
                         </div>
-                        {isSelected && (
-                          <div className="import-selected-badge">
-                            ✓
-                          </div>
-                        )}
+                        <button
+                          className="btn btn-sm danger"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setImportQueue(prev => prev.filter(i => i.id !== item.id))
+                            setSelectedQueueItems(prev => prev.filter(i => i.id !== item.id))
+                          }}
+                          title="Remove from queue"
+                          style={{ marginLeft: 'auto', minWidth: 'fit-content', padding: '4px 8px', cursor: 'pointer' }}
+                        >
+                          <TrashIcon />
+                        </button>
                       </div>
                     )
                   })}
@@ -6124,14 +6159,14 @@ export default function App() {
 
       {/* Delete Check Confirmation Modal */}
       {showDeleteConfirm && deleteTarget && (
-        <div className="modal-overlay no-print" onClick={cancelDeleteHistoryEntry}>
+        <div className="modal-overlay confirm-modal no-print" onClick={cancelDeleteHistoryEntry}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h2>Delete Check?</h2>
+              <h2>Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}?</h2>
               <button className="btn-icon" onClick={cancelDeleteHistoryEntry}>×</button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to delete this check?</p>
+              <p>Are you sure you want to delete this {deleteTarget.type === 'deposit' ? 'deposit' : 'check'}?</p>
               <div style={{
                 marginTop: '16px',
                 padding: '12px',
@@ -6139,18 +6174,21 @@ export default function App() {
                 borderRadius: '6px',
                 border: '1px solid #334155'
               }}>
-                <div><strong>Payee:</strong> {deleteTarget.payee}</div>
+                <div><strong>{deleteTarget.type === 'deposit' ? 'Description' : 'Payee'}:</strong> {deleteTarget.payee}</div>
                 <div><strong>Amount:</strong> {formatCurrency(deleteTarget.amount)}</div>
                 <div><strong>Date:</strong> {deleteTarget.date}</div>
               </div>
               <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '14px' }}>
-                This will restore {formatCurrency(deleteTarget.amount)} to the ledger balance.
+                {deleteTarget.type === 'deposit'
+                  ? `This will remove ${formatCurrency(deleteTarget.amount)} from the ledger balance.`
+                  : `This will restore ${formatCurrency(deleteTarget.amount)} to the ledger balance.`
+                }
               </p>
             </div>
             <div className="modal-footer">
               <button className="btn ghost" onClick={cancelDeleteHistoryEntry}>Cancel</button>
               <button className="btn danger" onClick={confirmDeleteHistoryEntry}>
-                Delete Check
+                Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}
               </button>
             </div>
           </div>
@@ -6366,7 +6404,7 @@ export default function App() {
 
       {/* Generic Confirmation Modal */}
       {showConfirmModal && (
-        <div className="modal-overlay no-print" onClick={handleConfirmModalCancel}>
+        <div className="modal-overlay confirm-modal no-print" onClick={handleConfirmModalCancel}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
               <h2>{confirmConfig.title}</h2>
@@ -6839,11 +6877,16 @@ export default function App() {
         <div className="modal-overlay history-modal-overlay" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>
           <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="history-modal-header">
-              <h2>Check History - {activeLedger?.name} ({checkHistory.filter(c => c.ledgerId === activeLedgerId).length})</h2>
+              <h2>
+                {historyViewMode === 'all'
+                  ? `Full History - All Ledgers (${checkHistory.length})`
+                  : `Check History - ${activeLedger?.name} (${checkHistory.filter(c => c.ledgerId === activeLedgerId).length})`
+                }
+              </h2>
               <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
             </div>
 
-            {checkHistory.filter(c => c.ledgerId === activeLedgerId).length === 0 ? (
+            {(historyViewMode === 'all' ? checkHistory.length : checkHistory.filter(c => c.ledgerId === activeLedgerId).length) === 0 ? (
               <div className="history-empty-state">
                 <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
                   <path d="M32 8L8 20V42C8 51.9 18.8 56 32 56C45.2 56 56 51.9 56 42V20L32 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.3"/>
@@ -6854,7 +6897,7 @@ export default function App() {
             ) : (
               <div className="history-modal-body">
                 <div className="history-list-column">
-                  {checkHistory.filter(c => c.ledgerId === activeLedgerId).map(entry => {
+                  {(historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId)).map(entry => {
                     const ledger = ledgers.find(l => l.id === entry.ledgerId)
                     const profile = profiles.find(p => p.id === entry.profileId)
                     return (
@@ -6865,7 +6908,9 @@ export default function App() {
                       >
                         <div className="history-card-main">
                           <div className="history-card-payee">{entry.payee}</div>
-                          <div className="history-card-amount">-{formatCurrency(entry.amount)}</div>
+                          <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
+                            {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
+                          </div>
                         </div>
                         <div className="history-card-meta">
                           <span>{formatDate(entry.date)}</span>
@@ -6965,8 +7010,8 @@ export default function App() {
                             </div>
                             <div className="snapshot-item">
                               <span className="snapshot-label">Transaction</span>
-                              <span className="snapshot-value negative">
-                                -{formatCurrency(selectedHistoryItem.ledger_snapshot.transaction_amount)}
+                              <span className={`snapshot-value ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>
+                                {selectedHistoryItem.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount)))}
                               </span>
                             </div>
                             <div className="snapshot-item balance-row">
@@ -6983,6 +7028,19 @@ export default function App() {
                         <label>Recorded</label>
                         <div className="detail-value">{new Date(selectedHistoryItem.timestamp).toLocaleString()}</div>
                       </div>
+                    </div>
+
+                    <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                      <button
+                        className="btn btn-sm danger"
+                        onClick={() => {
+                          deleteHistoryEntry(selectedHistoryItem.id)
+                          setSelectedHistoryItem(null)
+                        }}
+                        style={{ width: '100%' }}
+                      >
+                        <TrashIcon /> Delete & Restore to Ledger
+                      </button>
                     </div>
                   </div>
                 ) : (

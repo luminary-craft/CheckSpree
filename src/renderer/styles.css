@@ -1503,6 +1503,11 @@ body {
   padding: 20px;
 }
 
+/* Confirmation modals should be on top of everything */
+.modal-overlay.confirm-modal {
+  z-index: 1100 !important;
+}
+
 .modal-content {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1705,6 +1710,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.history-card-amount.income {
+  color: var(--success);
+}
+
 .history-card-meta {
   display: flex;
   gap: 8px;
@@ -1749,7 +1758,7 @@ body {
 
 .history-card-delete {
   position: absolute;
-  top: 12px;
+  bottom: 12px;
   right: 12px;
   padding: 6px;
   background: transparent;
@@ -1922,6 +1931,10 @@ body {
 
 .snapshot-value.negative {
   color: var(--danger);
+}
+
+.snapshot-value.positive {
+  color: var(--success);
 }
 
 .snapshot-item.balance-row .snapshot-label {
