@@ -994,10 +994,33 @@ export default function App() {
     // so it's safe to use activeProfile here
     const profile = profiles.find(p => p.id === activeProfileId) || profiles[0]
     if (profile?.layoutMode === 'three_up') {
-      setSheetData(prev => ({
-        ...prev,
-        [activeSlot]: { ...prev[activeSlot], ...updates }
-      }))
+      setSheetData(prev => {
+        const newData = {
+          ...prev,
+          [activeSlot]: { ...prev[activeSlot], ...updates }
+        }
+
+        // If check number is being updated and auto-increment is on, update slots below
+        if (updates.checkNumber && autoIncrementCheckNumbers) {
+          const baseNumber = parseInt(updates.checkNumber)
+          if (!isNaN(baseNumber)) {
+            const slots = ['top', 'middle', 'bottom']
+            const currentIndex = slots.indexOf(activeSlot)
+
+            // Only update slots BELOW the current one
+            for (let i = currentIndex + 1; i < slots.length; i++) {
+              const slotName = slots[i]
+              const incrementedNumber = baseNumber + (i - currentIndex)
+              newData[slotName] = {
+                ...newData[slotName],
+                checkNumber: String(incrementedNumber)
+              }
+            }
+          }
+        }
+
+        return newData
+      })
     } else {
       setData(prev => ({ ...prev, ...updates }))
     }
@@ -4898,8 +4921,10 @@ export default function App() {
                   const checkData = slot ? sheetData[slot] : data
                   const isActiveSlot = slot ? (activeSlot === slot) : true
 
-                  // In three-up mode, skip empty slots unless it's the active slot in edit mode
-                  if (slot && isSlotEmpty(checkData) && !(editMode && isActiveSlot)) {
+                  // In three-up mode, skip empty slots unless:
+                  // - It's the active slot in edit mode
+                  // - Auto-increment is enabled (need to show check numbers)
+                  if (slot && isSlotEmpty(checkData) && !(editMode && isActiveSlot) && !autoIncrementCheckNumbers) {
                     return null
                   }
 
