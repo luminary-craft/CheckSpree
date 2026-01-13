@@ -3900,8 +3900,8 @@ export default function App() {
                             {formatDate(entry.date)}
                           </div>
                         </div>
-                        <div style={{ fontWeight: '600', color: '#f87171', whiteSpace: 'nowrap' }}>
-                          -{formatCurrency(entry.amount)}
+                        <div style={{ fontWeight: '600', color: entry.type === 'deposit' ? '#10b981' : '#f87171', whiteSpace: 'nowrap' }}>
+                          {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(entry.amount)}
                         </div>
                         <button
                           onClick={() => deleteHistoryEntry(entry.id)}
@@ -5545,10 +5545,12 @@ export default function App() {
                     isTextarea = true
                     isReadOnly = true
                   } else if (key.endsWith('_ledger')) {
+                    // Generate live ledger snapshot based on current hybrid balance and check amount
+                    const checkAmount = sanitizeCurrencyInput(checkData.amount)
                     const snapshot = checkData.ledger_snapshot || {
-                      previous_balance: ledgerBalance + sanitizeCurrencyInput(checkData.amount),
-                      transaction_amount: sanitizeCurrencyInput(checkData.amount),
-                      new_balance: ledgerBalance
+                      previous_balance: hybridBalance,
+                      transaction_amount: checkAmount,
+                      new_balance: hybridBalance - checkAmount
                     }
                     value = formatLedgerSnapshot(snapshot)
                     isTextarea = true
