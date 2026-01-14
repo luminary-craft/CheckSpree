@@ -717,6 +717,46 @@ function UploadIcon() {
   )
 }
 
+function PasswordModal({ title, message, value, onChange, onSubmit, onCancel, error, confirmButtonText = 'Submit', allowEmpty = false }) {
+  return (
+    <div className="modal-overlay no-print" onClick={onCancel}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button className="btn-icon" onClick={onCancel}>×</button>
+        </div>
+        <div className="modal-body">
+          {message && <p style={{ marginBottom: '16px', color: '#94a3b8' }}>{message}</p>}
+          <div className="field">
+            <label>Password</label>
+            <input
+              type="password"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (allowEmpty || value)) onSubmit()
+              }}
+              autoFocus
+              placeholder="Enter password..."
+            />
+            {error && (
+              <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px' }}>
+                {error}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" onClick={onSubmit} disabled={!allowEmpty && !value}>
+            {confirmButtonText}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [model, setModel] = useState(DEFAULT_MODEL)
   const [editMode, setEditMode] = useState(false)
@@ -797,6 +837,14 @@ export default function App() {
   // Stub friendly labels
   const [showStub1Labels, setShowStub1Labels] = useState(false)
   const [showStub2Labels, setShowStub2Labels] = useState(false)
+
+  // Password protection for backups
+  const [backupPassword, setBackupPassword] = useState('')
+  const [showBackupPasswordModal, setShowBackupPasswordModal] = useState(false)
+  const [restorePassword, setRestorePassword] = useState('')
+  const [showRestorePasswordModal, setShowRestorePasswordModal] = useState(false)
+  const [pendingRestorePath, setPendingRestorePath] = useState(null)
+  const [restoreError, setRestoreError] = useState(null)
 
   // Admin PIN modal
   const [showPinModal, setShowPinModal] = useState(false)
@@ -2032,16 +2080,61 @@ export default function App() {
   }
 
   const confirmManualBackup = async () => {
+    setShowManualBackupModal(false)
+    setBackupPassword('')
+    setShowBackupPasswordModal(true)
+  }
+
+  const handleBackupPasswordSubmit = async () => {
+    setShowBackupPasswordModal(false)
     try {
-      const result = await window.cs2.backupSave()
+      const result = await window.cs2.backupSave(backupPassword)
       if (result.success) {
-        setShowManualBackupModal(false)
-        showToast(`Backup saved successfully!`, 'success')
+        showToast(`Backup saved successfully!${result.isEncrypted ? ' (Encrypted)' : ''}`, 'success')
       } else {
         showToast('Backup cancelled or failed', 'error')
       }
     } catch (e) {
       showToast(`Error creating backup: ${e.message}`, 'error')
+    }
+    setBackupPassword('')
+  }
+
+  const handleRestoreResult = (result, path = null) => {
+    if (result.success) {
+      showToast('Backup restored successfully. Reloading application...', 'success')
+      setShowBackupModal(false)
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
+    } else if (result.error === 'PASSWORD_REQUIRED') {
+      setPendingRestorePath(result.path || path)
+      setRestoreError(null)
+      setRestorePassword('')
+      setShowRestorePasswordModal(true)
+    } else if (result.error === 'INVALID_PASSWORD') {
+      setRestoreError('Invalid password')
+      setShowRestorePasswordModal(true) // Re-show modal
+    } else if (result.error) {
+      showToast(`Restore failed: ${result.error}`, 'error')
+    } else {
+      showToast('Restore cancelled', 'info')
+    }
+  }
+
+  const handleRestorePasswordSubmit = async () => {
+    setShowRestorePasswordModal(false)
+    try {
+      let result
+      if (pendingRestorePath) {
+        result = await window.cs2.backupRestoreFile(pendingRestorePath, restorePassword)
+      } else {
+        // Fallback, though pendingRestorePath should always be set for password flow
+        result = await window.cs2.backupRestore(restorePassword)
+      }
+      handleRestoreResult(result, pendingRestorePath)
+    } catch (e) {
+      showToast(`Error restoring backup: ${e.message}`, 'error')
     }
   }
 
@@ -2067,17 +2160,8 @@ export default function App() {
 
   const handleRestoreFromFile = async () => {
     try {
-      const result = await window.cs2.backupRestore()
-      if (result.success) {
-        showToast('Backup restored successfully. Reloading application...', 'success')
-        setTimeout(() => {
-          window.location.reload()
-        }, 1500)
-      } else if (result.error) {
-        showToast(`Restore failed: ${result.error}`, 'error')
-      } else {
-        showToast('Restore cancelled', 'info')
-      }
+      const result = await window.cs2.backupRestore(null)
+      handleRestoreResult(result)
     } catch (e) {
       showToast(`Error restoring backup: ${e.message}`, 'error')
     }
@@ -2089,21 +2173,12 @@ export default function App() {
       let result
       if (backupPath) {
         // Restore from specific backup file
-        result = await window.cs2.backupRestoreFile(backupPath)
+        result = await window.cs2.backupRestoreFile(backupPath, null)
       } else {
         // Restore from latest auto-backup
         result = await window.cs2.backupRestoreLatest()
       }
-
-      if (result.success) {
-        showToast('Backup restored successfully. Reloading application...', 'success')
-        setShowBackupModal(false)
-        setTimeout(() => {
-          window.location.reload()
-        }, 1500)
-      } else if (result.error) {
-        showToast(`Restore failed: ${result.error}`, 'error')
-      }
+      handleRestoreResult(result, backupPath)
     } catch (e) {
       showToast(`Error restoring backup: ${e.message}`, 'error')
     }
@@ -6533,6 +6608,42 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Backup Password Modal */}
+      {showBackupPasswordModal && (
+        <PasswordModal
+          title="Encrypt Backup"
+          message="Enter a password to encrypt this backup file. If you leave this blank, the file will be saved as plain text."
+          value={backupPassword}
+          onChange={setBackupPassword}
+          onSubmit={handleBackupPasswordSubmit}
+          onCancel={() => setShowBackupPasswordModal(false)}
+          confirmButtonText={backupPassword ? "Save Encrypted" : "Save Unencrypted"}
+          allowEmpty={true}
+        />
+      )}
+
+      {/* Restore Password Modal */}
+      {showRestorePasswordModal && (
+        <PasswordModal
+          title="Enter Password"
+          message="This backup file is encrypted. Please enter the password to restore it."
+          value={restorePassword}
+          onChange={(val) => {
+            setRestorePassword(val)
+            setRestoreError(null)
+          }}
+          onSubmit={handleRestorePasswordSubmit}
+          onCancel={() => {
+            setShowRestorePasswordModal(false)
+            setPendingRestorePath(null)
+            setRestoreError(null)
+          }}
+          error={restoreError}
+          confirmButtonText="Unlock & Restore"
+          allowEmpty={false}
+        />
       )}
 
       {/* Manual Backup Modal */}

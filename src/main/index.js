@@ -4,6 +4,7 @@ const fs = require('fs')
 const { pathToFileURL } = require('url')
 const { autoUpdater } = require('electron-updater')
 const log = require('electron-log')
+const crypto = require('crypto')
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null
@@ -14,6 +15,48 @@ autoUpdater.logger = log
 
 // Disable auto-download - we'll trigger it manually when user confirms
 autoUpdater.autoDownload = false
+
+// Encryption helpers for manual backups
+function encryptData(data, password) {
+  try {
+    const salt = crypto.randomBytes(16)
+    const key = crypto.scryptSync(password, salt, 32)
+    const iv = crypto.randomBytes(16)
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+    let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex')
+    encrypted += cipher.final('hex')
+    const authTag = cipher.getAuthTag().toString('hex')
+
+    return {
+      iv: iv.toString('hex'),
+      content: encrypted,
+      authTag: authTag,
+      salt: salt.toString('hex'),
+      version: 1,
+      isEncrypted: true
+    }
+  } catch (error) {
+    console.error('Encryption error:', error)
+    throw error
+  }
+}
+
+function decryptData(encryptedData, password) {
+  try {
+    const salt = Buffer.from(encryptedData.salt, 'hex')
+    const iv = Buffer.from(encryptedData.iv, 'hex')
+    const authTag = Buffer.from(encryptedData.authTag, 'hex')
+    const key = crypto.scryptSync(password, salt, 32)
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
+    decipher.setAuthTag(authTag)
+    let decrypted = decipher.update(encryptedData.content, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
+    return JSON.parse(decrypted)
+  } catch (error) {
+    console.error('Decryption error:', error)
+    throw new Error('Invalid password or corrupted file')
+  }
+}
 
 function getUserDataFile() {
   return path.join(app.getPath('userData'), 'checkspree2.settings.json')
@@ -596,14 +639,14 @@ ipcMain.handle('print:selectPdfFolder', async () => {
 })
 
 // Backup all settings data
-ipcMain.handle('backup:save', async () => {
+ipcMain.handle('backup:save', async (_evt, password = null) => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
   const today = new Date().toISOString().slice(0, 10)
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5) // Format: 2026-01-12T14-30-45
 
   const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: `CheckSpree_Backup_${today}.json`,
+    defaultPath: `CheckSpree_Backup_${today}${password ? '_Encrypted' : ''}.json`,
     filters: [
       { name: 'JSON Files', extensions: ['json'] },
       { name: 'All Files', extensions: ['*'] }
@@ -615,41 +658,53 @@ ipcMain.handle('backup:save', async () => {
   try {
     // Read the settings (decrypted if necessary)
     const settings = readSettings()
-    // Write as plain JSON for portability
-    const json = JSON.stringify(settings, null, 2)
 
-    // Save to user-selected location as PLAIN JSON (not encrypted)
-    fs.writeFileSync(result.filePath, json, 'utf8')
+    let fileContent
+    let isEncrypted = false
 
-    // Also save ENCRYPTED auto-backup to app data directory
+    if (password) {
+      // Encrypt with user password
+      const encryptedData = encryptData(settings, password)
+      fileContent = JSON.stringify(encryptedData, null, 2)
+      isEncrypted = true
+    } else {
+      // Write as plain JSON for portability
+      fileContent = JSON.stringify(settings, null, 2)
+    }
+
+    // Save to user-selected location
+    fs.writeFileSync(result.filePath, fileContent, 'utf8')
+
+    // Also save ENCRYPTED auto-backup to app data directory (always system encrypted if available)
     const backupDir = getBackupDirectory()
     const autoBackupPath = path.join(backupDir, `CheckSpree_AutoBackup_${timestamp}.json`)
+    const plainJson = JSON.stringify(settings, null, 2)
 
     // Encrypt the auto-backup if encryption is available
     if (safeStorage.isEncryptionAvailable()) {
       try {
-        const encrypted = safeStorage.encryptString(json)
+        const encrypted = safeStorage.encryptString(plainJson)
         fs.writeFileSync(autoBackupPath, encrypted)
       } catch (encryptError) {
         console.error('Failed to encrypt auto-backup, saving as plain text:', encryptError)
-        fs.writeFileSync(autoBackupPath, json, 'utf8')
+        fs.writeFileSync(autoBackupPath, plainJson, 'utf8')
       }
     } else {
       // No encryption available - save plain text
-      fs.writeFileSync(autoBackupPath, json, 'utf8')
+      fs.writeFileSync(autoBackupPath, plainJson, 'utf8')
     }
 
     // Open the file location
     shell.showItemInFolder(result.filePath)
 
-    return { success: true, path: result.filePath, autoBackupPath, isEncrypted: false }
+    return { success: true, path: result.filePath, autoBackupPath, isEncrypted }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }
 })
 
 // Restore backup from JSON file (handles both encrypted and plain)
-ipcMain.handle('backup:restore', async () => {
+ipcMain.handle('backup:restore', async (_evt, password = null) => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -667,26 +722,42 @@ ipcMain.handle('backup:restore', async () => {
     const buffer = fs.readFileSync(filePath)
     let backupData
 
-    // Try to decrypt first (in case it's an encrypted backup)
+    // 1. Try safeStorage decryption (system keychain) - for auto-backups
     if (safeStorage.isEncryptionAvailable()) {
       try {
         const decrypted = safeStorage.decryptString(buffer)
         backupData = JSON.parse(decrypted)
       } catch (decryptError) {
-        // Failed to decrypt - try as plain text
-        try {
-          backupData = JSON.parse(buffer.toString('utf8'))
-        } catch (parseError) {
-          return { success: false, error: 'Failed to read backup file' }
-        }
+        // Not a safeStorage encrypted file, continue to next method
       }
-    } else {
-      // No encryption available - read as plain text
-      backupData = JSON.parse(buffer.toString('utf8'))
+    }
+
+    // 2. If not safeStorage, try parsing as JSON (Plain text OR Custom Encrypted)
+    if (!backupData) {
+      try {
+        const rawJson = JSON.parse(buffer.toString('utf8'))
+
+        // Check if it's our custom password-encrypted format
+        if (rawJson.isEncrypted && rawJson.version === 1) {
+          if (!password) {
+            return { success: false, error: 'PASSWORD_REQUIRED', path: filePath }
+          }
+          try {
+            backupData = decryptData(rawJson, password)
+          } catch (err) {
+            return { success: false, error: 'INVALID_PASSWORD', path: filePath }
+          }
+        } else {
+          // It's a plain text backup
+          backupData = rawJson
+        }
+      } catch (parseError) {
+        return { success: false, error: 'Failed to read backup file' }
+      }
     }
 
     // Validate that this looks like a CheckSpree backup
-    if (!backupData.model || !backupData.profiles) {
+    if (!backupData || !backupData.model || !backupData.profiles) {
       return { success: false, error: 'Invalid backup file format' }
     }
 
@@ -756,7 +827,7 @@ ipcMain.handle('backup:restore-latest', async () => {
 })
 
 // Restore from specific backup file path (handles both encrypted and plain)
-ipcMain.handle('backup:restore-file', async (_evt, filePath) => {
+ipcMain.handle('backup:restore-file', async (_evt, filePath, password = null) => {
   try {
     if (!filePath) {
       return { success: false, error: 'No file path provided' }
@@ -765,26 +836,42 @@ ipcMain.handle('backup:restore-file', async (_evt, filePath) => {
     const buffer = fs.readFileSync(filePath)
     let backupData
 
-    // Try to decrypt first (in case it's an encrypted backup)
+    // 1. Try safeStorage decryption (system keychain) - for auto-backups
     if (safeStorage.isEncryptionAvailable()) {
       try {
         const decrypted = safeStorage.decryptString(buffer)
         backupData = JSON.parse(decrypted)
       } catch (decryptError) {
-        // Failed to decrypt - try as plain text
-        try {
-          backupData = JSON.parse(buffer.toString('utf8'))
-        } catch (parseError) {
-          return { success: false, error: 'Failed to read backup file' }
-        }
+        // Not a safeStorage encrypted file, continue to next method
       }
-    } else {
-      // No encryption available - read as plain text
-      backupData = JSON.parse(buffer.toString('utf8'))
+    }
+
+    // 2. If not safeStorage, try parsing as JSON (Plain text OR Custom Encrypted)
+    if (!backupData) {
+      try {
+        const rawJson = JSON.parse(buffer.toString('utf8'))
+
+        // Check if it's our custom password-encrypted format
+        if (rawJson.isEncrypted && rawJson.version === 1) {
+          if (!password) {
+            return { success: false, error: 'PASSWORD_REQUIRED', path: filePath }
+          }
+          try {
+            backupData = decryptData(rawJson, password)
+          } catch (err) {
+            return { success: false, error: 'INVALID_PASSWORD', path: filePath }
+          }
+        } else {
+          // It's a plain text backup
+          backupData = rawJson
+        }
+      } catch (parseError) {
+        return { success: false, error: 'Failed to read backup file' }
+      }
     }
 
     // Validate that this looks like a CheckSpree backup
-    if (!backupData.model || !backupData.profiles) {
+    if (!backupData || !backupData.model || !backupData.profiles) {
       return { success: false, error: 'Invalid backup file format' }
     }
 

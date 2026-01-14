@@ -20,11 +20,11 @@ contextBridge.exposeInMainWorld('cs2', {
   selectPdfFolder: () => ipcRenderer.invoke('print:selectPdfFolder'),
 
   // Backup
-  backupSave: () => ipcRenderer.invoke('backup:save'),
-  backupRestore: () => ipcRenderer.invoke('backup:restore'),
+  backupSave: (password) => ipcRenderer.invoke('backup:save', password),
+  backupRestore: (password) => ipcRenderer.invoke('backup:restore', password),
   backupList: () => ipcRenderer.invoke('backup:list'),
   backupRestoreLatest: () => ipcRenderer.invoke('backup:restore-latest'),
-  backupRestoreFile: (filePath) => ipcRenderer.invoke('backup:restore-file', filePath),
+  backupRestoreFile: (filePath, password) => ipcRenderer.invoke('backup:restore-file', filePath, password),
   backupTriggerAuto: () => ipcRenderer.invoke('backup:trigger-auto'),
 
   // Auto-Updater
