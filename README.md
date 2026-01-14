@@ -59,6 +59,7 @@ A professional check printing application built with Electron that treats printi
   - Associated ledger and profile
 - View complete transaction history per ledger
 - Restore balance by deleting checks from history
+- **Robust Ledger Integrity**: Ledger deduction and history recording only occur AFTER confirmed successful print or PDF save
 - Track spending by profile and ledger
 - Recent activity preview in sidebar (last 2 checks)
 
@@ -88,6 +89,8 @@ A professional check printing application built with Electron that treats printi
 - Admin lock/unlock for settings protection
 - Field type support: text, textarea, date, amount
 - Custom field creation and deletion
+- **Independent Display Toggles**: Show/Hide Check Number and Date independently in all modes, including 3-Up layout
+- **Batch Print Error Handling**: Pauses on failure with options to Skip & Continue or Stop Batch, ensuring no checks are recorded if they didn't physically print
 
 ### Backup & Restore
 - One-click backup of all application data
@@ -449,6 +452,8 @@ React hooks for local state:
 - Transaction history immutable once recorded
 - Balance calculations double-checked
 - Validation on all financial inputs
+- **Confirmed-Print Logic**: Prevents "ghost" transactions by only committing to the ledger after the printer or PDF engine confirms success
+- **Batch Pause-on-Error**: Allows manual intervention if a printer jams or a save fails mid-batch
 
 ### Privacy
 - All data stored locally
@@ -512,6 +517,6 @@ For issues or questions:
 
 ---
 
-**Version**: 0.1.0
+**Version**: 0.1.1
 **Last Updated**: January 2026
 **Built with**: Electron, React, and attention to detail
