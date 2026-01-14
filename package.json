@@ -65,7 +65,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CheckSpree"
+      "shortcutName": "CheckSpree",
+      "artifactName": "CheckSpree-Setup-${version}.${ext}"
     },
     "portable": {
       "artifactName": "CheckSpree-Portable.exe"
