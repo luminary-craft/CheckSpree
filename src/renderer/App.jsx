@@ -807,6 +807,8 @@ export default function App() {
   const [exportEndDate, setExportEndDate] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [historyViewMode, setHistoryViewMode] = useState('all') // 'all' or 'current'
+  const [historySearchTerm, setHistorySearchTerm] = useState('')
+  const [historySortOrder, setHistorySortOrder] = useState('date-desc')
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
 
   // Import queue
@@ -7402,14 +7404,42 @@ export default function App() {
       {showHistory && (
         <div className="modal-overlay history-modal-overlay" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>
           <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="history-modal-header">
-              <h2>
-                {historyViewMode === 'all'
-                  ? `Full History - All Ledgers (${checkHistory.length})`
-                  : `Check History - ${activeLedger?.name} (${checkHistory.filter(c => c.ledgerId === activeLedgerId).length})`
-                }
-              </h2>
-              <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
+            <div className="history-modal-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2>
+                  {historyViewMode === 'all'
+                    ? `Full History - All Ledgers`
+                    : `Check History - ${activeLedger?.name}`
+                  }
+                </h2>
+                <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                  <input
+                    type="text"
+                    placeholder="Search payee, memo, amount..."
+                    value={historySearchTerm}
+                    onChange={(e) => setHistorySearchTerm(e.target.value)}
+                    style={{ width: '100%' }}
+                    autoFocus
+                  />
+                </div>
+                <div className="field" style={{ width: '200px', marginBottom: 0 }}>
+                  <select
+                    value={historySortOrder}
+                    onChange={(e) => setHistorySortOrder(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="date-desc">Date (Newest First)</option>
+                    <option value="date-asc">Date (Oldest First)</option>
+                    <option value="amount-desc">Amount (High to Low)</option>
+                    <option value="amount-asc">Amount (Low to High)</option>
+                    <option value="payee-asc">Payee (A-Z)</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {(historyViewMode === 'all' ? checkHistory.length : checkHistory.filter(c => c.ledgerId === activeLedgerId).length) === 0 ? (
@@ -7423,45 +7453,66 @@ export default function App() {
             ) : (
               <div className="history-modal-body">
                 <div className="history-list-column">
-                  {(historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId)).map(entry => {
-                    const ledger = ledgers.find(l => l.id === entry.ledgerId)
-                    const profile = profiles.find(p => p.id === entry.profileId)
-                    return (
-                      <div
-                        key={entry.id}
-                        className={`history-card ${selectedHistoryItem?.id === entry.id ? 'selected' : ''}`}
-                        onClick={() => setSelectedHistoryItem(entry)}
-                      >
-                        <div className="history-card-main">
-                          <div className="history-card-payee">{entry.payee}</div>
-                          <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
-                            {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
-                          </div>
-                        </div>
-                        <div className="history-card-meta">
-                          <span>{formatDate(entry.date)}</span>
-                          {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
-                        </div>
-                        <div className="history-card-tags">
-                          <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>
-                          <span className="tag tag-profile">{profile?.name || 'Unknown'}</span>
-                        </div>
-                        <button
-                          className="history-card-delete"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteHistoryEntry(entry.id)
-                            if (selectedHistoryItem?.id === entry.id) {
-                              setSelectedHistoryItem(null)
-                            }
-                          }}
-                          title="Delete and restore amount"
+                  {(historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId))
+                    .filter(entry => {
+                      if (!historySearchTerm) return true
+                      const term = historySearchTerm.toLowerCase()
+                      return (
+                        (entry.payee && entry.payee.toLowerCase().includes(term)) ||
+                        (entry.memo && entry.memo.toLowerCase().includes(term)) ||
+                        (entry.amount && entry.amount.toString().includes(term)) ||
+                        (entry.checkNumber && entry.checkNumber.toString().includes(term))
+                      )
+                    })
+                    .sort((a, b) => {
+                      switch (historySortOrder) {
+                        case 'date-asc': return new Date(a.date) - new Date(b.date)
+                        case 'date-desc': return new Date(b.date) - new Date(a.date)
+                        case 'amount-asc': return parseFloat(a.amount) - parseFloat(b.amount)
+                        case 'amount-desc': return parseFloat(b.amount) - parseFloat(a.amount)
+                        case 'payee-asc': return (a.payee || '').localeCompare(b.payee || '')
+                        default: return 0
+                      }
+                    })
+                    .map(entry => {
+                      const ledger = ledgers.find(l => l.id === entry.ledgerId)
+                      const profile = profiles.find(p => p.id === entry.profileId)
+                      return (
+                        <div
+                          key={entry.id}
+                          className={`history-card ${selectedHistoryItem?.id === entry.id ? 'selected' : ''}`}
+                          onClick={() => setSelectedHistoryItem(entry)}
                         >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    )
-                  })}
+                          <div className="history-card-main">
+                            <div className="history-card-payee">{entry.payee}</div>
+                            <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
+                              {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
+                            </div>
+                          </div>
+                          <div className="history-card-meta">
+                            <span>{formatDate(entry.date)}</span>
+                            {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
+                          </div>
+                          <div className="history-card-tags">
+                            <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>
+                            <span className="tag tag-profile">{profile?.name || 'Unknown'}</span>
+                          </div>
+                          <button
+                            className="history-card-delete"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteHistoryEntry(entry.id)
+                              if (selectedHistoryItem?.id === entry.id) {
+                                setSelectedHistoryItem(null)
+                              }
+                            }}
+                            title="Delete and restore amount"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      )
+                    })}
                 </div>
 
                 {selectedHistoryItem ? (
