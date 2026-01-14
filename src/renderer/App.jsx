@@ -3244,11 +3244,16 @@ export default function App() {
   }
 
   // Generate PDF filename from check data
-  const generatePrintFilename = (checkData, batchIndex = null) => {
+const generatePrintFilename = (checkData, batchIndex = null) => {
     const payee = (checkData.payee || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_')
-    const date = checkData.date || new Date().toISOString().slice(0, 10)
+    
+    // FIX: Replace slashes with dashes to prevent folder errors (01/20/2026 -> 01-20-2026)
+    let rawDate = checkData.date || new Date().toISOString().slice(0, 10)
+    const date = rawDate.replace(/\//g, '-')
+
     const amount = sanitizeCurrencyInput(checkData.amount).toFixed(2).replace('.', '')
     const prefix = batchIndex !== null ? `${String(batchIndex).padStart(3, '0')}_` : ''
+    
     return `Check_${prefix}${payee}_${date}_${amount}`
   }
 
