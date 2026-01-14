@@ -531,6 +531,70 @@ ipcMain.handle('print:previewPdf', async () => {
   }
 })
 
+// Get list of available printers
+ipcMain.handle('print:getPrinters', async () => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  try {
+    const printers = await mainWindow.webContents.getPrintersAsync()
+    return { success: true, printers }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Silent print to specified printer
+ipcMain.handle('print:silent', async (_evt, { deviceName }) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  try {
+    await mainWindow.webContents.print({
+      silent: true,
+      deviceName: deviceName,
+      printBackground: true,
+      color: true,
+      margins: {
+        marginType: 'custom',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0
+      },
+      pageSize: 'Letter'
+    })
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Save current page as PDF to specified file path
+ipcMain.handle('print:savePdfToFile', async (_evt, { folderPath, filename }) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  try {
+    const filepath = path.join(folderPath, `${filename}.pdf`)
+    const pdfData = await mainWindow.webContents.printToPDF({
+      pageSize: 'Letter',
+      landscape: false,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
+    })
+    fs.writeFileSync(filepath, pdfData)
+    return { success: true, filepath }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
+// Select folder for batch PDF export
+ipcMain.handle('print:selectPdfFolder', async () => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory']
+  })
+  if (result.canceled || !result.filePaths?.length) return { success: false }
+  return { success: true, path: result.filePaths[0] }
+})
+
 // Backup all settings data
 ipcMain.handle('backup:save', async () => {
   if (!mainWindow) return { success: false, error: 'No window' }

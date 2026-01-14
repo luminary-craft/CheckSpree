@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('cs2', {
 
   printDialog: (filename) => ipcRenderer.invoke('print:dialog', filename),
   previewPdf: () => ipcRenderer.invoke('print:previewPdf'),
+  getPrinters: () => ipcRenderer.invoke('print:getPrinters'),
+  printSilent: (options) => ipcRenderer.invoke('print:silent', options),
+  savePdfToFile: (folderPath, filename) => ipcRenderer.invoke('print:savePdfToFile', { folderPath, filename }),
+  selectPdfFolder: () => ipcRenderer.invoke('print:selectPdfFolder'),
 
   // Backup
   backupSave: () => ipcRenderer.invoke('backup:save'),

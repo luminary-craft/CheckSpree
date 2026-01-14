@@ -87,7 +87,12 @@ const DEFAULT_PREFERENCES = {
   showDate: true, // Show/hide date field on check itself
   adminLocked: true,
   adminPin: '0000',
-  enableSnapping: false
+  enableSnapping: false,
+  // Batch print preferences
+  batchPrintMode: 'interactive', // 'interactive' | 'silent' | 'pdf'
+  batchPrinterDeviceName: null,
+  batchPrinterFriendlyName: null,
+  batchPdfExportPath: null
 }
 
 const DEFAULT_MODEL = {
@@ -805,6 +810,7 @@ export default function App() {
 
   // Batch print confirmation modal state
   const [showBatchPrintConfirm, setShowBatchPrintConfirm] = useState(false)
+  const [availablePrinters, setAvailablePrinters] = useState([])
 
   // Backup restore modal state
   const [showBackupModal, setShowBackupModal] = useState(false)
@@ -2499,6 +2505,16 @@ export default function App() {
   }
 
   const confirmBatchPrint = async () => {
+    // Validate printer mode settings
+    if (preferences.batchPrintMode === 'silent' && !preferences.batchPrinterDeviceName) {
+      alert('Please select a printer for silent printing mode')
+      return
+    }
+    if (preferences.batchPrintMode === 'pdf' && !preferences.batchPdfExportPath) {
+      alert('Please select a folder for PDF export')
+      return
+    }
+
     setShowBatchPrintConfirm(false)
     await executeBatchPrintAndRecord()
   }
@@ -2622,13 +2638,24 @@ export default function App() {
 
       // Set document title for PDF filename
       const originalTitle = document.title
-      document.title = generatePrintFilename(item)
+      const filename = generatePrintFilename(item, i + 1)
+      document.title = filename
 
-      // Trigger print
+      // Trigger print based on mode
       setIsPrinting(true)
       try {
-        const filename = generatePrintFilename(item)
-        const res = await window.cs2.printDialog(filename)
+        let res
+
+        if (preferences.batchPrintMode === 'pdf') {
+          // PDF Export Mode - auto-save to folder
+          res = await window.cs2.savePdfToFile(preferences.batchPdfExportPath, filename)
+        } else if (preferences.batchPrintMode === 'silent' && preferences.batchPrinterDeviceName) {
+          // Silent Mode - print to saved printer
+          res = await window.cs2.printSilent({ deviceName: preferences.batchPrinterDeviceName })
+        } else {
+          // Interactive Mode - show dialog (current behavior)
+          res = await window.cs2.printDialog(filename)
+        }
 
         // Restore original title
         document.title = originalTitle
@@ -2701,6 +2728,21 @@ export default function App() {
     setImportQueue([])
     setIsBatchPrinting(false)
     setBatchPrintProgress({ current: 0, total: 0 })
+
+    // Clear the form fields
+    setData({
+      date: new Date().toISOString().slice(0, 10),
+      payee: '',
+      amount: '',
+      amountWords: '',
+      memo: '',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledger_snapshot: null,
+      checkNumber: ''
+    })
 
     // Show completion modal
     setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled })
@@ -2834,13 +2876,25 @@ export default function App() {
 
       // Set document title for PDF filename (use first slot's data)
       const originalTitle = document.title
-      document.title = generatePrintFilename(slotMetadata[0].item)
+      const sheetNumber = Math.floor(chunkStart / 3) + 1
+      const filename = generatePrintFilename(slotMetadata[0].item, sheetNumber)
+      document.title = filename
 
       // Trigger print ONCE for the entire sheet
       setIsPrinting(true)
       try {
-        const filename = generatePrintFilename(slotMetadata[0].item)
-        const res = await window.cs2.printDialog(filename)
+        let res
+
+        if (preferences.batchPrintMode === 'pdf') {
+          // PDF Export Mode - auto-save to folder
+          res = await window.cs2.savePdfToFile(preferences.batchPdfExportPath, filename)
+        } else if (preferences.batchPrintMode === 'silent' && preferences.batchPrinterDeviceName) {
+          // Silent Mode - print to saved printer
+          res = await window.cs2.printSilent({ deviceName: preferences.batchPrinterDeviceName })
+        } else {
+          // Interactive Mode - show dialog (current behavior)
+          res = await window.cs2.printDialog(filename)
+        }
 
         // Restore original title
         document.title = originalTitle
@@ -2910,6 +2964,21 @@ export default function App() {
     setImportQueue([])
     setIsBatchPrinting(false)
     setBatchPrintProgress({ current: 0, total: 0 })
+
+    // Clear the form fields
+    setData({
+      date: new Date().toISOString().slice(0, 10),
+      payee: '',
+      amount: '',
+      amountWords: '',
+      memo: '',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledger_snapshot: null,
+      checkNumber: ''
+    })
 
     // Show completion modal
     setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled })
@@ -3175,11 +3244,24 @@ export default function App() {
   }
 
   // Generate PDF filename from check data
-  const generatePrintFilename = (checkData) => {
+  const generatePrintFilename = (checkData, batchIndex = null) => {
     const payee = (checkData.payee || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_')
     const date = checkData.date || new Date().toISOString().slice(0, 10)
     const amount = sanitizeCurrencyInput(checkData.amount).toFixed(2).replace('.', '')
-    return `Check_${payee}_${date}_${amount}`
+    const prefix = batchIndex !== null ? `${String(batchIndex).padStart(3, '0')}_` : ''
+    return `Check_${prefix}${payee}_${date}_${amount}`
+  }
+
+  // Load available printers for batch print configuration
+  const loadAvailablePrinters = async () => {
+    try {
+      const res = await window.cs2.getPrinters()
+      if (res?.success && res.printers) {
+        setAvailablePrinters(res.printers)
+      }
+    } catch (error) {
+      console.error('Failed to load printers:', error)
+    }
   }
 
   const handlePreviewPdf = async () => {
@@ -6479,6 +6561,98 @@ export default function App() {
                   />
                 </div>
               )}
+
+              {/* Printer Mode Selection */}
+              <div style={{ marginBottom: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>
+                  Batch Print Mode:
+                </label>
+
+                {/* Interactive Mode Radio */}
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input
+                    type="radio"
+                    checked={preferences.batchPrintMode === 'interactive'}
+                    onChange={() => setPreferences(p => ({ ...p, batchPrintMode: 'interactive' }))}
+                    style={{ marginRight: '8px', cursor: 'pointer' }}
+                  />
+                  <span>Interactive (show dialog for each check)</span>
+                </label>
+
+                {/* Silent Mode Radio */}
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input
+                    type="radio"
+                    checked={preferences.batchPrintMode === 'silent'}
+                    onChange={() => {
+                      setPreferences(p => ({ ...p, batchPrintMode: 'silent' }))
+                      if (availablePrinters.length === 0) loadAvailablePrinters()
+                    }}
+                    style={{ marginRight: '8px', cursor: 'pointer' }}
+                  />
+                  <span>Use saved printer (silent printing)</span>
+                </label>
+
+                {/* Printer Dropdown (only when silent mode selected) */}
+                {preferences.batchPrintMode === 'silent' && (
+                  <div style={{ marginLeft: '26px', marginBottom: '8px' }}>
+                    <select
+                      value={preferences.batchPrinterDeviceName || ''}
+                      onChange={(e) => {
+                        const selectedPrinter = availablePrinters.find(p => p.name === e.target.value)
+                        setPreferences(p => ({
+                          ...p,
+                          batchPrinterDeviceName: e.target.value,
+                          batchPrinterFriendlyName: selectedPrinter?.displayName || e.target.value
+                        }))
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid var(--border)',
+                        borderRadius: '4px',
+                        fontSize: '14px',
+                        width: '100%'
+                      }}
+                    >
+                      <option value="">-- Select Printer --</option>
+                      {availablePrinters.map(printer => (
+                        <option key={printer.name} value={printer.name}>
+                          {printer.displayName || printer.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* PDF Export Mode Radio */}
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
+                  <input
+                    type="radio"
+                    checked={preferences.batchPrintMode === 'pdf'}
+                    onChange={() => setPreferences(p => ({ ...p, batchPrintMode: 'pdf' }))}
+                    style={{ marginRight: '8px', cursor: 'pointer' }}
+                  />
+                  <span>Export all as PDFs to folder</span>
+                </label>
+
+                {/* Folder selection (only when PDF mode selected) */}
+                {preferences.batchPrintMode === 'pdf' && (
+                  <div style={{ marginLeft: '26px' }}>
+                    <button
+                      className="btn ghost"
+                      onClick={async () => {
+                        const res = await window.cs2.selectPdfFolder()
+                        if (res?.success && res.path) {
+                          setPreferences(p => ({ ...p, batchPdfExportPath: res.path }))
+                        }
+                      }}
+                      style={{ fontSize: '14px' }}
+                    >
+                      {preferences.batchPdfExportPath || 'Select Folder...'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn ghost" onClick={cancelBatchPrintConfirm}>Cancel</button>
