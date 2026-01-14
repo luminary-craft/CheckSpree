@@ -816,12 +816,19 @@ export default function App() {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [confirmConfig, setConfirmConfig] = useState({ title: '', message: '', onConfirm: null })
 
+
   // Toast notification state
   const [toast, setToast] = useState(null)
 
+  // Print failure confirmation modal state (for pausing batch on error)
+  const [showPrintFailureModal, setShowPrintFailureModal] = useState(false)
+  const [printFailureInfo, setPrintFailureInfo] = useState({ payee: '', error: '' })
+  const printFailureResolveRef = useRef(null)
+
   // Batch completion modal state
   const [showBatchCompleteModal, setShowBatchCompleteModal] = useState(false)
-  const [batchCompleteData, setBatchCompleteData] = useState({ processed: 0, total: 0, cancelled: false })
+  const [batchCompleteData, setBatchCompleteData] = useState({ processed: 0, total: 0, cancelled: false, failed: 0 })
+
 
   // Batch print confirmation modal state
   const [showBatchPrintConfirm, setShowBatchPrintConfirm] = useState(false)
@@ -1929,6 +1936,32 @@ export default function App() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Promise-based print failure confirmation (returns true to continue, false to abort)
+  const confirmPrintFailure = (payee, error) => {
+    return new Promise((resolve) => {
+      setPrintFailureInfo({ payee, error: error || 'Unknown error' })
+      printFailureResolveRef.current = resolve
+      setShowPrintFailureModal(true)
+    })
+  }
+
+  const handlePrintFailureContinue = () => {
+    setShowPrintFailureModal(false)
+    if (printFailureResolveRef.current) {
+      printFailureResolveRef.current('continue')
+      printFailureResolveRef.current = null
+    }
+  }
+
+  const handlePrintFailureAbort = () => {
+    setShowPrintFailureModal(false)
+    if (printFailureResolveRef.current) {
+      printFailureResolveRef.current('abort')
+      printFailureResolveRef.current = null
+    }
+  }
+
+
   // Helper: Format backup with friendly name and grouping
   const formatBackup = (backup) => {
     const date = new Date(backup.created)
@@ -2577,6 +2610,7 @@ export default function App() {
     setBatchPrintProgress({ current: 0, total: importQueue.length })
 
     let processed = 0
+    let failed = 0
     const newHistory = [...checkHistory]
 
     // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
@@ -2658,6 +2692,9 @@ export default function App() {
 
       // Trigger print based on mode
       setIsPrinting(true)
+      let printSuccess = false
+      let printError = null
+
       try {
         let res
 
@@ -2677,19 +2714,35 @@ export default function App() {
 
         if (res?.success === false) {
           console.error(`Print failed for ${item.payee}:`, res.error)
-          // Continue even if print fails - user might have cancelled
+          printError = res.error || 'Print was cancelled or failed'
+        } else {
+          printSuccess = true
         }
       } catch (error) {
         console.error(`Print error for ${item.payee}:`, error)
+        printError = error.message || 'Unknown print error'
         // Restore original title on error
         document.title = originalTitle
       }
       setIsPrinting(false)
 
+      // Handle print failure - pause and ask user
+      if (!printSuccess) {
+        const decision = await confirmPrintFailure(item.payee, printError)
+        if (decision === 'abort') {
+          // User chose to stop - mark as cancelled and break
+          setBatchPrintCancelled(true)
+          break
+        }
+        // User chose to continue - skip ledger update for this failed check
+        failed++
+        continue
+      }
+
       // Wait for printer spooler to receive the job
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Record to ledger/history (update ledger balance and use pre-calculated values)
+      // Record to ledger/history ONLY after confirmed success
       ledgerBalances[targetLedgerId] = newBalanceForCheck
 
       newHistory.unshift({
@@ -2722,6 +2775,7 @@ export default function App() {
       if (batchAutoNumber) {
         currentCheckNumber++
       }
+
     }
 
     // Update all affected ledger balances
@@ -2760,8 +2814,9 @@ export default function App() {
     })
 
     // Show completion modal
-    setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled })
+    setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled, failed })
     setShowBatchCompleteModal(true)
+
 
     if (!batchPrintCancelled) {
       setShowImportQueue(false)
@@ -2776,6 +2831,7 @@ export default function App() {
     setBatchPrintProgress({ current: 0, total: importQueue.length })
 
     let processed = 0
+    let failed = 0
     const newHistory = [...checkHistory]
 
     // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
@@ -2897,6 +2953,9 @@ export default function App() {
 
       // Trigger print ONCE for the entire sheet
       setIsPrinting(true)
+      let printSuccess = false
+      let printError = null
+
       try {
         let res
 
@@ -2916,14 +2975,38 @@ export default function App() {
 
         if (res?.success === false) {
           console.error(`Print failed for sheet:`, res.error)
-          // Continue even if print fails - user might have cancelled
+          printError = res.error || 'Print was cancelled or failed'
+        } else {
+          printSuccess = true
         }
       } catch (error) {
         console.error(`Print error for sheet:`, error)
+        printError = error.message || 'Unknown print error'
         // Restore original title on error
         document.title = originalTitle
       }
       setIsPrinting(false)
+
+      // Handle print failure - pause and ask user
+      if (!printSuccess) {
+        const firstPayee = slotMetadata[0]?.item?.payee || 'Sheet'
+        const decision = await confirmPrintFailure(`Sheet (${slotMetadata.length} checks starting with ${firstPayee})`, printError)
+        if (decision === 'abort') {
+          // User chose to stop - mark as cancelled and break
+          setBatchPrintCancelled(true)
+          // Revert the ledger changes for this failed sheet
+          for (const { targetLedgerId, amount } of slotMetadata) {
+            ledgerBalances[targetLedgerId] += amount
+          }
+          break
+        }
+        // User chose to continue - revert ledger changes for this sheet and skip recording
+        for (const { targetLedgerId, amount } of slotMetadata) {
+          ledgerBalances[targetLedgerId] += amount
+        }
+        failed += slotMetadata.length
+        continue
+      }
 
       // Wait for printer spooler to receive the job
       await new Promise(resolve => setTimeout(resolve, 2000))
@@ -2996,7 +3079,7 @@ export default function App() {
     })
 
     // Show completion modal
-    setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled })
+    setBatchCompleteData({ processed, total: queueCopy.length, cancelled: batchPrintCancelled, failed })
     setShowBatchCompleteModal(true)
 
     if (!batchPrintCancelled) {
@@ -7263,7 +7346,54 @@ export default function App() {
         </div>
       )}
 
+      {/* Print Failure Confirmation Modal */}
+      {showPrintFailureModal && (
+        <div className="modal-overlay" style={{ zIndex: 10001 }}>
+          <div className="modal-content" style={{ maxWidth: '420px' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.3)' }}>
+              <h2 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                ⚠️ Print Failed
+              </h2>
+            </div>
+            <div className="modal-body" style={{ padding: '20px' }}>
+              <p style={{ marginBottom: '12px', fontWeight: 600 }}>
+                Failed to print: {printFailureInfo.payee}
+              </p>
+              <p style={{ marginBottom: '16px', color: '#94a3b8', fontSize: '14px' }}>
+                Error: {printFailureInfo.error}
+              </p>
+              <div style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '12px',
+                marginBottom: '8px'
+              }}>
+                <p style={{ fontSize: '13px', color: '#fca5a5', margin: 0 }}>
+                  <strong>Note:</strong> The ledger has NOT been deducted for this check.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                className="btn danger"
+                onClick={handlePrintFailureAbort}
+              >
+                Stop Batch
+              </button>
+              <button
+                className="btn primary"
+                onClick={handlePrintFailureContinue}
+              >
+                Skip & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
+
       {toast && (
         <div style={{
           position: 'fixed',
