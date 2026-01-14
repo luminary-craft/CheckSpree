@@ -645,7 +645,8 @@ function parseCSVWithMapping(content, delimiter, mapping) {
       amount: columnIndices.amount !== undefined ? values[columnIndices.amount]?.replace(/[$,]/g, '') || '' : '',
       memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
       external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
-      internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : ''
+      internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : '',
+      ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : ''
     }
 
     // Only include if we have at least payee or amount
@@ -1770,7 +1771,7 @@ export default function App() {
   }
 
   const updateLedgerBalance = (ledgerId, newBalance) => {
-    setLedgers(ledgers.map(l =>
+    setLedgers(prev => prev.map(l =>
       l.id === ledgerId ? { ...l, balance: newBalance } : l
     ))
   }
@@ -2574,14 +2575,48 @@ export default function App() {
   const executeProcessAllQueue = async () => {
 
     let processed = 0
-    let newBalance = ledgerBalance
     const newHistory = [...checkHistory]
+
+    // Create a local copy of ledgers to track new ones created during this batch
+    let tempLedgers = [...ledgers]
+    const newLedgersToAdd = []
+
+    // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
+    const ledgerBalances = {}
+    tempLedgers.forEach(l => {
+      ledgerBalances[l.id] = calculateHybridBalance(l.id)
+    })
+
+    // Helper to find or create ledger LOCALLY within this batch
+    const getLedgerId = (name) => {
+      if (!name || !name.trim()) return activeLedgerId
+      const trimmed = name.trim().toLowerCase()
+      const existing = tempLedgers.find(l => l.name.toLowerCase() === trimmed)
+      if (existing) return existing.id
+
+      const newId = generateId()
+      const newLedger = { id: newId, name: name.trim(), balance: 0 }
+      tempLedgers.push(newLedger)
+      newLedgersToAdd.push(newLedger)
+      // Initialize balance for new ledger
+      ledgerBalances[newId] = 0
+      return newId
+    }
 
     for (const item of importQueue) {
       const amount = sanitizeCurrencyInput(item.amount)
       if (amount > 0 && item.payee?.trim()) {
-        const previousBalance = newBalance
-        newBalance -= amount
+        // Determine which ledger to use
+        const targetLedgerId = getLedgerId(item.ledger)
+
+        // Initialize balance if somehow missing (safety check)
+        if (ledgerBalances[targetLedgerId] === undefined) {
+          ledgerBalances[targetLedgerId] = 0
+        }
+
+        const previousBalance = ledgerBalances[targetLedgerId]
+        const newBalance = previousBalance - amount
+
         newHistory.unshift({
           id: generateId(),
           date: item.date || new Date().toISOString().slice(0, 10),
@@ -2592,8 +2627,10 @@ export default function App() {
           internal_memo: item.internal_memo || '',
           line_items: item.line_items || [],
           line_items_text: item.line_items_text || '',
-          ledgerId: activeLedgerId,
+          ledgerId: targetLedgerId,
           profileId: activeProfileId,
+          ledgerName: tempLedgers.find(l => l.id === targetLedgerId)?.name || '',
+          profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
           ledger_snapshot: {
             previous_balance: previousBalance,
             transaction_amount: amount,
@@ -2602,11 +2639,29 @@ export default function App() {
           timestamp: Date.now(),
           balanceAfter: newBalance
         })
+
+        // Update local balance tracker
+        ledgerBalances[targetLedgerId] = newBalance
         processed++
       }
     }
 
-    updateLedgerBalance(activeLedgerId, newBalance)
+    // Atomic update for ledgers (add new ones + update balances)
+    setLedgers(prev => {
+      // 1. Start with existing ledgers + new ones
+      let nextLedgers = [...prev, ...newLedgersToAdd]
+
+      // 2. Update balances for all affected ledgers
+      nextLedgers = nextLedgers.map(l => {
+        if (ledgerBalances[l.id] !== undefined) {
+          return { ...l, balance: ledgerBalances[l.id] }
+        }
+        return l
+      })
+
+      return nextLedgers
+    })
+
     setCheckHistory(newHistory)
     setImportQueue([])
     setShowImportQueue(false)
@@ -2688,11 +2743,31 @@ export default function App() {
     let failed = 0
     const newHistory = [...checkHistory]
 
+    // Create a local copy of ledgers to track new ones created during this batch
+    let tempLedgers = [...ledgers]
+    const newLedgersToAdd = []
+
     // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
     const ledgerBalances = {}
-    ledgers.forEach(l => {
+    tempLedgers.forEach(l => {
       ledgerBalances[l.id] = calculateHybridBalance(l.id)
     })
+
+    // Helper to find or create ledger LOCALLY within this batch
+    const getLedgerId = (name) => {
+      if (!name || !name.trim()) return activeLedgerId
+      const trimmed = name.trim().toLowerCase()
+      const existing = tempLedgers.find(l => l.name.toLowerCase() === trimmed)
+      if (existing) return existing.id
+
+      const newId = generateId()
+      const newLedger = { id: newId, name: name.trim(), balance: 0 }
+      tempLedgers.push(newLedger)
+      newLedgersToAdd.push(newLedger)
+      // Initialize balance for new ledger
+      ledgerBalances[newId] = 0
+      return newId
+    }
 
     // Create a copy of the queue to iterate through
     const queueCopy = [...importQueue]
@@ -2718,10 +2793,10 @@ export default function App() {
       // Update progress
       setBatchPrintProgress({ current: i + 1, total: queueCopy.length })
 
-      // Determine which ledger to use (find or create based on item.ledger)
-      const targetLedgerId = findOrCreateLedger(item.ledger)
+      // Determine which ledger to use
+      const targetLedgerId = getLedgerId(item.ledger)
 
-      // Initialize balance for newly created ledgers
+      // Initialize balance if somehow missing
       if (ledgerBalances[targetLedgerId] === undefined) {
         ledgerBalances[targetLedgerId] = 0
       }
@@ -2833,7 +2908,7 @@ export default function App() {
         line_items_text: item.line_items_text || '',
         ledgerId: targetLedgerId,
         profileId: activeProfileId,
-        ledgerName: ledgers.find(l => l.id === targetLedgerId)?.name || '',
+        ledgerName: tempLedgers.find(l => l.id === targetLedgerId)?.name || '',
         profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
         ledger_snapshot: {
           previous_balance: previousBalanceForCheck,
@@ -2853,9 +2928,20 @@ export default function App() {
 
     }
 
-    // Update all affected ledger balances
-    Object.entries(ledgerBalances).forEach(([ledgerId, balance]) => {
-      updateLedgerBalance(ledgerId, balance)
+    // Atomic update for ledgers (add new ones + update balances)
+    setLedgers(prev => {
+      // 1. Start with existing ledgers + new ones
+      let nextLedgers = [...prev, ...newLedgersToAdd]
+
+      // 2. Update balances for all affected ledgers
+      nextLedgers = nextLedgers.map(l => {
+        if (ledgerBalances[l.id] !== undefined) {
+          return { ...l, balance: ledgerBalances[l.id] }
+        }
+        return l
+      })
+
+      return nextLedgers
     })
     setCheckHistory(newHistory)
 
@@ -2909,11 +2995,31 @@ export default function App() {
     let failed = 0
     const newHistory = [...checkHistory]
 
+    // Create a local copy of ledgers to track new ones created during this batch
+    let tempLedgers = [...ledgers]
+    const newLedgersToAdd = []
+
     // Track balances per ledger (ledgerId -> balance) using hybrid balance calculation
     const ledgerBalances = {}
-    ledgers.forEach(l => {
+    tempLedgers.forEach(l => {
       ledgerBalances[l.id] = calculateHybridBalance(l.id)
     })
+
+    // Helper to find or create ledger LOCALLY within this batch
+    const getLedgerId = (name) => {
+      if (!name || !name.trim()) return activeLedgerId
+      const trimmed = name.trim().toLowerCase()
+      const existing = tempLedgers.find(l => l.name.toLowerCase() === trimmed)
+      if (existing) return existing.id
+
+      const newId = generateId()
+      const newLedger = { id: newId, name: name.trim(), balance: 0 }
+      tempLedgers.push(newLedger)
+      newLedgersToAdd.push(newLedger)
+      // Initialize balance for new ledger
+      ledgerBalances[newId] = 0
+      return newId
+    }
 
     // Create a copy of the queue to iterate through
     const queueCopy = [...importQueue]
@@ -2949,7 +3055,7 @@ export default function App() {
         }
 
         // Determine which ledger to use
-        const targetLedgerId = findOrCreateLedger(item.ledger)
+        const targetLedgerId = getLedgerId(item.ledger)
 
         // Initialize balance for newly created ledgers
         if (ledgerBalances[targetLedgerId] === undefined) {
@@ -3102,7 +3208,7 @@ export default function App() {
           line_items_text: item.line_items_text || '',
           ledgerId: targetLedgerId,
           profileId: activeProfileId,
-          ledgerName: ledgers.find(l => l.id === targetLedgerId)?.name || '',
+          ledgerName: tempLedgers.find(l => l.id === targetLedgerId)?.name || '',
           profileName: profiles.find(p => p.id === activeProfileId)?.name || '',
           ledger_snapshot: {
             previous_balance: previousBalance,
@@ -3116,6 +3222,11 @@ export default function App() {
         })
         processed++
       }
+    }
+
+    // Update global ledgers state if we created any new ones
+    if (newLedgersToAdd.length > 0) {
+      setLedgers(prev => [...prev, ...newLedgersToAdd])
     }
 
     // Update all affected ledger balances
@@ -3161,8 +3272,6 @@ export default function App() {
       setShowImportQueue(false)
     }
   }
-
-  // Wrapper function that routes to standard or three-up version
   const executeBatchPrintAndRecord = async () => {
     if (activeProfile?.layoutMode === 'three_up') {
       return executeBatchPrintThreeUp()
@@ -7315,7 +7424,7 @@ export default function App() {
                           {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
                         </div>
                         <div className="history-card-tags">
-                          <span className="tag tag-ledger">{ledger?.name || 'Unknown'}</span>
+                          <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>
                           <span className="tag tag-profile">{profile?.name || 'Unknown'}</span>
                         </div>
                         <button
