@@ -3933,6 +3933,22 @@ export default function App() {
     ? (threeUpSlot === 'top' ? 0 : threeUpSlot === 'middle' ? 3.66 : 7.33)
     : 0
 
+  const downloadTemplate = () => {
+    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'External Memo', 'Internal Memo', 'Ledger', 'Check Number']
+    const csvContent = headers.join(',') + '\n'
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', 'check_import_template.csv')
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
   return (
     <div
       className={`app ${isPrinting ? 'printing' : ''}`}
@@ -3970,6 +3986,9 @@ export default function App() {
         </div>
 
         <div className="topbar-actions">
+          <button className="btn ghost" onClick={downloadTemplate} title="Download CSV import template">
+            <DownloadIcon /> Template
+          </button>
           <button className="btn ghost" onClick={handleImport} title="Import checks from CSV">
             <UploadIcon /> Import
           </button>
