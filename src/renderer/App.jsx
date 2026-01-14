@@ -315,13 +315,13 @@ function normalizeModel(maybeModel) {
     m.layout ||
     (m.check
       ? {
-          widthIn: m.check.widthIn ?? DEFAULT_LAYOUT.widthIn,
-          checkHeightIn: m.check.heightIn ?? DEFAULT_LAYOUT.checkHeightIn,
-          stub1Enabled: false,
-          stub1HeightIn: DEFAULT_LAYOUT.stub1HeightIn,
-          stub2Enabled: false,
-          stub2HeightIn: DEFAULT_LAYOUT.stub2HeightIn
-        }
+        widthIn: m.check.widthIn ?? DEFAULT_LAYOUT.widthIn,
+        checkHeightIn: m.check.heightIn ?? DEFAULT_LAYOUT.checkHeightIn,
+        stub1Enabled: false,
+        stub1HeightIn: DEFAULT_LAYOUT.stub1HeightIn,
+        stub2Enabled: false,
+        stub2HeightIn: DEFAULT_LAYOUT.stub2HeightIn
+      }
       : DEFAULT_LAYOUT)
 
   const template = {
@@ -329,11 +329,26 @@ function normalizeModel(maybeModel) {
     ...(m.template || {})
   }
 
+  // Merge fields with defaults to ensure all required fields exist
+  const fields = {
+    ...DEFAULT_FIELDS,
+    ...(m.fields || {})
+  }
+
+  // Merge slotFields for three-up mode - ensure each slot has all required fields
+  const slotFields = {
+    top: { ...DEFAULT_FIELDS, ...(m.slotFields?.top || {}) },
+    middle: { ...DEFAULT_FIELDS, ...(m.slotFields?.middle || {}) },
+    bottom: { ...DEFAULT_FIELDS, ...(m.slotFields?.bottom || {}) }
+  }
+
   return {
     ...DEFAULT_MODEL,
     ...m,
     layout,
-    template
+    template,
+    fields,
+    slotFields
   }
 }
 
@@ -654,7 +669,7 @@ function ChevronIcon({ open }) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
       style={{ transition: 'transform 200ms ease', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -662,7 +677,7 @@ function ChevronIcon({ open }) {
 function PlusIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
@@ -670,8 +685,8 @@ function PlusIcon() {
 function TrashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M1.5 3.5H12.5M5.5 1.5H8.5M5.5 6V10.5M8.5 6V10.5M2.5 3.5L3 11.5C3 12.0523 3.44772 12.5 4 12.5H10C10.5523 12.5 11 12.0523 11 11.5L11.5 3.5" 
-        stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1.5 3.5H12.5M5.5 1.5H8.5M5.5 6V10.5M8.5 6V10.5M2.5 3.5L3 11.5C3 12.0523 3.44772 12.5 4 12.5H10C10.5523 12.5 11 12.0523 11 11.5L11.5 3.5"
+        stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -679,7 +694,7 @@ function TrashIcon() {
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -687,8 +702,8 @@ function CheckIcon() {
 function DownloadIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M7 1V9M7 9L4 6M7 9L10 6M2 11V12C2 12.5523 2.44772 13 3 13H11C11.5523 13 12 12.5523 12 12V11" 
-        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 1V9M7 9L4 6M7 9L10 6M2 11V12C2 12.5523 2.44772 13 3 13H11C11.5523 13 12 12.5523 12 12V11"
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -696,8 +711,8 @@ function DownloadIcon() {
 function UploadIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M7 9V1M7 1L4 4M7 1L10 4M2 11V12C2 12.5523 2.44772 13 3 13H11C11.5523 13 12 12.5523 12 12V11" 
-        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 9V1M7 1L4 4M7 1L10 4M2 11V12C2 12.5523 2.44772 13 3 13H11C11.5523 13 12 12.5523 12 12V11"
+        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -900,52 +915,52 @@ export default function App() {
   // Load settings from disk on launch
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      const persisted = await window.cs2.settingsGet()
-      if (cancelled) return
+      ; (async () => {
+        const persisted = await window.cs2.settingsGet()
+        if (cancelled) return
 
-      if (persisted?.model) setModel(normalizeModel(persisted.model))
-      if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
-      if (persisted?.sheetData) setSheetData(persisted.sheetData)
-      if (persisted?.activeSlot) setActiveSlot(persisted.activeSlot)
-      if (persisted?.autoIncrementCheckNumbers != null) setAutoIncrementCheckNumbers(persisted.autoIncrementCheckNumbers)
-      if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
-      if (persisted?.profiles?.length) setProfiles(persisted.profiles)
-      if (persisted?.activeProfileId) setActiveProfileId(persisted.activeProfileId)
+        if (persisted?.model) setModel(normalizeModel(persisted.model))
+        if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
+        if (persisted?.sheetData) setSheetData(persisted.sheetData)
+        if (persisted?.activeSlot) setActiveSlot(persisted.activeSlot)
+        if (persisted?.autoIncrementCheckNumbers != null) setAutoIncrementCheckNumbers(persisted.autoIncrementCheckNumbers)
+        if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
+        if (persisted?.profiles?.length) setProfiles(persisted.profiles)
+        if (persisted?.activeProfileId) setActiveProfileId(persisted.activeProfileId)
 
-      // Migrate old single-ledger system to multi-ledger
-      if (persisted?.ledgers?.length) {
-        // Ensure all ledgers have the new hybrid ledger fields
-        const migratedLedgers = persisted.ledgers.map(ledger => ({
-          ...ledger,
-          startingBalance: ledger.startingBalance ?? 0,
-          lockLedgerStart: ledger.lockLedgerStart ?? true
-        }))
-        setLedgers(migratedLedgers)
-        if (persisted?.activeLedgerId) setActiveLedgerId(persisted.activeLedgerId)
-      } else if (persisted?.ledgerBalance != null) {
-        // Migration: old system had a single ledgerBalance, convert to new system
-        setLedgers([{
-          id: 'default',
-          name: 'Primary Ledger',
-          balance: persisted.ledgerBalance,
-          startingBalance: 0,
-          lockLedgerStart: true
-        }])
-        setActiveLedgerId('default')
-      }
+        // Migrate old single-ledger system to multi-ledger
+        if (persisted?.ledgers?.length) {
+          // Ensure all ledgers have the new hybrid ledger fields
+          const migratedLedgers = persisted.ledgers.map(ledger => ({
+            ...ledger,
+            startingBalance: ledger.startingBalance ?? 0,
+            lockLedgerStart: ledger.lockLedgerStart ?? true
+          }))
+          setLedgers(migratedLedgers)
+          if (persisted?.activeLedgerId) setActiveLedgerId(persisted.activeLedgerId)
+        } else if (persisted?.ledgerBalance != null) {
+          // Migration: old system had a single ledgerBalance, convert to new system
+          setLedgers([{
+            id: 'default',
+            name: 'Primary Ledger',
+            balance: persisted.ledgerBalance,
+            startingBalance: 0,
+            lockLedgerStart: true
+          }])
+          setActiveLedgerId('default')
+        }
 
-      if (persisted?.checkHistory) setCheckHistory(persisted.checkHistory)
-      if (persisted?.preferences) {
-        // Always force admin to be locked on startup for security
-        setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true })
-      }
-      if (persisted?.importQueue && persisted.importQueue.length > 0) {
-        setImportQueue(persisted.importQueue)
-        // Automatically show the import queue modal if there are items
-        setShowImportQueue(true)
-      }
-    })()
+        if (persisted?.checkHistory) setCheckHistory(persisted.checkHistory)
+        if (persisted?.preferences) {
+          // Always force admin to be locked on startup for security
+          setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true })
+        }
+        if (persisted?.importQueue && persisted.importQueue.length > 0) {
+          setImportQueue(persisted.importQueue)
+          // Automatically show the import queue modal if there are items
+          setShowImportQueue(true)
+        }
+      })()
     return () => { cancelled = true }
   }, [])
 
@@ -1018,11 +1033,11 @@ export default function App() {
   const isSlotEmpty = (slotData) => {
     if (!slotData) return true
     return !slotData.payee?.trim() &&
-           !slotData.amount?.trim() &&
-           !slotData.memo?.trim() &&
-           !slotData.external_memo?.trim() &&
-           !slotData.internal_memo?.trim() &&
-           !slotData.line_items_text?.trim()
+      !slotData.amount?.trim() &&
+      !slotData.memo?.trim() &&
+      !slotData.external_memo?.trim() &&
+      !slotData.internal_memo?.trim() &&
+      !slotData.line_items_text?.trim()
   }
 
   // Get the current data based on active mode
@@ -1149,24 +1164,24 @@ export default function App() {
   // Load template dataURL when template path changes
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      if (!model.template?.path) {
-        if (!cancelled) {
-          setTemplateDataUrl(null)
-          setTemplateLoadError(null)
-          setTemplateMeta(null)
-          setTemplateDecodeError(null)
+      ; (async () => {
+        if (!model.template?.path) {
+          if (!cancelled) {
+            setTemplateDataUrl(null)
+            setTemplateLoadError(null)
+            setTemplateMeta(null)
+            setTemplateDecodeError(null)
+          }
+          return
         }
-        return
-      }
 
-      const res = await readTemplateDataUrl(model.template?.path)
-      if (cancelled) return
-      setTemplateDataUrl(res?.url || null)
-      setTemplateLoadError(res?.error || null)
-      setTemplateMeta(res?.url ? { mime: res?.mime, byteLength: res?.byteLength } : null)
-      setTemplateDecodeError(null)
-    })()
+        const res = await readTemplateDataUrl(model.template?.path)
+        if (cancelled) return
+        setTemplateDataUrl(res?.url || null)
+        setTemplateLoadError(res?.error || null)
+        setTemplateMeta(res?.url ? { mime: res?.mime, byteLength: res?.byteLength } : null)
+        setTemplateDecodeError(null)
+      })()
     return () => { cancelled = true }
   }, [model.template?.path])
 
@@ -1288,8 +1303,8 @@ export default function App() {
     if (activeProfile?.layoutMode === 'three_up') {
       // Entering three_up mode - check if sheetData is initialized
       const hasInitializedSheet = sheetData.top.payee || sheetData.top.amount ||
-                                    sheetData.middle.payee || sheetData.middle.amount ||
-                                    sheetData.bottom.payee || sheetData.bottom.amount
+        sheetData.middle.payee || sheetData.middle.amount ||
+        sheetData.bottom.payee || sheetData.bottom.amount
 
       if (!hasInitializedSheet) {
         // First time entering three_up mode - initialize from current data if it has data
@@ -1537,19 +1552,19 @@ export default function App() {
     setProfiles(profiles.map(p =>
       p.id === activeProfileId
         ? {
-            ...p,
-            layout: { ...model.layout },
-            fields: JSON.parse(JSON.stringify(model.fields)),
-            template: { ...model.template },
-            placement: { ...model.placement },
-            dateFormat: {
-              dateSlot1: preferences.dateSlot1,
-              dateSlot2: preferences.dateSlot2,
-              dateSlot3: preferences.dateSlot3,
-              dateSeparator: preferences.dateSeparator,
-              useLongDate: preferences.useLongDate
-            }
+          ...p,
+          layout: { ...model.layout },
+          fields: JSON.parse(JSON.stringify(model.fields)),
+          template: { ...model.template },
+          placement: { ...model.placement },
+          dateFormat: {
+            dateSlot1: preferences.dateSlot1,
+            dateSlot2: preferences.dateSlot2,
+            dateSlot3: preferences.dateSlot3,
+            dateSeparator: preferences.dateSeparator,
+            useLongDate: preferences.useLongDate
           }
+        }
         : p
     ))
 
@@ -3084,29 +3099,29 @@ export default function App() {
       const isPayeeCopy = which === 'stub1'
       const defaults = isPayeeCopy
         ? {
-            // PAYEE COPY (Stub 1) - External Memo, Line Items & Admin Fields
-            [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
-            [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
-            [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
-            [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
-            [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
-            [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' },
-            [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
-            [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-            [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
-          }
+          // PAYEE COPY (Stub 1) - External Memo, Line Items & Admin Fields
+          [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+          [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+          [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+          [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+          [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
+          [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' },
+          [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+          [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+          [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+        }
         : {
-            // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
-            [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
-            [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
-            [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
-            [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
-            [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
-            [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
-            [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-            [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
-            [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
-          }
+          // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
+          [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+          [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+          [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+          [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+          [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
+          [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+          [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+          [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
+          [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
+        }
 
       const nextFields = { ...m.fields }
       for (const [k, v] of Object.entries(defaults)) {
@@ -3244,16 +3259,16 @@ export default function App() {
   }
 
   // Generate PDF filename from check data
-const generatePrintFilename = (checkData, batchIndex = null) => {
+  const generatePrintFilename = (checkData, batchIndex = null) => {
     const payee = (checkData.payee || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_')
-    
+
     // FIX: Replace slashes with dashes to prevent folder errors (01/20/2026 -> 01-20-2026)
     let rawDate = checkData.date || new Date().toISOString().slice(0, 10)
     const date = rawDate.replace(/\//g, '-')
 
     const amount = sanitizeCurrencyInput(checkData.amount).toFixed(2).replace('.', '')
     const prefix = batchIndex !== null ? `${String(batchIndex).padStart(3, '0')}_` : ''
-    
+
     return `Check_${prefix}${payee}_${date}_${amount}`
   }
 
@@ -3731,9 +3746,9 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           <button className="btn primary" onClick={handlePrintAndRecord}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Print & Record
           </button>
@@ -3764,9 +3779,9 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                     title="Manage ledgers"
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
-                      <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                      <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="3" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="13" r="1.5" fill="currentColor" />
                     </svg>
                   </button>
                 </div>
@@ -4102,9 +4117,9 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                   {/* Primary Action - Full Width */}
                   <button className="btn btn-sm primary full-width" onClick={handleBatchPrintAndRecord}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Print & Record All
                   </button>
@@ -4181,9 +4196,9 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                 {!preferences.adminLocked && (
                   <button className="btn-icon" onClick={() => setShowProfileManager(!showProfileManager)} title="Rename or delete profiles">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="3" r="1.5" fill="currentColor"/>
-                      <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
-                      <circle cx="8" cy="13" r="1.5" fill="currentColor"/>
+                      <circle cx="8" cy="3" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="13" r="1.5" fill="currentColor" />
                     </svg>
                   </button>
                 )}
@@ -4737,157 +4752,157 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
           {!preferences.adminLocked && (
             <section className="section">
               <h3>Text Settings</h3>
-            <div className="card">
-              <div className="field">
-                <label>Font Family</label>
-                <select
-                  value={preferences.fontFamily}
-                  onChange={(e) => setPreferences(p => ({ ...p, fontFamily: e.target.value }))}
-                >
-                  {AVAILABLE_FONTS.map(font => (
-                    <option key={font.id} value={font.id}>{font.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label>Check Font Size (pt)</label>
-                <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+              <div className="card">
+                <div className="field">
+                  <label>Font Family</label>
+                  <select
+                    value={preferences.fontFamily}
+                    onChange={(e) => setPreferences(p => ({ ...p, fontFamily: e.target.value }))}
+                  >
+                    {AVAILABLE_FONTS.map(font => (
+                      <option key={font.id} value={font.id}>{font.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Check Font Size (pt)</label>
+                  <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="range"
+                      min="6"
+                      max="20"
+                      step="0.5"
+                      value={preferences.checkFontSizePt}
+                      onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) }))}
+                      style={{ flex: 1 }}
+                    />
+                    <input
+                      type="number"
+                      min="6"
+                      max="20"
+                      step="0.5"
+                      value={preferences.checkFontSizePt}
+                      onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) || 12 }))}
+                      style={{ width: '70px' }}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Stub Font Size (pt)</label>
+                  <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                    <input
+                      type="range"
+                      min="6"
+                      max="16"
+                      step="0.5"
+                      value={preferences.stubFontSizePt}
+                      onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) }))}
+                      style={{ flex: 1 }}
+                    />
+                    <input
+                      type="number"
+                      min="6"
+                      max="16"
+                      step="0.5"
+                      value={preferences.stubFontSizePt}
+                      onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) || 10 }))}
+                      style={{ width: '70px' }}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Label Size: {preferences.labelSize}px</label>
                   <input
                     type="range"
-                    min="6"
-                    max="20"
-                    step="0.5"
-                    value={preferences.checkFontSizePt}
-                    onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) }))}
-                    style={{ flex: 1 }}
-                  />
-                  <input
-                    type="number"
-                    min="6"
-                    max="20"
-                    step="0.5"
-                    value={preferences.checkFontSizePt}
-                    onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) || 12 }))}
-                    style={{ width: '70px' }}
+                    min="7"
+                    max="14"
+                    step="1"
+                    value={preferences.labelSize}
+                    onChange={(e) => setPreferences(p => ({ ...p, labelSize: parseInt(e.target.value) }))}
                   />
                 </div>
-              </div>
-              <div className="field">
-                <label>Stub Font Size (pt)</label>
-                <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
-                  <input
-                    type="range"
-                    min="6"
-                    max="16"
-                    step="0.5"
-                    value={preferences.stubFontSizePt}
-                    onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) }))}
-                    style={{ flex: 1 }}
-                  />
-                  <input
-                    type="number"
-                    min="6"
-                    max="16"
-                    step="0.5"
-                    value={preferences.stubFontSizePt}
-                    onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) || 10 }))}
-                    style={{ width: '70px' }}
-                  />
+                {/* Date Builder */}
+                <div className="field">
+                  <label>Date Format Builder</label>
+                  <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                    <select
+                      value={preferences.dateSlot1}
+                      onChange={(e) => setPreferences(p => ({ ...p, dateSlot1: e.target.value }))}
+                      title="Slot 1"
+                      style={{ flex: 1 }}
+                    >
+                      <option value="MM">MM</option>
+                      <option value="DD">DD</option>
+                      <option value="YY">YY</option>
+                      <option value="YYYY">YYYY</option>
+                      <option value="Empty">Empty</option>
+                    </select>
+                    <select
+                      value={preferences.dateSeparator}
+                      onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
+                      title="Separator"
+                      style={{ width: '60px' }}
+                    >
+                      <option value="/">/</option>
+                      <option value="-">-</option>
+                      <option value=".">.</option>
+                      <option value="Empty">None</option>
+                    </select>
+                    <select
+                      value={preferences.dateSlot2}
+                      onChange={(e) => setPreferences(p => ({ ...p, dateSlot2: e.target.value }))}
+                      title="Slot 2"
+                      style={{ flex: 1 }}
+                    >
+                      <option value="MM">MM</option>
+                      <option value="DD">DD</option>
+                      <option value="YY">YY</option>
+                      <option value="YYYY">YYYY</option>
+                      <option value="Empty">Empty</option>
+                    </select>
+                    <select
+                      value={preferences.dateSeparator}
+                      onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
+                      title="Separator"
+                      style={{ width: '60px' }}
+                    >
+                      <option value="/">/</option>
+                      <option value="-">-</option>
+                      <option value=".">.</option>
+                      <option value="Empty">None</option>
+                    </select>
+                    <select
+                      value={preferences.dateSlot3}
+                      onChange={(e) => setPreferences(p => ({ ...p, dateSlot3: e.target.value }))}
+                      title="Slot 3"
+                      style={{ flex: 1 }}
+                    >
+                      <option value="MM">MM</option>
+                      <option value="DD">DD</option>
+                      <option value="YY">YY</option>
+                      <option value="YYYY">YYYY</option>
+                      <option value="Empty">Empty</option>
+                    </select>
+                  </div>
+                  <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                    Build your date format: Slot 1 + Sep + Slot 2 + Sep + Slot 3
+                  </small>
+                </div>
+                <div className="field">
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={preferences.useLongDate}
+                      onChange={(e) => setPreferences(p => ({ ...p, useLongDate: e.target.checked }))}
+                    />
+                    <span className="toggle-slider"></span>
+                    <span className="toggle-label">Use Long Written Date</span>
+                  </label>
+                  <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                    Enable for full format (e.g., "January 7, 2026"). Overrides date builder.
+                  </small>
                 </div>
               </div>
-              <div className="field">
-                <label>Label Size: {preferences.labelSize}px</label>
-                <input
-                  type="range"
-                  min="7"
-                  max="14"
-                  step="1"
-                  value={preferences.labelSize}
-                  onChange={(e) => setPreferences(p => ({ ...p, labelSize: parseInt(e.target.value) }))}
-                />
-              </div>
-              {/* Date Builder */}
-              <div className="field">
-                <label>Date Format Builder</label>
-                <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
-                  <select
-                    value={preferences.dateSlot1}
-                    onChange={(e) => setPreferences(p => ({ ...p, dateSlot1: e.target.value }))}
-                    title="Slot 1"
-                    style={{ flex: 1 }}
-                  >
-                    <option value="MM">MM</option>
-                    <option value="DD">DD</option>
-                    <option value="YY">YY</option>
-                    <option value="YYYY">YYYY</option>
-                    <option value="Empty">Empty</option>
-                  </select>
-                  <select
-                    value={preferences.dateSeparator}
-                    onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
-                    title="Separator"
-                    style={{ width: '60px' }}
-                  >
-                    <option value="/">/</option>
-                    <option value="-">-</option>
-                    <option value=".">.</option>
-                    <option value="Empty">None</option>
-                  </select>
-                  <select
-                    value={preferences.dateSlot2}
-                    onChange={(e) => setPreferences(p => ({ ...p, dateSlot2: e.target.value }))}
-                    title="Slot 2"
-                    style={{ flex: 1 }}
-                  >
-                    <option value="MM">MM</option>
-                    <option value="DD">DD</option>
-                    <option value="YY">YY</option>
-                    <option value="YYYY">YYYY</option>
-                    <option value="Empty">Empty</option>
-                  </select>
-                  <select
-                    value={preferences.dateSeparator}
-                    onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
-                    title="Separator"
-                    style={{ width: '60px' }}
-                  >
-                    <option value="/">/</option>
-                    <option value="-">-</option>
-                    <option value=".">.</option>
-                    <option value="Empty">None</option>
-                  </select>
-                  <select
-                    value={preferences.dateSlot3}
-                    onChange={(e) => setPreferences(p => ({ ...p, dateSlot3: e.target.value }))}
-                    title="Slot 3"
-                    style={{ flex: 1 }}
-                  >
-                    <option value="MM">MM</option>
-                    <option value="DD">DD</option>
-                    <option value="YY">YY</option>
-                    <option value="YYYY">YYYY</option>
-                    <option value="Empty">Empty</option>
-                  </select>
-                </div>
-                <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                  Build your date format: Slot 1 + Sep + Slot 2 + Sep + Slot 3
-                </small>
-              </div>
-              <div className="field">
-                <label className="toggle-switch">
-                  <input
-                    type="checkbox"
-                    checked={preferences.useLongDate}
-                    onChange={(e) => setPreferences(p => ({ ...p, useLongDate: e.target.checked }))}
-                  />
-                  <span className="toggle-slider"></span>
-                  <span className="toggle-label">Use Long Written Date</span>
-                </label>
-                <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                  Enable for full format (e.g., "January 7, 2026"). Overrides date builder.
-                </small>
-              </div>
-            </div>
             </section>
           )}
 
@@ -4945,72 +4960,72 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                 {!preferences.adminLocked && (
                   <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                     <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub1ShowLedger}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLedger: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Ledger Snapshot</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub1ShowApproved}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowApproved: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Approved By</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub1ShowGLCode}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowGLCode: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show GL Code</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub1ShowLineItems}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLineItems: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Line Items</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub1ShowCheckNumber}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowCheckNumber: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Check Number</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub1ShowDate}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub1ShowDate: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Date</span>
-                    </label>
-                  </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub1ShowLedger}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLedger: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Ledger Snapshot</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub1ShowApproved}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowApproved: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Approved By</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub1ShowGLCode}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowGLCode: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show GL Code</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub1ShowLineItems}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLineItems: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Line Items</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub1ShowCheckNumber}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowCheckNumber: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Check Number</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub1ShowDate}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowDate: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Date</span>
+                      </label>
+                    </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
                       Toggle which fields appear on the Payee Copy stub
                     </small>
@@ -5074,72 +5089,72 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                 {!preferences.adminLocked && (
                   <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                     <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub2ShowLedger}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLedger: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Ledger Snapshot</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub2ShowApproved}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowApproved: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Approved By</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub2ShowGLCode}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowGLCode: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show GL Code</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub2ShowLineItems}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLineItems: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Line Items</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub2ShowCheckNumber}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowCheckNumber: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Check Number</span>
-                    </label>
-                  </div>
-                  <div className="field">
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={preferences.stub2ShowDate}
-                        onChange={(e) => setPreferences(p => ({ ...p, stub2ShowDate: e.target.checked }))}
-                      />
-                      <span className="toggle-slider"></span>
-                      <span className="toggle-label">Show Date</span>
-                    </label>
-                  </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub2ShowLedger}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLedger: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Ledger Snapshot</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub2ShowApproved}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowApproved: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Approved By</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub2ShowGLCode}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowGLCode: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show GL Code</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub2ShowLineItems}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLineItems: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Line Items</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub2ShowCheckNumber}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowCheckNumber: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Check Number</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={preferences.stub2ShowDate}
+                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowDate: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Date</span>
+                      </label>
+                    </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
                       Toggle which fields appear on the Bookkeeper Copy stub
                     </small>
@@ -5153,215 +5168,114 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
           {!preferences.adminLocked && (
             <section className="section">
               <h3>Check Template</h3>
-            <div className="card">
-              <button className="btn-template" onClick={handleSelectTemplate}>
-                {templateName ? (
-                  <>
-                    <span className="template-icon">🖼</span>
-                    <span className="template-name">{templateName}</span>
-                    <span className="template-change">Change</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="template-icon">+</span>
-                    <span>Load check template image</span>
-                  </>
+              <div className="card">
+                <button className="btn-template" onClick={handleSelectTemplate}>
+                  {templateName ? (
+                    <>
+                      <span className="template-icon">🖼</span>
+                      <span className="template-name">{templateName}</span>
+                      <span className="template-change">Change</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="template-icon">+</span>
+                      <span>Load check template image</span>
+                    </>
+                  )}
+                </button>
+                {templateLoadError && (
+                  <div className="error-msg">{templateLoadError}</div>
                 )}
-              </button>
-              {templateLoadError && (
-                <div className="error-msg">{templateLoadError}</div>
-              )}
-              {templateDecodeError && (
-                <div className="error-msg">{templateDecodeError}</div>
-              )}
-            </div>
+                {templateDecodeError && (
+                  <div className="error-msg">{templateDecodeError}</div>
+                )}
+              </div>
             </section>
           )}
 
           {/* Advanced Settings - Collapsible */}
           {!preferences.adminLocked && (
             <section className="section">
-            <button className="accordion-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
-              <span>Advanced Settings</span>
-              <ChevronIcon open={showAdvanced} />
-            </button>
+              <button className="accordion-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
+                <span>Advanced Settings</span>
+                <ChevronIcon open={showAdvanced} />
+              </button>
 
-            {showAdvanced && (
-              <div className="accordion-content">
-                {/* Template Display */}
-                <div className="card">
-                  <h4>Template Display</h4>
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Fit Mode</label>
-                      <select
-                        value={model.template.fit || 'cover'}
-                        onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, fit: e.target.value } }))}
-                      >
-                        <option value="stretch">Stretch</option>
-                        <option value="contain">Contain</option>
-                        <option value="cover">Cover</option>
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label>Opacity</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="1"
-                        step="0.1"
-                        value={model.template.opacity ?? 0}
-                        onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Calibration */}
-                <div className="card">
-                  <h4>Printer Calibration</h4>
-                  <p className="hint">
-                    Compensates for physical printer margins. Use negative numbers to shift Left/Up, positive to shift Right/Down.
-                    Most laser printers need X = -0.25in.
-                  </p>
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Global X Offset (in)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="-1.0"
-                        max="1.0"
-                        value={model.placement.offsetXIn}
-                        onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetXIn: parseFloat(e.target.value) || 0 } }))}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Global Y Offset (in)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="-1.0"
-                        max="1.0"
-                        value={model.placement.offsetYIn}
-                        onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetYIn: parseFloat(e.target.value) || 0 } }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Layout */}
-                <div className="card">
-                  <h4>Check Dimensions</h4>
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Width (in)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={model.layout.widthIn}
-                        onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, widthIn: clamp(parseFloat(e.target.value) || 0, 4, 8.5) } }))}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Height (in)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={model.layout.checkHeightIn}
-                        onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, checkHeightIn: clamp(parseFloat(e.target.value) || 0, 1, 6) } }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stub Height Adjustments - only show if stubs are enabled */}
-                {(model.layout.stub1Enabled || model.layout.stub2Enabled) && (
+              {showAdvanced && (
+                <div className="accordion-content">
+                  {/* Template Display */}
                   <div className="card">
-                    <h4>Stub Height Adjustments</h4>
-                    {model.layout.stub1Enabled && (
-                      <div className="field">
-                        <label>Payee Copy Stub Height (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.5"
-                          value={model.layout.stub1HeightIn}
-                          onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub1HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
-                        />
-                      </div>
-                    )}
-                    {model.layout.stub2Enabled && (
-                      <div className="field" style={{ marginTop: model.layout.stub1Enabled ? 12 : 0 }}>
-                        <label>Bookkeeper Copy Stub Height (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.5"
-                          value={model.layout.stub2HeightIn}
-                          onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub2HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Zoom */}
-                <div className="card">
-                  <h4>Preview Zoom</h4>
-                  <div className="field">
-                    <input
-                      type="range"
-                      min="0.4"
-                      max="1.5"
-                      step="0.05"
-                      value={model.view.zoom}
-                      onChange={(e) => setModel((m) => ({ ...m, view: { ...m.view, zoom: parseFloat(e.target.value) } }))}
-                    />
-                    <div className="range-value">{Math.round(model.view.zoom * 100)}%</div>
-                  </div>
-                </div>
-
-                {/* Selected Field - only in edit mode */}
-                {editMode && (
-                  <div className="card">
-                    <h4>Selected Field</h4>
-                    <div className="field">
-                      <label>Field</label>
-                      <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-                        {Object.keys(model.fields).map((k) => (
-                          <option value={k} key={k}>{model.fields[k].label || k}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <h4>Template Display</h4>
                     <div className="field-row">
                       <div className="field">
-                        <label>X (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={model.fields[selected].x}
-                          onChange={(e) => setField(selected, { x: parseFloat(e.target.value) || 0 })}
-                        />
+                        <label>Fit Mode</label>
+                        <select
+                          value={model.template.fit || 'cover'}
+                          onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, fit: e.target.value } }))}
+                        >
+                          <option value="stretch">Stretch</option>
+                          <option value="contain">Contain</option>
+                          <option value="cover">Cover</option>
+                        </select>
                       </div>
                       <div className="field">
-                        <label>Y (in)</label>
+                        <label>Opacity</label>
                         <input
                           type="number"
-                          step="0.01"
-                          value={model.fields[selected].y}
-                          onChange={(e) => setField(selected, { y: parseFloat(e.target.value) || 0 })}
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={model.template.opacity ?? 0}
+                          onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Calibration */}
+                  <div className="card">
+                    <h4>Printer Calibration</h4>
+                    <p className="hint">
+                      Compensates for physical printer margins. Use negative numbers to shift Left/Up, positive to shift Right/Down.
+                      Most laser printers need X = -0.25in.
+                    </p>
+                    <div className="field-row">
+                      <div className="field">
+                        <label>Global X Offset (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="-1.0"
+                          max="1.0"
+                          value={model.placement.offsetXIn}
+                          onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetXIn: parseFloat(e.target.value) || 0 } }))}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Global Y Offset (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="-1.0"
+                          max="1.0"
+                          value={model.placement.offsetYIn}
+                          onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetYIn: parseFloat(e.target.value) || 0 } }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Layout */}
+                  <div className="card">
+                    <h4>Check Dimensions</h4>
                     <div className="field-row">
                       <div className="field">
                         <label>Width (in)</label>
                         <input
                           type="number"
                           step="0.01"
-                          value={model.fields[selected].w}
-                          onChange={(e) => setField(selected, { w: parseFloat(e.target.value) || 0.2 })}
+                          value={model.layout.widthIn}
+                          onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, widthIn: clamp(parseFloat(e.target.value) || 0, 4, 8.5) } }))}
                         />
                       </div>
                       <div className="field">
@@ -5369,29 +5283,130 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                         <input
                           type="number"
                           step="0.01"
-                          value={model.fields[selected].h}
-                          onChange={(e) => setField(selected, { h: parseFloat(e.target.value) || 0.18 })}
+                          value={model.layout.checkHeightIn}
+                          onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, checkHeightIn: clamp(parseFloat(e.target.value) || 0, 1, 6) } }))}
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Stub Height Adjustments - only show if stubs are enabled */}
+                  {(model.layout.stub1Enabled || model.layout.stub2Enabled) && (
+                    <div className="card">
+                      <h4>Stub Height Adjustments</h4>
+                      {model.layout.stub1Enabled && (
+                        <div className="field">
+                          <label>Payee Copy Stub Height (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.5"
+                            value={model.layout.stub1HeightIn}
+                            onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub1HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
+                          />
+                        </div>
+                      )}
+                      {model.layout.stub2Enabled && (
+                        <div className="field" style={{ marginTop: model.layout.stub1Enabled ? 12 : 0 }}>
+                          <label>Bookkeeper Copy Stub Height (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.5"
+                            value={model.layout.stub2HeightIn}
+                            onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub2HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Zoom */}
+                  <div className="card">
+                    <h4>Preview Zoom</h4>
                     <div className="field">
-                      <label>Font Size (in)</label>
                       <input
-                        type="number"
-                        step="0.01"
-                        value={model.fields[selected].fontIn}
-                        onChange={(e) => setField(selected, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                        type="range"
+                        min="0.4"
+                        max="1.5"
+                        step="0.05"
+                        value={model.view.zoom}
+                        onChange={(e) => setModel((m) => ({ ...m, view: { ...m.view, zoom: parseFloat(e.target.value) } }))}
                       />
+                      <div className="range-value">{Math.round(model.view.zoom * 100)}%</div>
                     </div>
                   </div>
-                )}
 
-                {/* Reset */}
-                <button className="btn danger full-width" onClick={resetModel}>
-                  Reset All Settings
-                </button>
-              </div>
-            )}
+                  {/* Selected Field - only in edit mode */}
+                  {editMode && (
+                    <div className="card">
+                      <h4>Selected Field</h4>
+                      <div className="field">
+                        <label>Field</label>
+                        <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+                          {Object.keys(model.fields).map((k) => (
+                            <option value={k} key={k}>{model.fields[k].label || k}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field-row">
+                        <div className="field">
+                          <label>X (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={model.fields[selected].x}
+                            onChange={(e) => setField(selected, { x: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Y (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={model.fields[selected].y}
+                            onChange={(e) => setField(selected, { y: parseFloat(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </div>
+                      <div className="field-row">
+                        <div className="field">
+                          <label>Width (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={model.fields[selected].w}
+                            onChange={(e) => setField(selected, { w: parseFloat(e.target.value) || 0.2 })}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Height (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={model.fields[selected].h}
+                            onChange={(e) => setField(selected, { h: parseFloat(e.target.value) || 0.18 })}
+                          />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <label>Font Size (in)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={model.fields[selected].fontIn}
+                          onChange={(e) => setField(selected, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reset */}
+                  <button className="btn danger full-width" onClick={resetModel}>
+                    Reset All Settings
+                  </button>
+                </div>
+              )}
             </section>
           )}
         </div>
@@ -5421,7 +5436,7 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                 </p>
                 <button
                   className="btn primary"
-                  onClick={preferences.adminLocked ? handleUnlockRequest : () => {}}
+                  onClick={preferences.adminLocked ? handleUnlockRequest : () => { }}
                   style={{ marginTop: '8px' }}
                 >
                   {preferences.adminLocked ? '🔓 Unlock Admin' : '✓ Admin Unlocked'}
@@ -5516,7 +5531,8 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                   // In three-up mode, skip empty slots unless:
                   // - It's the active slot in edit mode
                   // - Auto-increment is enabled (need to show check numbers)
-                  if (slot && isSlotEmpty(checkData) && !(editMode && isActiveSlot) && !autoIncrementCheckNumbers) {
+                  // - Show Date is enabled (need to show date even on empty slots)
+                  if (slot && isSlotEmpty(checkData) && !(editMode && isActiveSlot) && !autoIncrementCheckNumbers && !preferences.showDate) {
                     return null
                   }
 
@@ -5532,478 +5548,436 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                         pointerEvents: editMode && !isActiveSlot ? 'none' : 'auto'
                       }}
                     >
-                  {/* Rigid check face container with background image */}
-                  <div
-                    className="check-face-container"
-                    style={{
-                      '--check-height': `${model.layout.checkHeightIn}in`,
-                      ...(templateDataUrl
-                        ? {
-                            backgroundImage: `url(${templateDataUrl})`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'top left',
-                            backgroundSize: templateBgSize
+                      {/* Rigid check face container with background image */}
+                      <div
+                        className="check-face-container"
+                        style={{
+                          '--check-height': `${model.layout.checkHeightIn}in`,
+                          ...(templateDataUrl
+                            ? {
+                              backgroundImage: `url(${templateDataUrl})`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'top left',
+                              backgroundSize: templateBgSize
+                            }
+                            : {})
+                        }}
+                      >
+                        {templateDataUrl && (
+                          <img
+                            className="templateImg"
+                            src={templateDataUrl}
+                            alt="Template"
+                            draggable="false"
+                            onError={() => setTemplateDecodeError('Template image failed to load.')}
+                            style={{
+                              opacity: model.template.opacity ?? 0,
+                              objectFit: templateObjectFit
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Draggable Fold Lines (no-print) */}
+                      {editMode && model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
+                        <div
+                          className="fold-line no-print"
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            top: `${model.layout.checkHeightIn}in`,
+                            height: '2px',
+                            borderTop: '2px dashed var(--accent)',
+                            cursor: 'ns-resize',
+                            zIndex: 1000
+                          }}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('text/plain', 'fold-line-1')
+                          }}
+                          onDrag={(e) => {
+                            if (e.clientY === 0) return // Ignore invalid drag events
+                            const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
+                            const relativeY = e.clientY - paperRect.top
+                            const yInInches = relativeY / (96 * model.view.zoom)
+
+                            // Constrain between 2.5 and 4.0 inches
+                            const newHeight = Math.max(2.5, Math.min(4.0, yInInches))
+                            setModel(m => ({
+                              ...m,
+                              layout: { ...m.layout, checkHeightIn: newHeight }
+                            }))
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '-8px',
+                            transform: 'translateX(-50%)',
+                            background: 'var(--accent)',
+                            color: 'white',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            pointerEvents: 'none'
+                          }}>
+                            Check/Stub1 Fold
+                          </div>
+                        </div>
+                      )}
+
+                      {editMode && model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
+                        <div
+                          className="fold-line no-print"
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
+                            height: '2px',
+                            borderTop: '2px dashed var(--accent)',
+                            cursor: 'ns-resize',
+                            zIndex: 1000
+                          }}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('text/plain', 'fold-line-2')
+                          }}
+                          onDrag={(e) => {
+                            if (e.clientY === 0) return // Ignore invalid drag events
+                            const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
+                            const relativeY = e.clientY - paperRect.top
+                            const yInInches = relativeY / (96 * model.view.zoom)
+                            const checkHeight = model.layout.checkHeightIn
+
+                            // Calculate stub1 height (total Y minus check height)
+                            const newStub1Height = Math.max(2.5, Math.min(4.0, yInInches - checkHeight))
+                            setModel(m => ({
+                              ...m,
+                              layout: { ...m.layout, stub1HeightIn: newStub1Height }
+                            }))
+                          }}
+                        >
+                          <div style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: '-8px',
+                            transform: 'translateX(-50%)',
+                            background: 'var(--accent)',
+                            color: 'white',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            pointerEvents: 'none'
+                          }}>
+                            Stub1/Stub2 Fold
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Use slot-specific fields in three-up mode, shared fields in standard mode */}
+                      {Object.entries(slot ? model.slotFields[slot] : model.fields).map(([key, f]) => {
+                        // Check if this field belongs to a disabled stub
+                        const isStub1Field = key.startsWith('stub1_')
+                        const isStub2Field = key.startsWith('stub2_')
+
+                        // Skip rendering stub fields if their stub is disabled OR in three_up mode
+                        if (isStub1Field && (!model.layout.stub1Enabled || activeProfile?.layoutMode === 'three_up')) return null
+                        if (isStub2Field && (!model.layout.stub2Enabled || activeProfile?.layoutMode === 'three_up')) return null
+
+                        // Skip stub1 fields if their preferences are disabled
+                        if (key === 'stub1_ledger' && !preferences.stub1ShowLedger) return null
+                        if (key === 'stub1_approved' && !preferences.stub1ShowApproved) return null
+                        if (key === 'stub1_glcode' && !preferences.stub1ShowGLCode) return null
+                        if (key === 'stub1_line_items' && !preferences.stub1ShowLineItems) return null
+                        if (key === 'stub1_checkNumber' && !preferences.stub1ShowCheckNumber) return null
+                        if (key === 'stub1_date' && !preferences.stub1ShowDate) return null
+
+                        // Skip stub2 fields if their preferences are disabled
+                        if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
+                        if (key === 'stub2_approved' && !preferences.stub2ShowApproved) return null
+                        if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
+                        if (key === 'stub2_line_items' && !preferences.stub2ShowLineItems) return null
+                        if (key === 'stub2_checkNumber' && !preferences.stub2ShowCheckNumber) return null
+                        if (key === 'stub2_date' && !preferences.stub2ShowDate) return null
+
+                        // Skip check number field on check if preference is disabled
+                        if (key === 'checkNumber' && !preferences.showCheckNumber) return null
+
+                        // Skip date field on check if preference is disabled
+                        if (key === 'date' && !preferences.showDate) return null
+
+                        // Smart field value handling
+                        let value = checkData[key] ?? ''
+                        let isTextarea = false
+                        let isReadOnly = editMode || key === 'amountWords'
+
+                        // Special handling for check number - default to profile's nextCheckNumber
+                        if (key === 'checkNumber' && !value) {
+                          value = String(activeProfile.nextCheckNumber || '')
+                        }
+
+                        // Sync stub check numbers from check data
+                        if ((key === 'stub1_checkNumber' || key === 'stub2_checkNumber')) {
+                          value = checkData.checkNumber || String(activeProfile.nextCheckNumber || '')
+                          isReadOnly = true
+                        }
+
+                        // Sync stub dates from check data
+                        if ((key === 'stub1_date' || key === 'stub2_date')) {
+                          value = checkData.date || ''
+                          isReadOnly = true
+                        }
+
+                        // Special handling for date formatting (check and stubs)
+                        if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
+                          value = formatDateByPreference(value, preferences)
+                        }
+
+                        // Special handling for amount fields - format with commas (1,250.00)
+                        if ((key === 'amount' || key === 'stub1_amount' || key === 'stub2_amount') && value) {
+                          const numValue = parseFloat(value)
+                          if (!isNaN(numValue)) {
+                            value = numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                           }
-                        : {})
-                    }}
-                  >
-                    {templateDataUrl && (
-                      <img
-                        className="templateImg"
-                        src={templateDataUrl}
-                        alt="Template"
-                      draggable="false"
-                      onError={() => setTemplateDecodeError('Template image failed to load.')}
-                      style={{
-                        opacity: model.template.opacity ?? 0,
-                        objectFit: templateObjectFit
-                      }}
-                    />
-                  )}
-                </div>
+                        }
 
-                {/* Draggable Fold Lines (no-print) */}
-                {editMode && model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
-                  <div
-                    className="fold-line no-print"
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: `${model.layout.checkHeightIn}in`,
-                      height: '2px',
-                      borderTop: '2px dashed var(--accent)',
-                      cursor: 'ns-resize',
-                      zIndex: 1000
-                    }}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move'
-                      e.dataTransfer.setData('text/plain', 'fold-line-1')
-                    }}
-                    onDrag={(e) => {
-                      if (e.clientY === 0) return // Ignore invalid drag events
-                      const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
-                      const relativeY = e.clientY - paperRect.top
-                      const yInInches = relativeY / (96 * model.view.zoom)
+                        // Special handling for smart stub fields
+                        if (key.endsWith('_line_items')) {
+                          value = checkData.line_items_text || ''
+                          isTextarea = true
+                          isReadOnly = true
+                        } else if (key.endsWith('_ledger')) {
+                          // Generate live ledger snapshot based on current hybrid balance and check amount
+                          const checkAmount = sanitizeCurrencyInput(checkData.amount)
+                          const snapshot = checkData.ledger_snapshot || {
+                            previous_balance: hybridBalance,
+                            transaction_amount: checkAmount,
+                            new_balance: hybridBalance - checkAmount
+                          }
+                          value = formatLedgerSnapshot(snapshot)
+                          isTextarea = true
+                          isReadOnly = true
+                        } else if (key.endsWith('_approved')) {
+                          value = 'Approved By: ___________________'
+                          isReadOnly = true
+                        } else if (key.endsWith('_glcode')) {
+                          value = 'GL Code: ___________________'
+                          isReadOnly = true
+                        }
 
-                      // Constrain between 2.5 and 4.0 inches
-                      const newHeight = Math.max(2.5, Math.min(4.0, yInInches))
-                      setModel(m => ({
-                        ...m,
-                        layout: { ...m.layout, checkHeightIn: newHeight }
-                      }))
-                    }}
-                  >
-                    <div style={{
-                      position: 'absolute',
-                      left: '50%',
-                      top: '-8px',
-                      transform: 'translateX(-50%)',
-                      background: 'var(--accent)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '10px',
-                      fontWeight: '600',
-                      pointerEvents: 'none'
-                    }}>
-                      Check/Stub1 Fold
-                    </div>
-                  </div>
-                )}
+                        const isSelected = editMode && selected === key
+                        // Use stub font size for stub fields, check font size for others
+                        const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
 
-                {editMode && model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
-                  <div
-                    className="fold-line no-print"
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
-                      height: '2px',
-                      borderTop: '2px dashed var(--accent)',
-                      cursor: 'ns-resize',
-                      zIndex: 1000
-                    }}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move'
-                      e.dataTransfer.setData('text/plain', 'fold-line-2')
-                    }}
-                    onDrag={(e) => {
-                      if (e.clientY === 0) return // Ignore invalid drag events
-                      const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
-                      const relativeY = e.clientY - paperRect.top
-                      const yInInches = relativeY / (96 * model.view.zoom)
-                      const checkHeight = model.layout.checkHeightIn
+                        // Don't show labels for stub2 approved/glcode fields since they already have labels in the value
+                        const showFriendlyLabel = !editMode && (
+                          (isStub1Field && showStub1Labels) ||
+                          (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
+                        )
 
-                      // Calculate stub1 height (total Y minus check height)
-                      const newStub1Height = Math.max(2.5, Math.min(4.0, yInInches - checkHeight))
-                      setModel(m => ({
-                        ...m,
-                        layout: { ...m.layout, stub1HeightIn: newStub1Height }
-                      }))
-                    }}
-                  >
-                    <div style={{
-                      position: 'absolute',
-                      left: '50%',
-                      top: '-8px',
-                      transform: 'translateX(-50%)',
-                      background: 'var(--accent)',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '10px',
-                      fontWeight: '600',
-                      pointerEvents: 'none'
-                    }}>
-                      Stub1/Stub2 Fold
-                    </div>
-                  </div>
-                )}
+                        // Calculate actual Y position for stub fields (they should stay pinned to their stub section)
+                        // When stubs are created, fields get Y positions like checkHeight + 0.25
+                        // We need to extract the relative offset and re-apply it to the current stub position
+                        let actualY = f.y
+                        if (isStub1Field) {
+                          // Stub1 starts at checkHeightIn
+                          // Find what the stub1 start was when this field was created (use 3.0 as default check height)
+                          const originalStub1Start = 3.0
+                          const relativeY = f.y - originalStub1Start
+                          actualY = model.layout.checkHeightIn + relativeY
+                        } else if (isStub2Field) {
+                          // Stub2 starts at checkHeightIn + stub1HeightIn
+                          // Find what the stub2 start was when this field was created
+                          const originalStub2Start = 3.0 + 3.0 // default check + default stub1
+                          const relativeY = f.y - originalStub2Start
+                          actualY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
+                        }
 
-                {/* Use slot-specific fields in three-up mode, shared fields in standard mode */}
-                {Object.entries(slot ? model.slotFields[slot] : model.fields).map(([key, f]) => {
-                  // Check if this field belongs to a disabled stub
-                  const isStub1Field = key.startsWith('stub1_')
-                  const isStub2Field = key.startsWith('stub2_')
+                        return (
+                          <div
+                            key={key}
+                            className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
+                            style={{
+                              left: `${f.x}in`,
+                              top: `${actualY}in`,
+                              width: `${f.w}in`,
+                              height: `${f.h}in`
+                            }}
+                            onPointerDown={(e) => onPointerDownField(e, key)}
+                          >
+                            {editMode && (
+                              <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                                {f.label}
+                              </div>
+                            )}
+                            {showFriendlyLabel && (
+                              <div className="friendly-label" style={{ fontSize: `${Math.max(preferences.labelSize - 2, 7)}px` }}>
+                                {f.label}
+                              </div>
+                            )}
+                            {isTextarea ? (
+                              <textarea
+                                value={value}
+                                readOnly={isReadOnly}
+                                onChange={(e) => !isReadOnly && updateCurrentCheckData({ [key]: e.target.value })}
+                                style={{
+                                  fontSize: `${fontSizePt}pt`,
+                                  fontFamily: activeFontFamily,
+                                  width: '100%',
+                                  height: '100%',
+                                  border: 'none',
+                                  background: 'transparent',
+                                  resize: 'none',
+                                  padding: showFriendlyLabel ? '14px 0 0 0' : '0',
+                                  lineHeight: '1.3'
+                                }}
+                              />
+                            ) : (
+                              <input
+                                value={value}
+                                readOnly={isReadOnly}
+                                onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
+                                style={{
+                                  fontSize: `${fontSizePt}pt`,
+                                  fontFamily: activeFontFamily,
+                                  paddingTop: showFriendlyLabel ? '14px' : '0'
+                                }}
+                              />
+                            )}
+                            {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
+                          </div>
+                        )
+                      })}
 
-                  // Skip rendering stub fields if their stub is disabled OR in three_up mode
-                  if (isStub1Field && (!model.layout.stub1Enabled || activeProfile?.layoutMode === 'three_up')) return null
-                  if (isStub2Field && (!model.layout.stub2Enabled || activeProfile?.layoutMode === 'three_up')) return null
-
-                  // Skip stub1 fields if their preferences are disabled
-                  if (key === 'stub1_ledger' && !preferences.stub1ShowLedger) return null
-                  if (key === 'stub1_approved' && !preferences.stub1ShowApproved) return null
-                  if (key === 'stub1_glcode' && !preferences.stub1ShowGLCode) return null
-                  if (key === 'stub1_line_items' && !preferences.stub1ShowLineItems) return null
-                  if (key === 'stub1_checkNumber' && !preferences.stub1ShowCheckNumber) return null
-                  if (key === 'stub1_date' && !preferences.stub1ShowDate) return null
-
-                  // Skip stub2 fields if their preferences are disabled
-                  if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
-                  if (key === 'stub2_approved' && !preferences.stub2ShowApproved) return null
-                  if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
-                  if (key === 'stub2_line_items' && !preferences.stub2ShowLineItems) return null
-                  if (key === 'stub2_checkNumber' && !preferences.stub2ShowCheckNumber) return null
-                  if (key === 'stub2_date' && !preferences.stub2ShowDate) return null
-
-                  // Skip check number field on check if preference is disabled
-                  if (key === 'checkNumber' && !preferences.showCheckNumber) return null
-
-                  // Skip date field on check if preference is disabled
-                  if (key === 'date' && !preferences.showDate) return null
-
-                  // Smart field value handling
-                  let value = checkData[key] ?? ''
-                  let isTextarea = false
-                  let isReadOnly = editMode || key === 'amountWords'
-
-                  // Special handling for check number - default to profile's nextCheckNumber
-                  if (key === 'checkNumber' && !value) {
-                    value = String(activeProfile.nextCheckNumber || '')
-                  }
-
-                  // Sync stub check numbers from check data
-                  if ((key === 'stub1_checkNumber' || key === 'stub2_checkNumber')) {
-                    value = checkData.checkNumber || String(activeProfile.nextCheckNumber || '')
-                    isReadOnly = true
-                  }
-
-                  // Sync stub dates from check data
-                  if ((key === 'stub1_date' || key === 'stub2_date')) {
-                    value = checkData.date || ''
-                    isReadOnly = true
-                  }
-
-                  // Special handling for date formatting (check and stubs)
-                  if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
-                    value = formatDateByPreference(value, preferences)
-                  }
-
-                  // Special handling for amount fields - format with commas (1,250.00)
-                  if ((key === 'amount' || key === 'stub1_amount' || key === 'stub2_amount') && value) {
-                    const numValue = parseFloat(value)
-                    if (!isNaN(numValue)) {
-                      value = numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                    }
-                  }
-
-                  // Special handling for smart stub fields
-                  if (key.endsWith('_line_items')) {
-                    value = checkData.line_items_text || ''
-                    isTextarea = true
-                    isReadOnly = true
-                  } else if (key.endsWith('_ledger')) {
-                    // Generate live ledger snapshot based on current hybrid balance and check amount
-                    const checkAmount = sanitizeCurrencyInput(checkData.amount)
-                    const snapshot = checkData.ledger_snapshot || {
-                      previous_balance: hybridBalance,
-                      transaction_amount: checkAmount,
-                      new_balance: hybridBalance - checkAmount
-                    }
-                    value = formatLedgerSnapshot(snapshot)
-                    isTextarea = true
-                    isReadOnly = true
-                  } else if (key.endsWith('_approved')) {
-                    value = 'Approved By: ___________________'
-                    isReadOnly = true
-                  } else if (key.endsWith('_glcode')) {
-                    value = 'GL Code: ___________________'
-                    isReadOnly = true
-                  }
-
-                  const isSelected = editMode && selected === key
-                  // Use stub font size for stub fields, check font size for others
-                  const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
-
-                  // Don't show labels for stub2 approved/glcode fields since they already have labels in the value
-                  const showFriendlyLabel = !editMode && (
-                    (isStub1Field && showStub1Labels) ||
-                    (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
-                  )
-
-                  // Calculate actual Y position for stub fields (they should stay pinned to their stub section)
-                  // When stubs are created, fields get Y positions like checkHeight + 0.25
-                  // We need to extract the relative offset and re-apply it to the current stub position
-                  let actualY = f.y
-                  if (isStub1Field) {
-                    // Stub1 starts at checkHeightIn
-                    // Find what the stub1 start was when this field was created (use 3.0 as default check height)
-                    const originalStub1Start = 3.0
-                    const relativeY = f.y - originalStub1Start
-                    actualY = model.layout.checkHeightIn + relativeY
-                  } else if (isStub2Field) {
-                    // Stub2 starts at checkHeightIn + stub1HeightIn
-                    // Find what the stub2 start was when this field was created
-                    const originalStub2Start = 3.0 + 3.0 // default check + default stub1
-                    const relativeY = f.y - originalStub2Start
-                    actualY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
-                  }
-
-                  return (
-                    <div
-                      key={key}
-                      className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
-                      style={{
-                        left: `${f.x}in`,
-                        top: `${actualY}in`,
-                        width: `${f.w}in`,
-                        height: `${f.h}in`
-                      }}
-                      onPointerDown={(e) => onPointerDownField(e, key)}
-                    >
-                      {editMode && (
-                        <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
-                          {f.label}
+                      {/* FORCE FIX: Manual Check Number Render */}
+                      {preferences.showCheckNumber && !Object.keys(slot ? model.slotFields[slot] : model.fields).includes('checkNumber') && (
+                        <div
+                          key="manual-check-number"
+                          className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected === 'checkNumber' ? 'selected' : ''}`}
+                          style={{
+                            left: '7.8in',
+                            top: '0.15in',
+                            width: '1.5in',
+                            height: '0.30in'
+                          }}
+                          onPointerDown={(e) => {
+                            if (!editMode) return
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setSelected('checkNumber')
+                            // Create synthetic field in the model if it doesn't exist
+                            const checkNumberField = DEFAULT_FIELDS.checkNumber
+                            if (slot) {
+                              // Three-up mode: add to slotFields
+                              if (!model.slotFields[slot].checkNumber) {
+                                setModel(m => ({
+                                  ...m,
+                                  slotFields: {
+                                    ...m.slotFields,
+                                    [slot]: {
+                                      ...m.slotFields[slot],
+                                      checkNumber: checkNumberField
+                                    }
+                                  }
+                                }))
+                              }
+                              dragRef.current = {
+                                key: 'checkNumber',
+                                mode: 'move',
+                                startX: e.clientX,
+                                startY: e.clientY,
+                                startField: { ...checkNumberField }
+                              }
+                            } else {
+                              // Standard mode: add to fields
+                              if (!model.fields.checkNumber) {
+                                setModel(m => ({
+                                  ...m,
+                                  fields: {
+                                    ...m.fields,
+                                    checkNumber: checkNumberField
+                                  }
+                                }))
+                              }
+                              dragRef.current = {
+                                key: 'checkNumber',
+                                mode: 'move',
+                                startX: e.clientX,
+                                startY: e.clientY,
+                                startField: { ...checkNumberField }
+                              }
+                            }
+                            e.currentTarget.setPointerCapture?.(e.pointerId)
+                          }}
+                        >
+                          {editMode && (
+                            <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                              Check #
+                            </div>
+                          )}
+                          <input
+                            value={checkData.checkNumber || String(activeProfile.nextCheckNumber || '1001')}
+                            readOnly={editMode}
+                            onChange={(e) => !editMode && updateCurrentCheckData({ checkNumber: e.target.value })}
+                            style={{
+                              fontSize: `${preferences.checkFontSizePt}pt`,
+                              fontFamily: activeFontFamily
+                            }}
+                          />
+                          {editMode && <div className="handle" onPointerDown={(e) => {
+                            if (!editMode) return
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setSelected('checkNumber')
+                            const checkNumberField = DEFAULT_FIELDS.checkNumber
+                            dragRef.current = {
+                              key: 'checkNumber',
+                              mode: 'resize',
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              startField: { ...checkNumberField }
+                            }
+                            e.currentTarget.setPointerCapture?.(e.pointerId)
+                          }} />}
                         </div>
                       )}
-                      {showFriendlyLabel && (
-                        <div className="friendly-label" style={{ fontSize: `${Math.max(preferences.labelSize - 2, 7)}px` }}>
-                          {f.label}
-                        </div>
-                      )}
-                      {isTextarea ? (
-                        <textarea
-                          value={value}
-                          readOnly={isReadOnly}
-                          onChange={(e) => !isReadOnly && updateCurrentCheckData({ [key]: e.target.value })}
-                          style={{
-                            fontSize: `${fontSizePt}pt`,
-                            fontFamily: activeFontFamily,
-                            width: '100%',
-                            height: '100%',
-                            border: 'none',
-                            background: 'transparent',
-                            resize: 'none',
-                            padding: showFriendlyLabel ? '14px 0 0 0' : '0',
-                            lineHeight: '1.3'
-                          }}
-                        />
-                      ) : (
-                        <input
-                          value={value}
-                          readOnly={isReadOnly}
-                          onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
-                          style={{
-                            fontSize: `${fontSizePt}pt`,
-                            fontFamily: activeFontFamily,
-                            paddingTop: showFriendlyLabel ? '14px' : '0'
-                          }}
-                        />
-                      )}
-                      {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
                     </div>
                   )
                 })}
 
-                {/* FORCE FIX: Manual Check Number Render */}
-                {preferences.showCheckNumber && !Object.keys(slot ? model.slotFields[slot] : model.fields).includes('checkNumber') && (
-                  <div
-                    key="manual-check-number"
-                    className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected === 'checkNumber' ? 'selected' : ''}`}
-                    style={{
-                      left: '7.8in',
-                      top: '0.15in',
-                      width: '1.5in',
-                      height: '0.30in'
-                    }}
-                    onPointerDown={(e) => {
-                      if (!editMode) return
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setSelected('checkNumber')
-                      // Create synthetic field in the model if it doesn't exist
-                      const checkNumberField = DEFAULT_FIELDS.checkNumber
-                      if (slot) {
-                        // Three-up mode: add to slotFields
-                        if (!model.slotFields[slot].checkNumber) {
-                          setModel(m => ({
-                            ...m,
-                            slotFields: {
-                              ...m.slotFields,
-                              [slot]: {
-                                ...m.slotFields[slot],
-                                checkNumber: checkNumberField
-                              }
-                            }
-                          }))
-                        }
-                        dragRef.current = {
-                          key: 'checkNumber',
-                          mode: 'move',
-                          startX: e.clientX,
-                          startY: e.clientY,
-                          startField: { ...checkNumberField }
-                        }
-                      } else {
-                        // Standard mode: add to fields
-                        if (!model.fields.checkNumber) {
-                          setModel(m => ({
-                            ...m,
-                            fields: {
-                              ...m.fields,
-                              checkNumber: checkNumberField
-                            }
-                          }))
-                        }
-                        dragRef.current = {
-                          key: 'checkNumber',
-                          mode: 'move',
-                          startX: e.clientX,
-                          startY: e.clientY,
-                          startField: { ...checkNumberField }
-                        }
-                      }
-                      e.currentTarget.setPointerCapture?.(e.pointerId)
-                    }}
-                  >
-                    {editMode && (
-                      <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
-                        Check #
-                      </div>
-                    )}
-                    <input
-                      value={checkData.checkNumber || String(activeProfile.nextCheckNumber || '1001')}
-                      readOnly={editMode}
-                      onChange={(e) => !editMode && updateCurrentCheckData({ checkNumber: e.target.value })}
-                      style={{
-                        fontSize: `${preferences.checkFontSizePt}pt`,
-                        fontFamily: activeFontFamily
-                      }}
-                    />
-                    {editMode && <div className="handle" onPointerDown={(e) => {
-                      if (!editMode) return
-                      e.preventDefault()
-                      e.stopPropagation()
-                      setSelected('checkNumber')
-                      const checkNumberField = DEFAULT_FIELDS.checkNumber
-                      dragRef.current = {
-                        key: 'checkNumber',
-                        mode: 'resize',
-                        startX: e.clientX,
-                        startY: e.clientY,
-                        startField: { ...checkNumberField }
-                      }
-                      e.currentTarget.setPointerCapture?.(e.pointerId)
-                    }} />}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-
-              {/* Stub Add/Remove Buttons - positioned at specific heights within the paper */}
-              {!editMode && activeProfile?.layoutMode !== 'three_up' && (
-                <>
-                  {/* After check section */}
-                  <div
-                    className="stub-control-row"
-                    style={{
-                      position: 'absolute',
-                      top: `${model.layout.checkHeightIn}in`,
-                      left: 0,
-                      right: 0,
-                      zIndex: 10
-                    }}
-                  >
-                    {model.layout.stub1Enabled ? (
-                      <div className="stub-divider-with-remove">
-                        <div className="stub-divider-line" />
-                        <button
-                          className="stub-remove-button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            ensureStub('stub1', false)
-                          }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          title="Remove Payee Copy Stub"
-                        >
-                          <span>−</span> Remove Stub 1
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        className="stub-add-button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          ensureStub('stub1', true)
-                        }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                      >
-                        <span className="stub-add-icon">+</span>
-                        Add Payee Copy Stub
-                      </button>
-                    )}
-                  </div>
-
-                  {/* After stub 1 section */}
-                  {model.layout.stub1Enabled && (
+                {/* Stub Add/Remove Buttons - positioned at specific heights within the paper */}
+                {!editMode && activeProfile?.layoutMode !== 'three_up' && (
+                  <>
+                    {/* After check section */}
                     <div
                       className="stub-control-row"
                       style={{
                         position: 'absolute',
-                        top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
+                        top: `${model.layout.checkHeightIn}in`,
                         left: 0,
                         right: 0,
                         zIndex: 10
                       }}
                     >
-                      {model.layout.stub2Enabled ? (
+                      {model.layout.stub1Enabled ? (
                         <div className="stub-divider-with-remove">
                           <div className="stub-divider-line" />
                           <button
                             className="stub-remove-button"
                             onClick={(e) => {
                               e.stopPropagation()
-                              ensureStub('stub2', false)
+                              ensureStub('stub1', false)
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
-                            title="Remove Bookkeeper Copy Stub"
+                            title="Remove Payee Copy Stub"
                           >
-                            <span>−</span> Remove Stub 2
+                            <span>−</span> Remove Stub 1
                           </button>
                         </div>
                       ) : (
@@ -6011,20 +5985,62 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                           className="stub-add-button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            ensureStub('stub2', true)
+                            ensureStub('stub1', true)
                           }}
                           onPointerDown={(e) => e.stopPropagation()}
                         >
                           <span className="stub-add-icon">+</span>
-                          Add Bookkeeper Copy Stub
+                          Add Payee Copy Stub
                         </button>
                       )}
                     </div>
-                  )}
-                </>
-              )}
+
+                    {/* After stub 1 section */}
+                    {model.layout.stub1Enabled && (
+                      <div
+                        className="stub-control-row"
+                        style={{
+                          position: 'absolute',
+                          top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
+                          left: 0,
+                          right: 0,
+                          zIndex: 10
+                        }}
+                      >
+                        {model.layout.stub2Enabled ? (
+                          <div className="stub-divider-with-remove">
+                            <div className="stub-divider-line" />
+                            <button
+                              className="stub-remove-button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                ensureStub('stub2', false)
+                              }}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              title="Remove Bookkeeper Copy Stub"
+                            >
+                              <span>−</span> Remove Stub 2
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="stub-add-button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              ensureStub('stub2', true)
+                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            <span className="stub-add-icon">+</span>
+                            Add Bookkeeper Copy Stub
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
           )}
         </div>
       </div>
@@ -7077,7 +7093,7 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
             {(historyViewMode === 'all' ? checkHistory.length : checkHistory.filter(c => c.ledgerId === activeLedgerId).length) === 0 ? (
               <div className="history-empty-state">
                 <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                  <path d="M32 8L8 20V42C8 51.9 18.8 56 32 56C45.2 56 56 51.9 56 42V20L32 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.3"/>
+                  <path d="M32 8L8 20V42C8 51.9 18.8 56 32 56C45.2 56 56 51.9 56 42V20L32 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.3" />
                 </svg>
                 <h3>No checks recorded yet</h3>
                 <p>Checks you print and record will appear here</p>
@@ -7234,8 +7250,8 @@ const generatePrintFilename = (checkData, batchIndex = null) => {
                 ) : (
                   <div className="history-detail-column history-detail-empty">
                     <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                      <rect x="20" y="16" width="40" height="48" rx="2" stroke="currentColor" strokeWidth="2" opacity="0.3"/>
-                      <path d="M28 28H52M28 36H52M28 44H44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.3"/>
+                      <rect x="20" y="16" width="40" height="48" rx="2" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                      <path d="M28 28H52M28 36H52M28 44H44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.3" />
                     </svg>
                     <h3>Select a check</h3>
                     <p>Click on a check from the list to view its details</p>
