@@ -1,8 +1,8 @@
 {
   "name": "CheckSpree",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
-  "description": "CheckSpree - physical-units-first check printing and calibration (Electron + React)",
+  "description": "Simple, accurate check printing and financial tracking.",
   "author": "Sebastian Basaldua <sebastian@luminarycraft.com>",
   "repository": {
     "type": "git",
