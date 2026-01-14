@@ -1635,9 +1635,18 @@ export default function App() {
   const hybridBalance = calculateHybridBalance(activeLedgerId)
 
   const createNewLedger = () => {
+    // Find the highest ledger number from existing ledgers
+    const ledgerNumbers = ledgers
+      .map(l => {
+        const match = l.name.match(/Ledger (\d+)/)
+        return match ? parseInt(match[1], 10) : 0
+      })
+      .filter(n => !isNaN(n))
+    const maxNumber = ledgerNumbers.length > 0 ? Math.max(...ledgerNumbers) : 0
+
     const newLedger = {
       id: generateId(),
-      name: `Ledger ${ledgers.length + 1}`,
+      name: `Ledger ${maxNumber + 1}`,
       balance: 0,
       startingBalance: 0,
       lockLedgerStart: true
@@ -6960,7 +6969,7 @@ export default function App() {
 
                       <div className="detail-card">
                         <label>Amount</label>
-                        <div className="detail-value amount">{formatCurrency(selectedHistoryItem.amount)}</div>
+                        <div className={`detail-value amount ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>{formatCurrency(selectedHistoryItem.amount)}</div>
                       </div>
 
                       {selectedHistoryItem.memo && (

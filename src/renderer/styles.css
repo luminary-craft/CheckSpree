@@ -1865,8 +1865,15 @@ body {
 .detail-value.amount {
   font-size: 24px;
   font-weight: 700;
-  color: var(--danger);
   font-variant-numeric: tabular-nums;
+}
+
+.detail-value.amount.negative {
+  color: var(--danger);
+}
+
+.detail-value.amount.positive {
+  color: var(--success);
 }
 
 .line-items-table {
