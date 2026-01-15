@@ -1,0 +1,32 @@
+END USER LICENSE AGREEMENT (EULA)
+SOFTWARE: CheckSpree
+AUTHOR: Luminary Craft
+VERSION: 0.3.0+
+
+1. GRANT OF LICENSE
+This project is private and proprietary. The Author grants the User a non-exclusive, non-transferable license to install and use this Software for personal or business financial management. Redistribution, reverse engineering, or commercial resale of the binary or source code without written permission is strictly prohibited.
+
+2. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. THE AUTHOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE OR THAT DATA WILL BE SECURE FROM ALL THREATS.
+
+3. LIMITATION OF LIABILITY
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE. 
+
+SPECIFIC FINANCIAL DISCLAIMER:
+This software is a tool for printing checks and tracking ledgers. The User is solely responsible for:
+a) Verifying the accuracy of all printed data (payee, amount, date, MICR/banking numbers) before distribution.
+b) Verifying ledger balances and transaction history against actual bank records.
+The Author assumes no liability for overdraft fees, printing errors, rejected checks, or discrepancies between the software's ledger and actual bank accounts.
+
+4. DATA PRIVACY & SECURITY
+A. Local-First Architecture:
+The Software stores all data (ledgers, profiles, history) locally on the User's device. No financial data is transmitted to the Author or any cloud service.
+
+B. Encryption & Security:
+The Software utilizes system-level encryption (Electron safeStorage) to protect sensitive settings at rest where available. However, the Author cannot guarantee the integrity of this encryption in the event of operating system failure, user password loss, or hardware corruption. The User is responsible for maintaining the security of their physical device.
+
+C. Backups:
+The Software provides tools for creating encrypted and portable backups. The Software does NOT automatically back up data to the cloud. It is the User's sole responsibility to perform regular backups to prevent data loss.
+
+D. Connectivity:
+The Software is designed to function offline. It may periodically attempt to connect to the official repository (GitHub) for the sole purpose of checking for software updates. No user data or financial records are shared during this process.

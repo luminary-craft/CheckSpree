@@ -66,7 +66,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "CheckSpree",
-      "artifactName": "CheckSpree-Setup-${version}.${ext}"
+      "artifactName": "CheckSpree-Setup-${version}.${ext}",
+      "license": "resources/eula.txt"
     },
     "portable": {
       "artifactName": "CheckSpree-Portable.exe"

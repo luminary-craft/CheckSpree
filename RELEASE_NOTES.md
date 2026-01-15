@@ -1,4 +1,4 @@
-# CheckSpree v0.3.0 Release Notes
+# CheckSpree v0.3.0: The Ledger Pro Update
 
 This release introduces significant improvements to data security, ledger management, and the layout editor.
 
