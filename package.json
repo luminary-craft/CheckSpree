@@ -2,6 +2,7 @@
   "name": "CheckSpree",
   "version": "0.3.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "description": "Simple, accurate check printing and financial tracking.",
   "author": "Sebastian Basaldua <sebastian@luminarycraft.com>",
   "repository": {
