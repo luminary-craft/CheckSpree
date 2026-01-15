@@ -772,8 +772,14 @@ function PasswordModal({ title, message, value, onChange, onSubmit, onCancel, er
 
 export default function App() {
   const [model, setModel] = useState(DEFAULT_MODEL)
+
+  // Layout Editor State
   const [editMode, setEditMode] = useState(false)
-  const [selected, setSelected] = useState('payee')
+  const [selected, setSelected] = useState([]) // Array of selected field keys
+  const [selectionBox, setSelectionBox] = useState(null) // { startX, startY, currentX, currentY } for marquee
+  const [showFriendlyLabel, setShowFriendlyLabel] = useState(true)
+  const paperRef = useRef(null)
+
   const [isPrinting, setIsPrinting] = useState(false)
   const [templateDataUrl, setTemplateDataUrl] = useState(null)
   const [templateLoadError, setTemplateLoadError] = useState(null)
@@ -3438,14 +3444,48 @@ export default function App() {
     e.preventDefault()
     e.stopPropagation()
 
-    setSelected(key)
-    const f = model.fields[key]
+    let newSelected = [...selected]
+    const isMultiSelect = e.ctrlKey || e.metaKey || e.shiftKey
+
+    if (isMultiSelect) {
+      if (newSelected.includes(key)) {
+        newSelected = newSelected.filter(k => k !== key)
+      } else {
+        newSelected.push(key)
+      }
+    } else {
+      if (!newSelected.includes(key)) {
+        newSelected = [key]
+      }
+    }
+
+    setSelected(newSelected)
+
+    // If we just deselected the item with a modifier click, don't start dragging
+    if (isMultiSelect && selected.includes(key)) {
+      return
+    }
+
+    // Capture start positions for all selected fields
+    const startFields = {}
+    newSelected.forEach(k => {
+      let f = null
+      if (activeProfile?.layoutMode === 'three_up') {
+        f = model.slotFields?.[activeSlot]?.[k]
+      } else {
+        f = model.fields[k]
+      }
+
+      if (f) {
+        startFields[k] = { ...f }
+      }
+    })
+
     dragRef.current = {
-      key,
       mode: 'move',
       startX: e.clientX,
       startY: e.clientY,
-      startField: { ...f }
+      startFields
     }
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
@@ -3455,8 +3495,15 @@ export default function App() {
     e.preventDefault()
     e.stopPropagation()
 
-    setSelected(key)
-    const f = model.fields[key]
+    setSelected([key]) // Force single selection for resize
+
+    let f = null
+    if (activeProfile?.layoutMode === 'three_up') {
+      f = model.slotFields?.[activeSlot]?.[key]
+    } else {
+      f = model.fields[key]
+    }
+
     dragRef.current = {
       key,
       mode: 'resize',
@@ -3482,6 +3529,34 @@ export default function App() {
     e.currentTarget.setPointerCapture?.(e.pointerId)
   }
 
+  const onPointerDownStage = (e) => {
+    if (!editMode) return
+    if (e.button !== 0) return // Only left click
+
+    const isMultiSelect = e.ctrlKey || e.metaKey || e.shiftKey
+    if (!isMultiSelect) {
+      setSelected([])
+    }
+
+    if (!paperRef.current) return
+    const paperRect = paperRef.current.getBoundingClientRect()
+    const startX = (e.clientX - paperRect.left) / (PX_PER_IN * model.view.zoom)
+    const startY = (e.clientY - paperRect.top) / (PX_PER_IN * model.view.zoom)
+
+    setSelectionBox({
+      startX,
+      startY,
+      currentX: startX,
+      currentY: startY,
+      initialSelected: isMultiSelect ? [...selected] : []
+    })
+
+    dragRef.current = {
+      mode: 'marquee'
+    }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+
   const onPointerMove = (e) => {
     const d = dragRef.current
     if (!d) return
@@ -3489,19 +3564,110 @@ export default function App() {
     const dyIn = (e.clientY - d.startY) / (PX_PER_IN * model.view.zoom)
 
     if (d.mode === 'move') {
-      const nx = roundTo(d.startField.x + dxIn, snapStepIn)
-      const ny = roundTo(d.startField.y + dyIn, snapStepIn)
-      setField(d.key, {
-        x: clamp(nx, 0, model.layout.widthIn - 0.2),
-        y: clamp(ny, 0, stageHeightIn - 0.2)
+      // Calculate new positions for all selected fields
+      const updates = {}
+      Object.entries(d.startFields).forEach(([key, startField]) => {
+        const nx = roundTo(startField.x + dxIn, snapStepIn)
+        const ny = roundTo(startField.y + dyIn, snapStepIn)
+        updates[key] = {
+          x: clamp(nx, 0, model.layout.widthIn - 0.2),
+          y: clamp(ny, 0, stageHeightIn - 0.2)
+        }
       })
+
+      // Batch update
+      if (activeProfile?.layoutMode === 'three_up') {
+        setModel(m => {
+          const currentSlotFields = m.slotFields[activeSlot]
+          const newSlotFields = { ...currentSlotFields }
+          let changed = false
+          Object.entries(updates).forEach(([key, patch]) => {
+            if (newSlotFields[key]) {
+              newSlotFields[key] = { ...newSlotFields[key], ...patch }
+              changed = true
+            }
+          })
+          if (!changed) return m
+          return {
+            ...m,
+            slotFields: {
+              ...m.slotFields,
+              [activeSlot]: newSlotFields
+            }
+          }
+        })
+      } else {
+        setModel(m => {
+          const newFields = { ...m.fields }
+          let changed = false
+          Object.entries(updates).forEach(([key, patch]) => {
+            if (newFields[key]) {
+              newFields[key] = { ...newFields[key], ...patch }
+              changed = true
+            }
+          })
+          if (!changed) return m
+          return { ...m, fields: newFields }
+        })
+      }
     } else if (d.mode === 'resize') {
       const nw = roundTo(d.startField.w + dxIn, snapStepIn)
       const nh = roundTo(d.startField.h + dyIn, snapStepIn)
+
       setField(d.key, {
         w: clamp(nw, 0.2, model.layout.widthIn - d.startField.x),
         h: clamp(nh, 0.18, stageHeightIn - d.startField.y)
       })
+    } else if (d.mode === 'marquee') {
+      // Calculate selection box
+      if (!paperRef.current) return
+      const paperRect = paperRef.current.getBoundingClientRect()
+      const currentX = (e.clientX - paperRect.left) / (PX_PER_IN * model.view.zoom)
+      const currentY = (e.clientY - paperRect.top) / (PX_PER_IN * model.view.zoom)
+
+      setSelectionBox(prev => ({ ...prev, currentX, currentY }))
+
+      // Calculate intersection
+      const boxX = Math.min(selectionBox.startX, currentX)
+      const boxY = Math.min(selectionBox.startY, currentY)
+      const boxW = Math.abs(currentX - selectionBox.startX)
+      const boxH = Math.abs(currentY - selectionBox.startY)
+
+      const newSelection = [...selectionBox.initialSelected]
+
+      const fieldsToCheck = activeProfile?.layoutMode === 'three_up'
+        ? Object.entries(model.slotFields[activeSlot] || {})
+        : Object.entries(model.fields)
+
+      fieldsToCheck.forEach(([key, f]) => {
+        let fieldY = f.y
+        // Handle stub offsets
+        const isStub1Field = key.startsWith('stub1_')
+        const isStub2Field = key.startsWith('stub2_')
+
+        if (isStub1Field) {
+          const originalStub1Start = 3.0
+          const relativeY = f.y - originalStub1Start
+          fieldY = model.layout.checkHeightIn + relativeY
+        } else if (isStub2Field) {
+          const originalStub2Start = 6.0
+          const relativeY = f.y - originalStub2Start
+          fieldY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
+        }
+
+        if (
+          boxX < f.x + f.w &&
+          boxX + boxW > f.x &&
+          boxY < fieldY + f.h &&
+          boxY + boxH > fieldY
+        ) {
+          if (!newSelection.includes(key)) {
+            newSelection.push(key)
+          }
+        }
+      })
+
+      setSelected(newSelection)
     } else if (d.mode === 'cutLine') {
       const newY = roundTo(d.startValue + dyIn, snapStepIn)
       // Constrain cut line 1 between 1" and 6" (before second cut line)
@@ -3521,6 +3687,9 @@ export default function App() {
 
   const onPointerUp = (e) => {
     if (dragRef.current) {
+      if (dragRef.current.mode === 'marquee') {
+        setSelectionBox(null)
+      }
       dragRef.current = null
       // Release pointer capture if it was set
       if (e?.target?.releasePointerCapture && e.pointerId) {
@@ -5705,63 +5874,86 @@ export default function App() {
                     {editMode && (
                       <div className="card">
                         <h4>Selected Field</h4>
-                        <div className="field">
-                          <label>Field</label>
-                          <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-                            {Object.keys(model.fields).map((k) => (
-                              <option value={k} key={k}>{model.fields[k].label || k}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="field-row">
-                          <div className="field">
-                            <label>X (in)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={model.fields[selected].x}
-                              onChange={(e) => setField(selected, { x: parseFloat(e.target.value) || 0 })}
-                            />
+                        {selected.length === 0 ? (
+                          <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '8px 0' }}>No field selected</div>
+                        ) : selected.length > 1 ? (
+                          <div>
+                            <div style={{ marginBottom: '12px' }}>{selected.length} fields selected</div>
+                            <button className="btn ghost small full-width" onClick={() => setSelected([])}>Clear Selection</button>
                           </div>
-                          <div className="field">
-                            <label>Y (in)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={model.fields[selected].y}
-                              onChange={(e) => setField(selected, { y: parseFloat(e.target.value) || 0 })}
-                            />
-                          </div>
-                        </div>
-                        <div className="field-row">
-                          <div className="field">
-                            <label>Width (in)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={model.fields[selected].w}
-                              onChange={(e) => setField(selected, { w: parseFloat(e.target.value) || 0.2 })}
-                            />
-                          </div>
-                          <div className="field">
-                            <label>Height (in)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={model.fields[selected].h}
-                              onChange={(e) => setField(selected, { h: parseFloat(e.target.value) || 0.18 })}
-                            />
-                          </div>
-                        </div>
-                        <div className="field">
-                          <label>Font Size (in)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={model.fields[selected].fontIn}
-                            onChange={(e) => setField(selected, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
-                          />
-                        </div>
+                        ) : (
+                          (() => {
+                            const key = selected[0]
+                            const f = activeProfile?.layoutMode === 'three_up'
+                              ? model.slotFields?.[activeSlot]?.[key]
+                              : model.fields[key]
+
+                            if (!f) return <div>Field not found</div>
+
+                            return (
+                              <>
+                                <div className="field">
+                                  <label>Field</label>
+                                  <select value={key} onChange={(e) => setSelected([e.target.value])}>
+                                    {Object.keys(activeProfile?.layoutMode === 'three_up' ? model.slotFields?.[activeSlot] || {} : model.fields).map((k) => {
+                                      const field = activeProfile?.layoutMode === 'three_up' ? model.slotFields?.[activeSlot]?.[k] : model.fields[k]
+                                      return <option value={k} key={k}>{field?.label || k}</option>
+                                    })}
+                                  </select>
+                                </div>
+                                <div className="field-row">
+                                  <div className="field">
+                                    <label>X (in)</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={f.x}
+                                      onChange={(e) => setField(key, { x: parseFloat(e.target.value) || 0 })}
+                                    />
+                                  </div>
+                                  <div className="field">
+                                    <label>Y (in)</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={f.y}
+                                      onChange={(e) => setField(key, { y: parseFloat(e.target.value) || 0 })}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="field-row">
+                                  <div className="field">
+                                    <label>Width (in)</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={f.w}
+                                      onChange={(e) => setField(key, { w: parseFloat(e.target.value) || 0.2 })}
+                                    />
+                                  </div>
+                                  <div className="field">
+                                    <label>Height (in)</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={f.h}
+                                      onChange={(e) => setField(key, { h: parseFloat(e.target.value) || 0.18 })}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="field">
+                                  <label>Font Size (in)</label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={f.fontIn}
+                                    onChange={(e) => setField(key, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                                  />
+                                </div>
+                              </>
+                            )
+                          })()
+                        )}
                       </div>
                     )}
 
@@ -5809,8 +6001,21 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="paperWrap">
-              <div className="paper" style={paperStyle}>
+            <div className="paperWrap" onPointerDown={onPointerDownStage}>
+              <div className="paper" style={paperStyle} ref={paperRef}>
+                {selectionBox && (
+                  <div style={{
+                    position: 'absolute',
+                    left: Math.min(selectionBox.startX, selectionBox.currentX) + 'in',
+                    top: Math.min(selectionBox.startY, selectionBox.currentY) + 'in',
+                    width: Math.abs(selectionBox.currentX - selectionBox.startX) + 'in',
+                    height: Math.abs(selectionBox.currentY - selectionBox.startY) + 'in',
+                    border: '1px solid #3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    pointerEvents: 'none',
+                    zIndex: 9999
+                  }} />
+                )}
                 {/* Three-up visual cut lines (perforation marks) - FIXED position */}
                 {activeProfile?.layoutMode === 'three_up' && (
                   <>
@@ -6136,7 +6341,7 @@ export default function App() {
                           isReadOnly = true
                         }
 
-                        const isSelected = editMode && selected === key
+                        const isSelected = editMode && selected.includes(key)
                         // Use stub font size for stub fields, check font size for others
                         const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
 
@@ -6224,7 +6429,7 @@ export default function App() {
                       {preferences.showCheckNumber && !Object.keys(slot ? model.slotFields[slot] : model.fields).includes('checkNumber') && (
                         <div
                           key="manual-check-number"
-                          className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected === 'checkNumber' ? 'selected' : ''}`}
+                          className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected.includes('checkNumber') ? 'selected' : ''}`}
                           style={{
                             left: '7.8in',
                             top: '0.15in',
@@ -6235,7 +6440,7 @@ export default function App() {
                             if (!editMode) return
                             e.preventDefault()
                             e.stopPropagation()
-                            setSelected('checkNumber')
+                            setSelected(['checkNumber'])
                             // Create synthetic field in the model if it doesn't exist
                             const checkNumberField = DEFAULT_FIELDS.checkNumber
                             if (slot) {
