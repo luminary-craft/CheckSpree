@@ -4418,7 +4418,7 @@ export default function App() {
                                 setPreferences(prev => ({ ...prev, allowUserLedgerManagement: !prev.allowUserLedgerManagement }))
                               }}
                             />
-                            <span className="slider round"></span>
+                            <span className="toggle-slider"></span>
                           </label>
                         </div>
                       </div>
