@@ -5,3 +5,14 @@
 - Update Ledger to ux/ui. Clicking the Current Balance ammount should open an updated history modal that allows the admin (or user allowed to edit ledger) to edit the balance, add income entry, remove entries (which restore to the ledger balance when done), and transfer funds to other ledgers. Ensure the history modal is able to be sorted by date, amount, and check number. Ensure the current ledger functionality remains in place where only the check history of that ledger is displayed, and if the "All History" button is pressed at the top it is the same kind of modal but it shows the history of all ledgers. Ensure the history modal is able to be sorted by date, amount, and check number.
 - Additional UI updates for the selection and editing of the ledgers, it is currently a little clunky, needing to press the 3 dots to open the available ledgers, and clicking the ledger to rename it, with a trashcan that is not themed correctly to delete the ledger. Lets make it so that there is a dropdown of the ledgers and when in admin mode when the ledgers are listed, the user can click the ledger to display it, or click a pencil icon to rename, or click the tashcan icon to delete it. The Initial Account Balance functionality can remain, but tweak the field to have proper currency formatting. Also, only admin should be able to make new ledgers, rename ledgers, and delete ledgers, but if the admin clicks the checkbox "All Standard Users to Edit Balance" they should be able to make new, rename, and delete ledgers. Lets also turn that into a toggle to match our other theme. The only time a new ledger is able to be made when admin mode isn't active and the "Allow standard users to edit balance" isn't checked is under the special condition that an entry comes via an import that has aledger that does not exist. That is when a modal appears saying the ledger doesn't exist and the user decides if it should generate a new 0 balance ledger with that name, or use a different ledger.
 - [x] Edit Layout mode: Allow for drag and select of multiple fields to move them in a group.
+- In Standard Layout, allow the user to order the stub and check sections
+- GL Code report.
+- Edit Layout mode: let the resizing icon take priority over grabbing the field.
+- Ensure previous field entry is still there if it wasn't recorded when closed out.
+- Clear Form, Clear Ledger, Clear History
+- UI: Calendar icon is black on dark blue. Needs to be white.
+- Field memory and autofilling
+- Address field for Check Display
+- Add font options (bold, italic, etc.)
+- Export to PDF or CSV format
+- Make number input easier, perhaps use method where user types in number only and the last two digits are the cents.
