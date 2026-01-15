@@ -31,6 +31,9 @@ A professional check printing application built with Electron that treats printi
 - Rename ledgers on-the-fly
 - View projected balance before recording check
 - Overdraft warnings when balance would go negative
+- **Global Permissions**: Admin can toggle "Allow standard users to manage ledgers"
+- **Auto-Routing**: Imports with a "Ledger" column automatically route transactions to the correct ledger
+- **Auto-Creation**: New ledgers are created automatically during import if they don't exist
 
 ### Check Profiles
 - Save and load different check configurations
@@ -70,6 +73,8 @@ A professional check printing application built with Electron that treats printi
   - Column mapping with auto-detection
   - Queue persists between sessions
   - Edit amounts or details in queue before processing
+  - **CSV Template**: Downloadable template to ensure correct formatting
+  - **Multi-Ledger Support**: "Ledger" column automatically assigns transactions
 
 - **Export**: Enhanced CSV reports with:
   - Grand totals across selected ledgers
@@ -89,6 +94,9 @@ A professional check printing application built with Electron that treats printi
 - Admin lock/unlock for settings protection
 - Field type support: text, textarea, date, amount
 - Custom field creation and deletion
+- **Multi-Select**: Hold Ctrl/Shift to select multiple fields
+- **Marquee Selection**: Drag a box on the background to select multiple fields
+- **Group Dragging**: Move multiple selected fields simultaneously
 - **Independent Display Toggles**: Show/Hide Check Number and Date independently in all modes, including 3-Up layout
 - **Batch Print Error Handling**: Pauses on failure with options to Skip & Continue or Stop Batch, ensuring no checks are recorded if they didn't physically print
 
@@ -96,7 +104,7 @@ A professional check printing application built with Electron that treats printi
 - One-click backup of all application data
 - Export to portable JSON format
 - Includes all ledgers, profiles, check history, and settings
-- Encrypted storage on disk (when available)
+- **Encrypted Backups**: Secure your data with a user-generated password
 - Auto-upgrade from legacy plain-text format
 
 ## Installation & Setup
@@ -440,6 +448,7 @@ React hooks for local state:
 - Automatic encryption when available on system
 - Graceful fallback to plain text if unavailable
 - Legacy data auto-upgraded to encrypted format
+- **Manual Backup Encryption**: User-defined passwords for portable backup files
 
 ### Admin Protection
 - Password-protected admin access
@@ -517,6 +526,6 @@ For issues or questions:
 
 ---
 
-**Version**: 0.1.1
+**Version**: 0.3.0
 **Last Updated**: January 2026
 **Built with**: Electron, React, and attention to detail
