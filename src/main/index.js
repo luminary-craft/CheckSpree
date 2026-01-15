@@ -983,6 +983,16 @@ ipcMain.handle('updater:install', () => {
   autoUpdater.quitAndInstall()
 })
 
+// Open external URL in default browser
+ipcMain.handle('shell:openExternal', async (_evt, url) => {
+  try {
+    await shell.openExternal(url)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
 // Check for updates when app is ready (production only)
 app.on('ready', () => {
   if (process.env.NODE_ENV !== 'development') {

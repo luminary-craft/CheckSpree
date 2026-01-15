@@ -36,5 +36,8 @@ contextBridge.exposeInMainWorld('cs2', {
     ipcRenderer.on('update-status', subscription)
     // Return cleanup function
     return () => ipcRenderer.removeListener('update-status', subscription)
-  }
+  },
+
+  // Open external URL in default browser
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url)
 })
