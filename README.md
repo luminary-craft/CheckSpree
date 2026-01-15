@@ -1,4 +1,5 @@
 # CheckSpree
+> **Note:** This is a proprietary application. Source code is provided for inspection and educational purposes only.
 
 A professional check printing application built with Electron that treats printing as a **physical-units problem** for precise, reliable output.
 
