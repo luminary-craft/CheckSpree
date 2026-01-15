@@ -21,8 +21,15 @@
   --radius-sm: 8px;
 }
 
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
 
 body {
   font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
@@ -39,23 +46,27 @@ body {
 /* ===== Global Scrollbar Styling ===== */
 ::-webkit-scrollbar {
   width: 8px;
-  height: 8px; /* For horizontal scrollbars */
+  height: 8px;
+  /* For horizontal scrollbars */
 }
 
 /* The Track (Background) */
 ::-webkit-scrollbar-track {
-  background: transparent; /* Or a very dark grey like #0f172a */
+  background: transparent;
+  /* Or a very dark grey like #0f172a */
 }
 
 /* The Thumb (The moving part) */
 ::-webkit-scrollbar-thumb {
-  background: #334155; /* Slate-700 */
+  background: #334155;
+  /* Slate-700 */
   border-radius: 4px;
 }
 
 /* Hover State */
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569; /* Slate-600 */
+  background: #475569;
+  /* Slate-600 */
 }
 
 /* ===== App Container ===== */
@@ -335,7 +346,9 @@ body {
   overflow-x: hidden;
 }
 
-.section, .section-main, .section-ledger {
+.section,
+.section-main,
+.section-ledger {
   margin-bottom: 8px;
 }
 
@@ -378,7 +391,7 @@ body {
   color: var(--text-secondary);
 }
 
-.card + .card {
+.card+.card {
   margin-top: 10px;
 }
 
@@ -434,9 +447,12 @@ body {
 
 /* Pulse animation for unsaved changes */
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4);
   }
+
   50% {
     box-shadow: 0 0 8px 2px rgba(56, 189, 248, 0.6);
   }
@@ -550,7 +566,7 @@ body {
   gap: 8px;
 }
 
-.import-actions-row > button {
+.import-actions-row>button {
   flex: 1;
 }
 
@@ -1004,11 +1020,11 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.toggle-switch input[type="checkbox"]:checked + .toggle-slider {
+.toggle-switch input[type="checkbox"]:checked+.toggle-slider {
   background: var(--accent);
 }
 
-.toggle-switch input[type="checkbox"]:checked + .toggle-slider::before {
+.toggle-switch input[type="checkbox"]:checked+.toggle-slider::before {
   transform: translateX(20px);
 }
 
@@ -1016,7 +1032,7 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.toggle-switch input[type="checkbox"]:checked:hover + .toggle-slider {
+.toggle-switch input[type="checkbox"]:checked:hover+.toggle-slider {
   background: #5bcefa;
 }
 
@@ -1326,7 +1342,7 @@ body {
   background:
     radial-gradient(ellipse 60% 40% at 70% 30%, rgba(56, 189, 248, 0.03), transparent 60%),
     radial-gradient(circle at 30% 70%, rgba(139, 92, 246, 0.02), transparent 60%),
-    linear-gradient(180deg, rgba(0,0,0,0.05) 0%, transparent 20%);
+    linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, transparent 20%);
 }
 
 .paperWrap {
@@ -1578,7 +1594,7 @@ body {
   margin-top: 2px;
 }
 
-.ledger-checkbox-list .checkbox-label > span {
+.ledger-checkbox-list .checkbox-label>span {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1959,16 +1975,44 @@ body {
 }
 
 /* ===== Print Mode ===== */
-.printing .templateImg { display: none !important; }
-.printing .checkStage { background-image: none !important; }
-.printing .check-face-container { background-image: none !important; }
-.printing .fieldBox { border: none !important; background: transparent !important; box-shadow: none !important; }
+.printing .templateImg {
+  display: none !important;
+}
+
+.printing .checkStage {
+  background-image: none !important;
+}
+
+.printing .check-face-container {
+  background-image: none !important;
+}
+
+.printing .fieldBox {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .printing .fieldBox .label,
-.printing .fieldBox .handle { display: none !important; }
-.printing .stub-control-row { display: none !important; }
-.printing .stub-add-button { display: none !important; }
-.printing .stub-remove-button { display: none !important; }
-.printing .stub-divider-with-remove { display: none !important; }
+.printing .fieldBox .handle {
+  display: none !important;
+}
+
+.printing .stub-control-row {
+  display: none !important;
+}
+
+.printing .stub-add-button {
+  display: none !important;
+}
+
+.printing .stub-remove-button {
+  display: none !important;
+}
+
+.printing .stub-divider-with-remove {
+  display: none !important;
+}
 
 @media print {
   @page {
@@ -1976,7 +2020,8 @@ body {
     margin: 0 !important;
   }
 
-  html, body {
+  html,
+  body {
     width: 100%;
     height: 100%;
     margin: 0 !important;
@@ -1986,11 +2031,23 @@ body {
   }
 
   /* Hide all UI elements and modals */
-  .topbar, .side { display: none !important; }
-  .no-print, .modal-overlay, .modal-content, .batch-progress-container { display: none !important; }
+  .topbar,
+  .side {
+    display: none !important;
+  }
+
+  .no-print,
+  .modal-overlay,
+  .modal-content,
+  .batch-progress-container {
+    display: none !important;
+  }
 
   /* Force layout to be visible */
-  .layout { display: block !important; }
+  .layout {
+    display: block !important;
+  }
+
   .workspace {
     padding: 0 !important;
     overflow: visible !important;
@@ -1998,6 +2055,7 @@ body {
     display: block !important;
     visibility: visible !important;
   }
+
   .paperWrap {
     min-width: auto !important;
     display: flex !important;
@@ -2028,16 +2086,25 @@ body {
 
   /* Apply calibration offset and three-up offset when printing */
   .checkStage {
-    transform: translate(
-      var(--offset-x, 0in),
-      var(--offset-y, 0in)
-    ) !important;
+    transform: translate(var(--offset-x, 0in),
+        var(--offset-y, 0in)) !important;
   }
 
-  .stub-control-row { display: none !important; }
-  .stub-add-button { display: none !important; }
-  .stub-remove-button { display: none !important; }
-  .stub-divider-with-remove { display: none !important; }
+  .stub-control-row {
+    display: none !important;
+  }
+
+  .stub-add-button {
+    display: none !important;
+  }
+
+  .stub-remove-button {
+    display: none !important;
+  }
+
+  .stub-divider-with-remove {
+    display: none !important;
+  }
 }
 
 /* Toast notification animation */
@@ -2046,6 +2113,7 @@ body {
     transform: translateX(400px);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -2150,7 +2218,7 @@ body {
 }
 
 /* Adjust toast position when update notification is shown */
-.update-notification ~ div[style*="bottom: 24px"] {
+.update-notification~div[style*="bottom: 24px"] {
   bottom: 120px !important;
 }
 
@@ -2167,27 +2235,27 @@ body {
   border-width: 0;
 }
 
-.peer:checked ~ .peer-checked\:bg-blue-600 {
+.peer:checked~.peer-checked\:bg-blue-600 {
   background-color: #2563eb;
 }
 
-.peer:checked ~ .peer-checked\:after\:translate-x-full::after {
+.peer:checked~.peer-checked\:after\:translate-x-full::after {
   transform: translateX(100%);
 }
 
-.peer:checked ~ .peer-checked\:after\:border-white::after {
+.peer:checked~.peer-checked\:after\:border-white::after {
   border-color: #fff;
 }
 
-.peer:focus ~ .peer-focus\:outline-none {
+.peer:focus~.peer-focus\:outline-none {
   outline: none;
 }
 
-.peer:focus ~ .peer-focus\:ring-4 {
+.peer:focus~.peer-focus\:ring-4 {
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
 }
 
-.peer:focus ~ .peer-focus\:ring-blue-300 {
+.peer:focus~.peer-focus\:ring-blue-300 {
   box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.5);
 }
 
@@ -2208,7 +2276,7 @@ body {
   justify-content: center;
 }
 
-.space-x-3 > * + * {
+.space-x-3>*+* {
   margin-left: 0.75rem;
 }
 
@@ -2336,4 +2404,50 @@ body {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #475569;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked+.slider {
+  background-color: #3b82f6;
+}
+
+input:checked+.slider:before {
+  transform: translateX(14px);
 }

@@ -92,7 +92,8 @@ const DEFAULT_PREFERENCES = {
   batchPrintMode: 'interactive', // 'interactive' | 'silent' | 'pdf'
   batchPrinterDeviceName: null,
   batchPrinterFriendlyName: null,
-  batchPdfExportPath: null
+  batchPdfExportPath: null,
+  allowUserLedgerManagement: false
 }
 
 const DEFAULT_MODEL = {
@@ -118,6 +119,8 @@ function roundTo(n, step) {
   const s = step || 1
   return Math.round(n / s) * s
 }
+
+
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
@@ -679,6 +682,15 @@ function PlusIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PencilIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
     </svg>
   )
 }
@@ -1765,11 +1777,11 @@ export default function App() {
     }
   }
 
-  const renameLedger = (ledgerId, newName) => {
+  const renameLedger = (ledgerId, newName, shouldClose = true) => {
     setLedgers(ledgers.map(l =>
       l.id === ledgerId ? { ...l, name: newName } : l
     ))
-    setEditingLedgerName(null)
+    if (shouldClose) setEditingLedgerName(null)
   }
 
   const updateLedgerBalance = (ledgerId, newBalance) => {
@@ -4050,96 +4062,145 @@ export default function App() {
             <div className="card" style={{ padding: '20px', marginBottom: '16px' }}>
               {/* Active Ledger Selector */}
               <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <select
-                    className="profile-select"
-                    value={activeLedgerId}
-                    onChange={(e) => setActiveLedgerId(e.target.value)}
-                    style={{ flex: 1 }}
-                  >
-                    {ledgers.map(l => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn-icon"
-                    onClick={() => setShowLedgerManager(!showLedgerManager)}
-                    title="Manage ledgers"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="3" r="1.5" fill="currentColor" />
-                      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
-                      <circle cx="8" cy="13" r="1.5" fill="currentColor" />
-                    </svg>
-                  </button>
+                <div
+                  className="ledger-selector-trigger"
+                  onClick={() => setShowLedgerManager(!showLedgerManager)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #475569',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Ledger:</span>
+                    <span style={{ fontWeight: 600, color: '#f1f5f9' }}>{activeLedger?.name || 'Select Ledger'}</span>
+                  </div>
+                  <ChevronIcon open={showLedgerManager} />
                 </div>
 
                 {/* Ledger Manager */}
                 {showLedgerManager && (
-                  <div className="profile-manager" style={{ marginTop: '12px' }}>
-                    <div className="profile-list">
-                      {ledgers.map(l => (
-                        <div key={l.id} style={{ marginBottom: '12px' }}>
-                          <div className={`profile-item ${l.id === activeLedgerId ? 'active' : ''}`}>
-                            {editingLedgerName === l.id ? (
-                              <input
-                                className="profile-name-input"
-                                defaultValue={l.name}
-                                autoFocus
-                                onBlur={(e) => {
-                                  if (e.target.value.trim()) {
-                                    renameLedger(l.id, e.target.value.trim())
-                                  } else {
-                                    setEditingLedgerName(null)
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && e.target.value.trim()) {
-                                    renameLedger(l.id, e.target.value.trim())
-                                  } else if (e.key === 'Escape') {
-                                    setEditingLedgerName(null)
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <>
-                                <span className="profile-name" onClick={() => setEditingLedgerName(l.id)}>
-                                  {l.name}
-                                </span>
-                                {ledgers.length > 1 && (
+                  <div className="ledger-dropdown-list" style={{
+                    marginTop: '8px',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #475569',
+                    borderRadius: '6px',
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                  }}>
+                    {ledgers.map(l => {
+                      const isEditing = editingLedgerName === l.id
+                      const canEdit = !preferences.adminLocked || preferences.allowUserLedgerManagement
+
+                      return (
+                        <div key={l.id} style={{ borderBottom: '1px solid #334155' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '10px 12px',
+                              backgroundColor: l.id === activeLedgerId ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                              borderLeft: l.id === activeLedgerId ? '3px solid #3b82f6' : '3px solid transparent'
+                            }}
+                          >
+                            <div
+                              onClick={() => {
+                                setActiveLedgerId(l.id)
+                                setShowLedgerManager(false)
+                              }}
+                              style={{ flex: 1, cursor: 'pointer', fontWeight: l.id === activeLedgerId ? 600 : 400 }}
+                            >
+                              {l.name}
+                            </div>
+
+                            {canEdit && (
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  className="btn-icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingLedgerName(isEditing ? null : l.id)
+                                  }}
+                                  title="Edit ledger settings"
+                                  style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}
+                                >
+                                  <PencilIcon />
+                                </button>
+                                {ledgers.length > 1 && (!preferences.adminLocked || preferences.allowUserLedgerManagement) && (
                                   <button
-                                    className="profile-delete"
-                                    onClick={() => deleteLedger(l.id)}
+                                    className="btn-icon danger"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      deleteLedger(l.id)
+                                    }}
                                     title="Delete ledger"
                                   >
                                     <TrashIcon />
                                   </button>
                                 )}
-                              </>
+                              </div>
                             )}
                           </div>
 
-                          {/* Ledger Settings (Hybrid Ledger) */}
-                          {l.id === activeLedgerId && (
+                          {/* Inline Edit Form */}
+                          {isEditing && (
                             <div style={{
-                              marginTop: '8px',
                               padding: '12px',
-                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                              borderRadius: '6px',
-                              border: '1px solid rgba(255, 255, 255, 0.08)',
-                              fontSize: '13px'
+                              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                              borderTop: '1px solid #334155'
                             }}>
-                              <div style={{ marginBottom: '10px' }}>
-                                <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '12px' }}>
-                                  Initial Account Balance
-                                </label>
+                              {/* Name Edit */}
+                              <div style={{ marginBottom: '12px' }}>
+                                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Ledger Name</label>
+                                <input
+                                  className="profile-name-input"
+                                  defaultValue={l.name}
+                                  autoFocus
+                                  onBlur={(e) => {
+                                    if (e.target.value.trim()) renameLedger(l.id, e.target.value.trim(), false)
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && e.target.value.trim()) {
+                                      renameLedger(l.id, e.target.value.trim())
+                                      setEditingLedgerName(null)
+                                    } else if (e.key === 'Escape') {
+                                      setEditingLedgerName(null)
+                                    }
+                                  }}
+                                  style={{ width: '100%' }}
+                                />
+                              </div>
+
+                              {/* Initial Balance */}
+                              <div style={{ marginBottom: '12px' }}>
+                                <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Initial Balance</label>
                                 <input
                                   type="text"
-                                  value={l.startingBalance || 0}
+                                  value={l.startingBalance === 0 ? '' : l.startingBalance}
+                                  placeholder="0.00"
                                   onChange={(e) => {
-                                    const val = e.target.value.replace(/[^0-9.-]/g, '')
+                                    // Allow numbers and one decimal point
+                                    const val = e.target.value
+                                    if (/^\d*\.?\d{0,2}$/.test(val)) {
+                                      setLedgers(ledgers.map(ledger =>
+                                        ledger.id === l.id ? { ...ledger, startingBalance: val } : ledger
+                                      ))
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onBlur={(e) => {
+                                    // Format on blur
+                                    const val = parseFloat(e.target.value) || 0
                                     setLedgers(ledgers.map(ledger =>
-                                      ledger.id === l.id ? { ...ledger, startingBalance: parseFloat(val) || 0 } : ledger
+                                      ledger.id === l.id ? { ...ledger, startingBalance: val } : ledger
                                     ))
                                   }}
                                   style={{
@@ -4151,42 +4212,48 @@ export default function App() {
                                     color: '#f1f5f9',
                                     fontSize: '13px'
                                   }}
-                                  placeholder="0.00"
                                 />
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <label style={{ color: '#94a3b8', fontSize: '12px', flex: 1 }}>
-                                  Allow Standard Users to Edit Balance
-                                </label>
-                                <input
-                                  type="checkbox"
-                                  checked={!l.lockLedgerStart}
-                                  onChange={(e) => {
-                                    setLedgers(ledgers.map(ledger =>
-                                      ledger.id === l.id ? { ...ledger, lockLedgerStart: !e.target.checked } : ledger
-                                    ))
-                                  }}
-                                  style={{
-                                    width: '16px',
-                                    height: '16px',
-                                    cursor: 'pointer'
-                                  }}
-                                />
-                              </div>
-                              <div style={{ marginTop: '8px', fontSize: '11px', color: '#64748b', lineHeight: '1.4' }}>
-                                {l.lockLedgerStart
-                                  ? '🔒 Balance is locked. Users must add deposits/adjustments.'
-                                  : '🔓 Users can directly edit the starting balance.'
-                                }
                               </div>
                             </div>
                           )}
                         </div>
-                      ))}
-                    </div>
-                    <button className="btn btn-sm full-width" onClick={createNewLedger}>
-                      <PlusIcon /> New Ledger
-                    </button>
+                      )
+                    })}
+
+                    {(!preferences.adminLocked || preferences.allowUserLedgerManagement) && (
+                      <button
+                        className="btn ghost full-width"
+                        onClick={createNewLedger}
+                        style={{ borderRadius: 0, borderTop: '1px solid #334155', justifyContent: 'center', padding: '10px' }}
+                      >
+                        <PlusIcon /> New Ledger
+                      </button>
+                    )}
+
+                    {!preferences.adminLocked && (
+                      <div style={{
+                        padding: '12px',
+                        borderTop: '1px solid #334155',
+                        backgroundColor: 'rgba(0, 0, 0, 0.2)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ fontSize: '12px', fontWeight: 500 }}>User Management</div>
+                            <div style={{ fontSize: '10px', color: '#64748b' }}>Allow standard users to manage ledgers</div>
+                          </div>
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={preferences.allowUserLedgerManagement}
+                              onChange={(e) => {
+                                setPreferences(prev => ({ ...prev, allowUserLedgerManagement: !prev.allowUserLedgerManagement }))
+                              }}
+                            />
+                            <span className="slider round"></span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -4248,13 +4315,9 @@ export default function App() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       <div
                         onClick={() => {
-                          if (activeLedger?.lockLedgerStart) {
-                            setToast({ message: 'Balance is managed by Admin. Please add a Deposit/Adjustment instead.', type: 'warning' })
-                            setTimeout(() => setToast(null), 3000)
-                          } else {
-                            setTempBalance(activeLedger?.startingBalance?.toString() || '0')
-                            setEditingBalance(true)
-                          }
+                          setHistoryViewMode('current')
+                          setShowHistory(true)
+                          setShowLedger(false)
                         }}
                         style={{
                           cursor: 'pointer',
@@ -4296,7 +4359,7 @@ export default function App() {
                       </button>
                     </div>
                     <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                      {activeLedger?.lockLedgerStart ? 'Click to view • Use + to adjust' : 'Click to edit starting balance'}
+                      {(!preferences.adminLocked || preferences.allowUserLedgerManagement) ? 'Click to edit starting balance' : 'Click to view • Use + to adjust'}
                     </div>
                   </div>
                 )}
@@ -4389,81 +4452,83 @@ export default function App() {
                   </button>
                 )}
               </div>
-            </div>
-          </section>
+            </div >
+          </section >
 
           {/* Import Queue Panel */}
-          {showImportQueue && importQueue.length > 0 && (
-            <section className="section-import">
-              <div className="card card-import">
-                <div className="import-header">
-                  <h2>Import Queue ({importQueue.length})</h2>
-                  <button className="btn-icon" onClick={() => setShowImportQueue(false)}>×</button>
-                </div>
-
-                <div className="import-actions">
-                  {/* Primary Action - Full Width */}
-                  <button className="btn btn-sm primary full-width" onClick={handleBatchPrintAndRecord}>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Print & Record All
-                  </button>
-
-                  {/* Secondary Actions - Split Row */}
-                  <div className="import-actions-row">
-                    <button className="btn btn-sm" onClick={processAllQueue}>
-                      <CheckIcon /> Record Only
-                    </button>
-                    <button className="btn btn-sm danger" onClick={clearQueue}>
-                      <TrashIcon /> Clear Queue
-                    </button>
+          {
+            showImportQueue && importQueue.length > 0 && (
+              <section className="section-import">
+                <div className="card card-import">
+                  <div className="import-header">
+                    <h2>Import Queue ({importQueue.length})</h2>
+                    <button className="btn-icon" onClick={() => setShowImportQueue(false)}>×</button>
                   </div>
-                </div>
 
-                <div className="import-list">
-                  {importQueue.map(item => {
-                    const isSelected = selectedQueueItems.some(selected => selected.id === item.id)
-                    return (
-                      <div
-                        key={item.id}
-                        className={`import-item ${isSelected ? 'selected' : ''}`}
-                        onClick={() => loadFromQueue(item)}
-                      >
-                        <div className="import-main">
-                          <span className="import-payee">{item.payee || '(no payee)'}</span>
-                          <span className="import-amount">{item.amount ? formatCurrency(sanitizeCurrencyInput(item.amount)) : '-'}</span>
-                        </div>
-                        <div className="import-meta">
-                          {item.date && <span>{item.date}</span>}
-                          {item.memo && <span>{item.memo}</span>}
-                        </div>
-                        <button
-                          className="btn btn-sm danger"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setImportQueue(prev => prev.filter(i => i.id !== item.id))
-                            setSelectedQueueItems(prev => prev.filter(i => i.id !== item.id))
-                          }}
-                          title="Remove from queue"
-                          style={{ marginLeft: 'auto', minWidth: 'fit-content', padding: '4px 8px', cursor: 'pointer' }}
+                  <div className="import-actions">
+                    {/* Primary Action - Full Width */}
+                    <button className="btn btn-sm primary full-width" onClick={handleBatchPrintAndRecord}>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Print & Record All
+                    </button>
+
+                    {/* Secondary Actions - Split Row */}
+                    <div className="import-actions-row">
+                      <button className="btn btn-sm" onClick={processAllQueue}>
+                        <CheckIcon /> Record Only
+                      </button>
+                      <button className="btn btn-sm danger" onClick={clearQueue}>
+                        <TrashIcon /> Clear Queue
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="import-list">
+                    {importQueue.map(item => {
+                      const isSelected = selectedQueueItems.some(selected => selected.id === item.id)
+                      return (
+                        <div
+                          key={item.id}
+                          className={`import-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => loadFromQueue(item)}
                         >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    )
-                  })}
+                          <div className="import-main">
+                            <span className="import-payee">{item.payee || '(no payee)'}</span>
+                            <span className="import-amount">{item.amount ? formatCurrency(sanitizeCurrencyInput(item.amount)) : '-'}</span>
+                          </div>
+                          <div className="import-meta">
+                            {item.date && <span>{item.date}</span>}
+                            {item.memo && <span>{item.memo}</span>}
+                          </div>
+                          <button
+                            className="btn btn-sm danger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setImportQueue(prev => prev.filter(i => i.id !== item.id))
+                              setSelectedQueueItems(prev => prev.filter(i => i.id !== item.id))
+                            }}
+                            title="Remove from queue"
+                            style={{ marginLeft: 'auto', minWidth: 'fit-content', padding: '4px 8px', cursor: 'pointer' }}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="hint">
+                    {activeProfile?.layoutMode === 'three_up'
+                      ? 'Click items to select (up to 3 for sheet)'
+                      : 'Click an item to load it into the form'}
+                  </p>
                 </div>
-                <p className="hint">
-                  {activeProfile?.layoutMode === 'three_up'
-                    ? 'Click items to select (up to 3 for sheet)'
-                    : 'Click an item to load it into the form'}
-                </p>
-              </div>
-            </section>
-          )}
+              </section>
+            )
+          }
 
           {/* Profile Selector - Always Visible */}
           <section className="section">
@@ -4992,679 +5057,589 @@ export default function App() {
           </section>
 
           {/* Check Display Preferences */}
-          {!preferences.adminLocked && (
-            <section className="section">
-              <h3>Check Display</h3>
-              <div className="card">
-                <div className="field">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={!!preferences.showCheckNumber}
-                      onChange={(e) => {
-                        const isChecked = e.target.checked
-                        setPreferences(p => ({ ...p, showCheckNumber: isChecked }))
-                        // In three-up mode, sync autoIncrementCheckNumbers with showCheckNumber
-                        if (activeProfile?.layoutMode === 'three_up') {
-                          setAutoIncrementCheckNumbers(isChecked)
-                        }
-                      }}
-                    />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-label">
-                      {activeProfile?.layoutMode === 'three_up' ? 'Show Check Number & Auto-increment' : 'Show Check Number'}
-                    </span>
-                  </label>
+          {
+            !preferences.adminLocked && (
+              <section className="section">
+                <h3>Check Display</h3>
+                <div className="card">
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={!!preferences.showCheckNumber}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked
+                          setPreferences(p => ({ ...p, showCheckNumber: isChecked }))
+                          // In three-up mode, sync autoIncrementCheckNumbers with showCheckNumber
+                          if (activeProfile?.layoutMode === 'three_up') {
+                            setAutoIncrementCheckNumbers(isChecked)
+                          }
+                        }}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">
+                        {activeProfile?.layoutMode === 'three_up' ? 'Show Check Number & Auto-increment' : 'Show Check Number'}
+                      </span>
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={!!preferences.showDate}
+                        onChange={(e) => setPreferences(p => ({ ...p, showDate: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Show Date</span>
+                    </label>
+                  </div>
+                  <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                    {activeProfile?.layoutMode === 'three_up'
+                      ? 'Toggle visibility of fields on all checks. Hide check numbers if using pre-numbered check stock.'
+                      : 'Toggle visibility of fields on the check. Hide check numbers if using pre-numbered check stock.'}
+                  </small>
                 </div>
-                <div className="field">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={!!preferences.showDate}
-                      onChange={(e) => setPreferences(p => ({ ...p, showDate: e.target.checked }))}
-                    />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-label">Show Date</span>
-                  </label>
-                </div>
-                <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
-                  {activeProfile?.layoutMode === 'three_up'
-                    ? 'Toggle visibility of fields on all checks. Hide check numbers if using pre-numbered check stock.'
-                    : 'Toggle visibility of fields on the check. Hide check numbers if using pre-numbered check stock.'}
-                </small>
-              </div>
-            </section>
-          )}
+              </section>
+            )
+          }
 
           {/* Text & Font Settings */}
-          {!preferences.adminLocked && (
-            <section className="section">
-              <h3>Text Settings</h3>
-              <div className="card">
-                <div className="field">
-                  <label>Font Family</label>
-                  <select
-                    value={preferences.fontFamily}
-                    onChange={(e) => setPreferences(p => ({ ...p, fontFamily: e.target.value }))}
-                  >
-                    {AVAILABLE_FONTS.map(font => (
-                      <option key={font.id} value={font.id}>{font.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Check Font Size (pt)</label>
-                  <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="range"
-                      min="6"
-                      max="20"
-                      step="0.5"
-                      value={preferences.checkFontSizePt}
-                      onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) }))}
-                      style={{ flex: 1 }}
-                    />
-                    <input
-                      type="number"
-                      min="6"
-                      max="20"
-                      step="0.5"
-                      value={preferences.checkFontSizePt}
-                      onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) || 12 }))}
-                      style={{ width: '70px' }}
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <label>Stub Font Size (pt)</label>
-                  <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="range"
-                      min="6"
-                      max="16"
-                      step="0.5"
-                      value={preferences.stubFontSizePt}
-                      onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) }))}
-                      style={{ flex: 1 }}
-                    />
-                    <input
-                      type="number"
-                      min="6"
-                      max="16"
-                      step="0.5"
-                      value={preferences.stubFontSizePt}
-                      onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) || 10 }))}
-                      style={{ width: '70px' }}
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <label>Label Size: {preferences.labelSize}px</label>
-                  <input
-                    type="range"
-                    min="7"
-                    max="14"
-                    step="1"
-                    value={preferences.labelSize}
-                    onChange={(e) => setPreferences(p => ({ ...p, labelSize: parseInt(e.target.value) }))}
-                  />
-                </div>
-                {/* Date Builder */}
-                <div className="field">
-                  <label>Date Format Builder</label>
-                  <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+          {
+            !preferences.adminLocked && (
+              <section className="section">
+                <h3>Text Settings</h3>
+                <div className="card">
+                  <div className="field">
+                    <label>Font Family</label>
                     <select
-                      value={preferences.dateSlot1}
-                      onChange={(e) => setPreferences(p => ({ ...p, dateSlot1: e.target.value }))}
-                      title="Slot 1"
-                      style={{ flex: 1 }}
+                      value={preferences.fontFamily}
+                      onChange={(e) => setPreferences(p => ({ ...p, fontFamily: e.target.value }))}
                     >
-                      <option value="MM">MM</option>
-                      <option value="DD">DD</option>
-                      <option value="YY">YY</option>
-                      <option value="YYYY">YYYY</option>
-                      <option value="Empty">Empty</option>
+                      {AVAILABLE_FONTS.map(font => (
+                        <option key={font.id} value={font.id}>{font.name}</option>
+                      ))}
                     </select>
-                    <select
-                      value={preferences.dateSeparator}
-                      onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
-                      title="Separator"
-                      style={{ width: '60px' }}
-                    >
-                      <option value="/">/</option>
-                      <option value="-">-</option>
-                      <option value=".">.</option>
-                      <option value="Empty">None</option>
-                    </select>
-                    <select
-                      value={preferences.dateSlot2}
-                      onChange={(e) => setPreferences(p => ({ ...p, dateSlot2: e.target.value }))}
-                      title="Slot 2"
-                      style={{ flex: 1 }}
-                    >
-                      <option value="MM">MM</option>
-                      <option value="DD">DD</option>
-                      <option value="YY">YY</option>
-                      <option value="YYYY">YYYY</option>
-                      <option value="Empty">Empty</option>
-                    </select>
-                    <select
-                      value={preferences.dateSeparator}
-                      onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
-                      title="Separator"
-                      style={{ width: '60px' }}
-                    >
-                      <option value="/">/</option>
-                      <option value="-">-</option>
-                      <option value=".">.</option>
-                      <option value="Empty">None</option>
-                    </select>
-                    <select
-                      value={preferences.dateSlot3}
-                      onChange={(e) => setPreferences(p => ({ ...p, dateSlot3: e.target.value }))}
-                      title="Slot 3"
-                      style={{ flex: 1 }}
-                    >
-                      <option value="MM">MM</option>
-                      <option value="DD">DD</option>
-                      <option value="YY">YY</option>
-                      <option value="YYYY">YYYY</option>
-                      <option value="Empty">Empty</option>
-                    </select>
-                  </div>
-                  <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                    Build your date format: Slot 1 + Sep + Slot 2 + Sep + Slot 3
-                  </small>
-                </div>
-                <div className="field">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={preferences.useLongDate}
-                      onChange={(e) => setPreferences(p => ({ ...p, useLongDate: e.target.checked }))}
-                    />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-label">Use Long Written Date</span>
-                  </label>
-                  <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                    Enable for full format (e.g., "January 7, 2026"). Overrides date builder.
-                  </small>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Stub Management - Payee Copy */}
-          {model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
-            <section className="section">
-              <div className="stub-section">
-                <div className="stub-header">
-                  <div className="stub-title">
-                    <span>Payee Copy Stub</span>
-                    <span className="stub-badge">Stub 1</span>
-                  </div>
-                  <div className="stub-controls">
-                    <button
-                      className={`stub-toggle ${showStub1Labels ? 'active' : ''}`}
-                      onClick={() => setShowStub1Labels(!showStub1Labels)}
-                      title="Show/hide friendly field labels on check"
-                    >
-                      {showStub1Labels ? '👁' : '👁‍🗨'} Labels
-                    </button>
-                    <button
-                      className="btn-icon-sm danger"
-                      onClick={() => ensureStub('stub1', false)}
-                      title="Remove this stub"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                </div>
-                <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
-                  Fields auto-sync from Check Details. Edit to customize (changes above will overwrite).
-                </p>
-                <div className="stub-group">
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Date</label>
-                      <input type="date" value={data.stub1_date || ''} onChange={(e) => setData((p) => ({ ...p, stub1_date: e.target.value }))} />
-                    </div>
-                    <div className="field">
-                      <label>Amount</label>
-                      <input value={data.stub1_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub1_amount: e.target.value }))} />
-                    </div>
                   </div>
                   <div className="field">
-                    <label>Payee</label>
-                    <input value={data.stub1_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub1_payee: e.target.value }))} />
-                  </div>
-                  <div className="field">
-                    <label>Memo (External)</label>
-                    <input value={data.stub1_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub1_memo: e.target.value }))} />
-                  </div>
-                </div>
-
-                {/* Stub Preferences */}
-                {!preferences.adminLocked && (
-                  <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                    <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub1ShowLedger}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLedger: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Ledger Snapshot</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub1ShowApproved}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowApproved: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Approved By</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub1ShowGLCode}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowGLCode: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show GL Code</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub1ShowLineItems}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLineItems: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Line Items</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub1ShowCheckNumber}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowCheckNumber: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Check Number</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub1ShowDate}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub1ShowDate: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Date</span>
-                      </label>
-                    </div>
-                    <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
-                      Toggle which fields appear on the Payee Copy stub
-                    </small>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Stub Management - Bookkeeper Copy */}
-          {model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
-            <section className="section">
-              <div className="stub-section">
-                <div className="stub-header">
-                  <div className="stub-title">
-                    <span>Bookkeeper Copy Stub</span>
-                    <span className="stub-badge">Stub 2</span>
-                  </div>
-                  <div className="stub-controls">
-                    <button
-                      className={`stub-toggle ${showStub2Labels ? 'active' : ''}`}
-                      onClick={() => setShowStub2Labels(!showStub2Labels)}
-                      title="Show/hide friendly field labels on check"
-                    >
-                      {showStub2Labels ? '👁' : '👁‍🗨'} Labels
-                    </button>
-                    <button
-                      className="btn-icon-sm danger"
-                      onClick={() => ensureStub('stub2', false)}
-                      title="Remove this stub"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                </div>
-                <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
-                  Fields auto-sync from Check Details. Ledger snapshot and admin fields are auto-generated.
-                </p>
-                <div className="stub-group">
-                  <div className="field-row">
-                    <div className="field">
-                      <label>Date</label>
-                      <input type="date" value={data.stub2_date || ''} onChange={(e) => setData((p) => ({ ...p, stub2_date: e.target.value }))} />
-                    </div>
-                    <div className="field">
-                      <label>Amount</label>
-                      <input value={data.stub2_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub2_amount: e.target.value }))} />
-                    </div>
-                  </div>
-                  <div className="field">
-                    <label>Payee</label>
-                    <input value={data.stub2_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub2_payee: e.target.value }))} />
-                  </div>
-                  <div className="field">
-                    <label>Memo (Internal)</label>
-                    <input value={data.stub2_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub2_memo: e.target.value }))} />
-                  </div>
-                </div>
-
-                {/* Stub Preferences */}
-                {!preferences.adminLocked && (
-                  <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                    <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub2ShowLedger}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLedger: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Ledger Snapshot</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub2ShowApproved}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowApproved: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Approved By</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub2ShowGLCode}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowGLCode: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show GL Code</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub2ShowLineItems}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLineItems: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Line Items</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub2ShowCheckNumber}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowCheckNumber: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Check Number</span>
-                      </label>
-                    </div>
-                    <div className="field">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={preferences.stub2ShowDate}
-                          onChange={(e) => setPreferences(p => ({ ...p, stub2ShowDate: e.target.checked }))}
-                        />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Show Date</span>
-                      </label>
-                    </div>
-                    <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
-                      Toggle which fields appear on the Bookkeeper Copy stub
-                    </small>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Template - compact */}
-          {!preferences.adminLocked && (
-            <section className="section">
-              <h3>Check Template</h3>
-              <div className="card">
-                <button className="btn-template" onClick={handleSelectTemplate}>
-                  {templateName ? (
-                    <>
-                      <span className="template-icon">🖼</span>
-                      <span className="template-name">{templateName}</span>
-                      <span className="template-change">Change</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="template-icon">+</span>
-                      <span>Load check template image</span>
-                    </>
-                  )}
-                </button>
-                {templateLoadError && (
-                  <div className="error-msg">{templateLoadError}</div>
-                )}
-                {templateDecodeError && (
-                  <div className="error-msg">{templateDecodeError}</div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* Advanced Settings - Collapsible */}
-          {!preferences.adminLocked && (
-            <section className="section">
-              <button className="accordion-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
-                <span>Advanced Settings</span>
-                <ChevronIcon open={showAdvanced} />
-              </button>
-
-              {showAdvanced && (
-                <div className="accordion-content">
-                  {/* Template Display */}
-                  <div className="card">
-                    <h4>Template Display</h4>
-                    <div className="field-row">
-                      <div className="field">
-                        <label>Fit Mode</label>
-                        <select
-                          value={model.template.fit || 'cover'}
-                          onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, fit: e.target.value } }))}
-                        >
-                          <option value="stretch">Stretch</option>
-                          <option value="contain">Contain</option>
-                          <option value="cover">Cover</option>
-                        </select>
-                      </div>
-                      <div className="field">
-                        <label>Opacity</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="1"
-                          step="0.1"
-                          value={model.template.opacity ?? 0}
-                          onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Calibration */}
-                  <div className="card">
-                    <h4>Printer Calibration</h4>
-                    <p className="hint">
-                      Compensates for physical printer margins. Use negative numbers to shift Left/Up, positive to shift Right/Down.
-                      Most laser printers need X = -0.25in.
-                    </p>
-                    <div className="field-row">
-                      <div className="field">
-                        <label>Global X Offset (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="-1.0"
-                          max="1.0"
-                          value={model.placement.offsetXIn}
-                          onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetXIn: parseFloat(e.target.value) || 0 } }))}
-                        />
-                      </div>
-                      <div className="field">
-                        <label>Global Y Offset (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="-1.0"
-                          max="1.0"
-                          value={model.placement.offsetYIn}
-                          onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetYIn: parseFloat(e.target.value) || 0 } }))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Layout */}
-                  <div className="card">
-                    <h4>Check Dimensions</h4>
-                    <div className="field-row">
-                      <div className="field">
-                        <label>Width (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={model.layout.widthIn}
-                          onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, widthIn: clamp(parseFloat(e.target.value) || 0, 4, 8.5) } }))}
-                        />
-                      </div>
-                      <div className="field">
-                        <label>Height (in)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={model.layout.checkHeightIn}
-                          onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, checkHeightIn: clamp(parseFloat(e.target.value) || 0, 1, 6) } }))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stub Height Adjustments - only show if stubs are enabled */}
-                  {(model.layout.stub1Enabled || model.layout.stub2Enabled) && (
-                    <div className="card">
-                      <h4>Stub Height Adjustments</h4>
-                      {model.layout.stub1Enabled && (
-                        <div className="field">
-                          <label>Payee Copy Stub Height (in)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.5"
-                            value={model.layout.stub1HeightIn}
-                            onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub1HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
-                          />
-                        </div>
-                      )}
-                      {model.layout.stub2Enabled && (
-                        <div className="field" style={{ marginTop: model.layout.stub1Enabled ? 12 : 0 }}>
-                          <label>Bookkeeper Copy Stub Height (in)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.5"
-                            value={model.layout.stub2HeightIn}
-                            onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub2HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Zoom */}
-                  <div className="card">
-                    <h4>Preview Zoom</h4>
-                    <div className="field">
+                    <label>Check Font Size (pt)</label>
+                    <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
                       <input
                         type="range"
-                        min="0.4"
-                        max="1.5"
-                        step="0.05"
-                        value={model.view.zoom}
-                        onChange={(e) => setModel((m) => ({ ...m, view: { ...m.view, zoom: parseFloat(e.target.value) } }))}
+                        min="6"
+                        max="20"
+                        step="0.5"
+                        value={preferences.checkFontSizePt}
+                        onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) }))}
+                        style={{ flex: 1 }}
                       />
-                      <div className="range-value">{Math.round(model.view.zoom * 100)}%</div>
+                      <input
+                        type="number"
+                        min="6"
+                        max="20"
+                        step="0.5"
+                        value={preferences.checkFontSizePt}
+                        onChange={(e) => setPreferences(p => ({ ...p, checkFontSizePt: parseFloat(e.target.value) || 12 }))}
+                        style={{ width: '70px' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Stub Font Size (pt)</label>
+                    <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="range"
+                        min="6"
+                        max="16"
+                        step="0.5"
+                        value={preferences.stubFontSizePt}
+                        onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) }))}
+                        style={{ flex: 1 }}
+                      />
+                      <input
+                        type="number"
+                        min="6"
+                        max="16"
+                        step="0.5"
+                        value={preferences.stubFontSizePt}
+                        onChange={(e) => setPreferences(p => ({ ...p, stubFontSizePt: parseFloat(e.target.value) || 10 }))}
+                        style={{ width: '70px' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Label Size: {preferences.labelSize}px</label>
+                    <input
+                      type="range"
+                      min="7"
+                      max="14"
+                      step="1"
+                      value={preferences.labelSize}
+                      onChange={(e) => setPreferences(p => ({ ...p, labelSize: parseInt(e.target.value) }))}
+                    />
+                  </div>
+                  {/* Date Builder */}
+                  <div className="field">
+                    <label>Date Format Builder</label>
+                    <div className="field-row" style={{ gap: '8px', alignItems: 'center' }}>
+                      <select
+                        value={preferences.dateSlot1}
+                        onChange={(e) => setPreferences(p => ({ ...p, dateSlot1: e.target.value }))}
+                        title="Slot 1"
+                        style={{ flex: 1 }}
+                      >
+                        <option value="MM">MM</option>
+                        <option value="DD">DD</option>
+                        <option value="YY">YY</option>
+                        <option value="YYYY">YYYY</option>
+                        <option value="Empty">Empty</option>
+                      </select>
+                      <select
+                        value={preferences.dateSeparator}
+                        onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
+                        title="Separator"
+                        style={{ width: '60px' }}
+                      >
+                        <option value="/">/</option>
+                        <option value="-">-</option>
+                        <option value=".">.</option>
+                        <option value="Empty">None</option>
+                      </select>
+                      <select
+                        value={preferences.dateSlot2}
+                        onChange={(e) => setPreferences(p => ({ ...p, dateSlot2: e.target.value }))}
+                        title="Slot 2"
+                        style={{ flex: 1 }}
+                      >
+                        <option value="MM">MM</option>
+                        <option value="DD">DD</option>
+                        <option value="YY">YY</option>
+                        <option value="YYYY">YYYY</option>
+                        <option value="Empty">Empty</option>
+                      </select>
+                      <select
+                        value={preferences.dateSeparator}
+                        onChange={(e) => setPreferences(p => ({ ...p, dateSeparator: e.target.value }))}
+                        title="Separator"
+                        style={{ width: '60px' }}
+                      >
+                        <option value="/">/</option>
+                        <option value="-">-</option>
+                        <option value=".">.</option>
+                        <option value="Empty">None</option>
+                      </select>
+                      <select
+                        value={preferences.dateSlot3}
+                        onChange={(e) => setPreferences(p => ({ ...p, dateSlot3: e.target.value }))}
+                        title="Slot 3"
+                        style={{ flex: 1 }}
+                      >
+                        <option value="MM">MM</option>
+                        <option value="DD">DD</option>
+                        <option value="YY">YY</option>
+                        <option value="YYYY">YYYY</option>
+                        <option value="Empty">Empty</option>
+                      </select>
+                    </div>
+                    <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                      Build your date format: Slot 1 + Sep + Slot 2 + Sep + Slot 3
+                    </small>
+                  </div>
+                  <div className="field">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={preferences.useLongDate}
+                        onChange={(e) => setPreferences(p => ({ ...p, useLongDate: e.target.checked }))}
+                      />
+                      <span className="toggle-slider"></span>
+                      <span className="toggle-label">Use Long Written Date</span>
+                    </label>
+                    <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                      Enable for full format (e.g., "January 7, 2026"). Overrides date builder.
+                    </small>
+                  </div>
+                </div>
+              </section>
+            )
+          }
+
+          {/* Stub Management - Payee Copy */}
+          {
+            model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
+              <section className="section">
+                <div className="stub-section">
+                  <div className="stub-header">
+                    <div className="stub-title">
+                      <span>Payee Copy Stub</span>
+                      <span className="stub-badge">Stub 1</span>
+                    </div>
+                    <div className="stub-controls">
+                      <button
+                        className={`stub-toggle ${showStub1Labels ? 'active' : ''}`}
+                        onClick={() => setShowStub1Labels(!showStub1Labels)}
+                        title="Show/hide friendly field labels on check"
+                      >
+                        {showStub1Labels ? '👁' : '👁‍🗨'} Labels
+                      </button>
+                      <button
+                        className="btn-icon-sm danger"
+                        onClick={() => ensureStub('stub1', false)}
+                        title="Remove this stub"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                    Fields auto-sync from Check Details. Edit to customize (changes above will overwrite).
+                  </p>
+                  <div className="stub-group">
+                    <div className="field-row">
+                      <div className="field">
+                        <label>Date</label>
+                        <input type="date" value={data.stub1_date || ''} onChange={(e) => setData((p) => ({ ...p, stub1_date: e.target.value }))} />
+                      </div>
+                      <div className="field">
+                        <label>Amount</label>
+                        <input value={data.stub1_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub1_amount: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Payee</label>
+                      <input value={data.stub1_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub1_payee: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Memo (External)</label>
+                      <input value={data.stub1_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub1_memo: e.target.value }))} />
                     </div>
                   </div>
 
-                  {/* Selected Field - only in edit mode */}
-                  {editMode && (
-                    <div className="card">
-                      <h4>Selected Field</h4>
+                  {/* Stub Preferences */}
+                  {!preferences.adminLocked && (
+                    <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                      <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
                       <div className="field">
-                        <label>Field</label>
-                        <select value={selected} onChange={(e) => setSelected(e.target.value)}>
-                          {Object.keys(model.fields).map((k) => (
-                            <option value={k} key={k}>{model.fields[k].label || k}</option>
-                          ))}
-                        </select>
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub1ShowLedger}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLedger: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Ledger Snapshot</span>
+                        </label>
                       </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub1ShowApproved}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub1ShowApproved: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Approved By</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub1ShowGLCode}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub1ShowGLCode: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show GL Code</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub1ShowLineItems}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub1ShowLineItems: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Line Items</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub1ShowCheckNumber}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub1ShowCheckNumber: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Check Number</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub1ShowDate}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub1ShowDate: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Date</span>
+                        </label>
+                      </div>
+                      <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                        Toggle which fields appear on the Payee Copy stub
+                      </small>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )
+          }
+
+          {/* Stub Management - Bookkeeper Copy */}
+          {
+            model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
+              <section className="section">
+                <div className="stub-section">
+                  <div className="stub-header">
+                    <div className="stub-title">
+                      <span>Bookkeeper Copy Stub</span>
+                      <span className="stub-badge">Stub 2</span>
+                    </div>
+                    <div className="stub-controls">
+                      <button
+                        className={`stub-toggle ${showStub2Labels ? 'active' : ''}`}
+                        onClick={() => setShowStub2Labels(!showStub2Labels)}
+                        title="Show/hide friendly field labels on check"
+                      >
+                        {showStub2Labels ? '👁' : '👁‍🗨'} Labels
+                      </button>
+                      <button
+                        className="btn-icon-sm danger"
+                        onClick={() => ensureStub('stub2', false)}
+                        title="Remove this stub"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </div>
+                  <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+                    Fields auto-sync from Check Details. Ledger snapshot and admin fields are auto-generated.
+                  </p>
+                  <div className="stub-group">
+                    <div className="field-row">
+                      <div className="field">
+                        <label>Date</label>
+                        <input type="date" value={data.stub2_date || ''} onChange={(e) => setData((p) => ({ ...p, stub2_date: e.target.value }))} />
+                      </div>
+                      <div className="field">
+                        <label>Amount</label>
+                        <input value={data.stub2_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub2_amount: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label>Payee</label>
+                      <input value={data.stub2_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub2_payee: e.target.value }))} />
+                    </div>
+                    <div className="field">
+                      <label>Memo (Internal)</label>
+                      <input value={data.stub2_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub2_memo: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  {/* Stub Preferences */}
+                  {!preferences.adminLocked && (
+                    <div className="stub-group" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                      <h4 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>Stub Preferences</h4>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub2ShowLedger}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLedger: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Ledger Snapshot</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub2ShowApproved}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub2ShowApproved: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Approved By</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub2ShowGLCode}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub2ShowGLCode: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show GL Code</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub2ShowLineItems}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub2ShowLineItems: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Line Items</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub2ShowCheckNumber}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub2ShowCheckNumber: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Check Number</span>
+                        </label>
+                      </div>
+                      <div className="field">
+                        <label className="toggle-switch">
+                          <input
+                            type="checkbox"
+                            checked={preferences.stub2ShowDate}
+                            onChange={(e) => setPreferences(p => ({ ...p, stub2ShowDate: e.target.checked }))}
+                          />
+                          <span className="toggle-slider"></span>
+                          <span className="toggle-label">Show Date</span>
+                        </label>
+                      </div>
+                      <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                        Toggle which fields appear on the Bookkeeper Copy stub
+                      </small>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )
+          }
+
+          {/* Template - compact */}
+          {
+            !preferences.adminLocked && (
+              <section className="section">
+                <h3>Check Template</h3>
+                <div className="card">
+                  <button className="btn-template" onClick={handleSelectTemplate}>
+                    {templateName ? (
+                      <>
+                        <span className="template-icon">🖼</span>
+                        <span className="template-name">{templateName}</span>
+                        <span className="template-change">Change</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="template-icon">+</span>
+                        <span>Load check template image</span>
+                      </>
+                    )}
+                  </button>
+                  {templateLoadError && (
+                    <div className="error-msg">{templateLoadError}</div>
+                  )}
+                  {templateDecodeError && (
+                    <div className="error-msg">{templateDecodeError}</div>
+                  )}
+                </div>
+              </section>
+            )
+          }
+
+          {/* Advanced Settings - Collapsible */}
+          {
+            !preferences.adminLocked && (
+              <section className="section">
+                <button className="accordion-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
+                  <span>Advanced Settings</span>
+                  <ChevronIcon open={showAdvanced} />
+                </button>
+
+                {showAdvanced && (
+                  <div className="accordion-content">
+                    {/* Template Display */}
+                    <div className="card">
+                      <h4>Template Display</h4>
                       <div className="field-row">
                         <div className="field">
-                          <label>X (in)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={model.fields[selected].x}
-                            onChange={(e) => setField(selected, { x: parseFloat(e.target.value) || 0 })}
-                          />
+                          <label>Fit Mode</label>
+                          <select
+                            value={model.template.fit || 'cover'}
+                            onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, fit: e.target.value } }))}
+                          >
+                            <option value="stretch">Stretch</option>
+                            <option value="contain">Contain</option>
+                            <option value="cover">Cover</option>
+                          </select>
                         </div>
                         <div className="field">
-                          <label>Y (in)</label>
+                          <label>Opacity</label>
                           <input
                             type="number"
-                            step="0.01"
-                            value={model.fields[selected].y}
-                            onChange={(e) => setField(selected, { y: parseFloat(e.target.value) || 0 })}
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={model.template.opacity ?? 0}
+                            onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
                           />
                         </div>
                       </div>
+                    </div>
+
+                    {/* Calibration */}
+                    <div className="card">
+                      <h4>Printer Calibration</h4>
+                      <p className="hint">
+                        Compensates for physical printer margins. Use negative numbers to shift Left/Up, positive to shift Right/Down.
+                        Most laser printers need X = -0.25in.
+                      </p>
+                      <div className="field-row">
+                        <div className="field">
+                          <label>Global X Offset (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="-1.0"
+                            max="1.0"
+                            value={model.placement.offsetXIn}
+                            onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetXIn: parseFloat(e.target.value) || 0 } }))}
+                          />
+                        </div>
+                        <div className="field">
+                          <label>Global Y Offset (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="-1.0"
+                            max="1.0"
+                            value={model.placement.offsetYIn}
+                            onChange={(e) => setModel((m) => ({ ...m, placement: { ...m.placement, offsetYIn: parseFloat(e.target.value) || 0 } }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Layout */}
+                    <div className="card">
+                      <h4>Check Dimensions</h4>
                       <div className="field-row">
                         <div className="field">
                           <label>Width (in)</label>
                           <input
                             type="number"
                             step="0.01"
-                            value={model.fields[selected].w}
-                            onChange={(e) => setField(selected, { w: parseFloat(e.target.value) || 0.2 })}
+                            value={model.layout.widthIn}
+                            onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, widthIn: clamp(parseFloat(e.target.value) || 0, 4, 8.5) } }))}
                           />
                         </div>
                         <div className="field">
@@ -5672,32 +5647,134 @@ export default function App() {
                           <input
                             type="number"
                             step="0.01"
-                            value={model.fields[selected].h}
-                            onChange={(e) => setField(selected, { h: parseFloat(e.target.value) || 0.18 })}
+                            value={model.layout.checkHeightIn}
+                            onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, checkHeightIn: clamp(parseFloat(e.target.value) || 0, 1, 6) } }))}
                           />
                         </div>
                       </div>
+                    </div>
+
+                    {/* Stub Height Adjustments - only show if stubs are enabled */}
+                    {(model.layout.stub1Enabled || model.layout.stub2Enabled) && (
+                      <div className="card">
+                        <h4>Stub Height Adjustments</h4>
+                        {model.layout.stub1Enabled && (
+                          <div className="field">
+                            <label>Payee Copy Stub Height (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.5"
+                              value={model.layout.stub1HeightIn}
+                              onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub1HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
+                            />
+                          </div>
+                        )}
+                        {model.layout.stub2Enabled && (
+                          <div className="field" style={{ marginTop: model.layout.stub1Enabled ? 12 : 0 }}>
+                            <label>Bookkeeper Copy Stub Height (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.5"
+                              value={model.layout.stub2HeightIn}
+                              onChange={(e) => setModel((m) => ({ ...m, layout: { ...m.layout, stub2HeightIn: clamp(parseFloat(e.target.value) || 0, 0.5, 8) } }))}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Zoom */}
+                    <div className="card">
+                      <h4>Preview Zoom</h4>
                       <div className="field">
-                        <label>Font Size (in)</label>
                         <input
-                          type="number"
-                          step="0.01"
-                          value={model.fields[selected].fontIn}
-                          onChange={(e) => setField(selected, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                          type="range"
+                          min="0.4"
+                          max="1.5"
+                          step="0.05"
+                          value={model.view.zoom}
+                          onChange={(e) => setModel((m) => ({ ...m, view: { ...m.view, zoom: parseFloat(e.target.value) } }))}
                         />
+                        <div className="range-value">{Math.round(model.view.zoom * 100)}%</div>
                       </div>
                     </div>
-                  )}
 
-                  {/* Reset */}
-                  <button className="btn danger full-width" onClick={resetModel}>
-                    Reset All Settings
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
-        </div>
+                    {/* Selected Field - only in edit mode */}
+                    {editMode && (
+                      <div className="card">
+                        <h4>Selected Field</h4>
+                        <div className="field">
+                          <label>Field</label>
+                          <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+                            {Object.keys(model.fields).map((k) => (
+                              <option value={k} key={k}>{model.fields[k].label || k}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="field-row">
+                          <div className="field">
+                            <label>X (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={model.fields[selected].x}
+                              onChange={(e) => setField(selected, { x: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div className="field">
+                            <label>Y (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={model.fields[selected].y}
+                              onChange={(e) => setField(selected, { y: parseFloat(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </div>
+                        <div className="field-row">
+                          <div className="field">
+                            <label>Width (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={model.fields[selected].w}
+                              onChange={(e) => setField(selected, { w: parseFloat(e.target.value) || 0.2 })}
+                            />
+                          </div>
+                          <div className="field">
+                            <label>Height (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={model.fields[selected].h}
+                              onChange={(e) => setField(selected, { h: parseFloat(e.target.value) || 0.18 })}
+                            />
+                          </div>
+                        </div>
+                        <div className="field">
+                          <label>Font Size (in)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={model.fields[selected].fontIn}
+                            onChange={(e) => setField(selected, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reset */}
+                    <button className="btn danger full-width" onClick={resetModel}>
+                      Reset All Settings
+                    </button>
+                  </div>
+                )}
+              </section>
+            )
+          }
+        </div >
 
         <div className="workspace">
           {profiles.length === 0 ? (
@@ -6331,1380 +6408,1414 @@ export default function App() {
             </div>
           )}
         </div>
-      </div>
+      </div >
 
       {/* PIN Authentication Modal */}
-      {showPinModal && (
-        <div className="modal-overlay no-print" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Enter Admin PIN</h2>
-              <button className="btn-icon" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>×</button>
+      {
+        showPinModal && (
+          <div className="modal-overlay no-print" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+              <div className="modal-header">
+                <h2>Enter Admin PIN</h2>
+                <button className="btn-icon" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>×</button>
+              </div>
+              <div className="modal-body">
+                <div className="field">
+                  <label>4-Digit PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength="4"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && pinInput.length === 4) {
+                        handlePinSubmit()
+                      }
+                    }}
+                    placeholder="0000"
+                    autoFocus
+                    style={{
+                      fontSize: '24px',
+                      letterSpacing: '8px',
+                      textAlign: 'center',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                  {pinError && (
+                    <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
+                      {pinError}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    setShowPinModal(false);
+                    setPinInput('');
+                    setPinError('');
+                    setTimeout(handleChangePinRequest, 100);
+                  }}
+                  style={{ marginRight: 'auto' }}
+                >
+                  Change PIN
+                </button>
+                <button className="btn" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>Cancel</button>
+                <button
+                  className="btn primary"
+                  onClick={handlePinSubmit}
+                  disabled={pinInput.length !== 4}
+                >
+                  Unlock
+                </button>
+              </div>
             </div>
-            <div className="modal-body">
-              <div className="field">
-                <label>4-Digit PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength="4"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && pinInput.length === 4) {
-                      handlePinSubmit()
-                    }
-                  }}
-                  placeholder="0000"
-                  autoFocus
-                  style={{
-                    fontSize: '24px',
-                    letterSpacing: '8px',
-                    textAlign: 'center',
-                    fontFamily: 'monospace'
-                  }}
-                />
-                {pinError && (
+          </div>
+        )
+      }
+
+      {/* Change PIN Modal */}
+      {
+        showChangePinModal && (
+          <div className="modal-overlay no-print" onClick={() => setShowChangePinModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+              <div className="modal-header">
+                <h2>Change Admin PIN</h2>
+                <button className="btn-icon" onClick={() => setShowChangePinModal(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <div className="field">
+                  <label>Current PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength="4"
+                    value={currentPinInput}
+                    onChange={(e) => setCurrentPinInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="0000"
+                    autoFocus
+                    style={{
+                      fontSize: '18px',
+                      letterSpacing: '4px',
+                      textAlign: 'center',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </div>
+                <div className="field">
+                  <label>New PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength="4"
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="0000"
+                    style={{
+                      fontSize: '18px',
+                      letterSpacing: '4px',
+                      textAlign: 'center',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </div>
+                <div className="field">
+                  <label>Confirm New PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength="4"
+                    value={confirmPinInput}
+                    onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, ''))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && currentPinInput.length === 4 && newPinInput.length === 4 && confirmPinInput.length === 4) {
+                        handleChangePinSubmit()
+                      }
+                    }}
+                    placeholder="0000"
+                    style={{
+                      fontSize: '18px',
+                      letterSpacing: '4px',
+                      textAlign: 'center',
+                      fontFamily: 'monospace'
+                    }}
+                  />
+                </div>
+                {changePinError && (
                   <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
-                    {pinError}
+                    {changePinError}
                   </div>
                 )}
               </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn ghost"
-                onClick={() => {
-                  setShowPinModal(false);
-                  setPinInput('');
-                  setPinError('');
-                  setTimeout(handleChangePinRequest, 100);
-                }}
-                style={{ marginRight: 'auto' }}
-              >
-                Change PIN
-              </button>
-              <button className="btn" onClick={() => { setShowPinModal(false); setPinInput(''); setPinError(''); }}>Cancel</button>
-              <button
-                className="btn primary"
-                onClick={handlePinSubmit}
-                disabled={pinInput.length !== 4}
-              >
-                Unlock
-              </button>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={() => setShowChangePinModal(false)}>Cancel</button>
+                <button
+                  className="btn primary"
+                  onClick={handleChangePinSubmit}
+                  disabled={currentPinInput.length !== 4 || newPinInput.length !== 4 || confirmPinInput.length !== 4}
+                >
+                  Update PIN
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Change PIN Modal */}
-      {showChangePinModal && (
-        <div className="modal-overlay no-print" onClick={() => setShowChangePinModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Change Admin PIN</h2>
-              <button className="btn-icon" onClick={() => setShowChangePinModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="field">
-                <label>Current PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength="4"
-                  value={currentPinInput}
-                  onChange={(e) => setCurrentPinInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="0000"
-                  autoFocus
-                  style={{
-                    fontSize: '18px',
-                    letterSpacing: '4px',
-                    textAlign: 'center',
-                    fontFamily: 'monospace'
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label>New PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength="4"
-                  value={newPinInput}
-                  onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="0000"
-                  style={{
-                    fontSize: '18px',
-                    letterSpacing: '4px',
-                    textAlign: 'center',
-                    fontFamily: 'monospace'
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label>Confirm New PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength="4"
-                  value={confirmPinInput}
-                  onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, ''))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && currentPinInput.length === 4 && newPinInput.length === 4 && confirmPinInput.length === 4) {
-                      handleChangePinSubmit()
-                    }
-                  }}
-                  placeholder="0000"
-                  style={{
-                    fontSize: '18px',
-                    letterSpacing: '4px',
-                    textAlign: 'center',
-                    fontFamily: 'monospace'
-                  }}
-                />
-              </div>
-              {changePinError && (
-                <div style={{ color: '#ef4444', fontSize: '13px', marginTop: '8px', textAlign: 'center' }}>
-                  {changePinError}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button className="btn ghost" onClick={() => setShowChangePinModal(false)}>Cancel</button>
-              <button
-                className="btn primary"
-                onClick={handleChangePinSubmit}
-                disabled={currentPinInput.length !== 4 || newPinInput.length !== 4 || confirmPinInput.length !== 4}
-              >
-                Update PIN
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Deposit/Adjustment Modal */}
-      {showDepositModal && (
-        <div className="modal-overlay no-print" onClick={() => setShowDepositModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <h2>Add Funds / Adjustment</h2>
-              <button className="btn-icon" onClick={() => setShowDepositModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="field">
-                <label>Date</label>
-                <input
-                  type="date"
-                  value={depositData.date}
-                  onChange={(e) => setDepositData({ ...depositData, date: e.target.value })}
-                />
+      {
+        showDepositModal && (
+          <div className="modal-overlay no-print" onClick={() => setShowDepositModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h2>Add Funds / Adjustment</h2>
+                <button className="btn-icon" onClick={() => setShowDepositModal(false)}>×</button>
               </div>
-              <div className="field">
-                <label>Description</label>
-                <input
-                  type="text"
-                  value={depositData.description}
-                  onChange={(e) => setDepositData({ ...depositData, description: e.target.value })}
-                  placeholder="e.g., Deposit, Cash Adjustment, Transfer In"
-                  autoFocus
-                />
-              </div>
-              <div className="field">
-                <label>Amount</label>
-                <input
-                  type="text"
-                  value={depositData.amount}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9.]/g, '')
-                    setDepositData({ ...depositData, amount: val })
-                  }}
-                  placeholder="0.00"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && depositData.amount && depositData.description) {
-                      const success = recordDeposit(depositData)
-                      if (success) {
-                        setShowDepositModal(false)
-                        setToast({ message: 'Deposit recorded successfully!', type: 'success' })
-                        setTimeout(() => setToast(null), 3000)
-                      }
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn ghost" onClick={() => setShowDepositModal(false)}>Cancel</button>
-              <button
-                className="btn primary"
-                onClick={() => {
-                  const success = recordDeposit(depositData)
-                  if (success) {
-                    setShowDepositModal(false)
-                    setToast({ message: 'Deposit recorded successfully!', type: 'success' })
-                    setTimeout(() => setToast(null), 3000)
-                  } else {
-                    setToast({ message: 'Please enter a valid amount and description.', type: 'error' })
-                    setTimeout(() => setToast(null), 3000)
-                  }
-                }}
-                disabled={!depositData.amount || !depositData.description}
-              >
-                Record Deposit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Check Confirmation Modal */}
-      {showDeleteConfirm && deleteTarget && (
-        <div className="modal-overlay confirm-modal no-print" onClick={cancelDeleteHistoryEntry}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <h2>Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}?</h2>
-              <button className="btn-icon" onClick={cancelDeleteHistoryEntry}>×</button>
-            </div>
-            <div className="modal-body">
-              <p>Are you sure you want to delete this {deleteTarget.type === 'deposit' ? 'deposit' : 'check'}?</p>
-              <div style={{
-                marginTop: '16px',
-                padding: '12px',
-                backgroundColor: '#1e293b',
-                borderRadius: '6px',
-                border: '1px solid #334155'
-              }}>
-                <div><strong>{deleteTarget.type === 'deposit' ? 'Description' : 'Payee'}:</strong> {deleteTarget.payee}</div>
-                <div><strong>Amount:</strong> {formatCurrency(deleteTarget.amount)}</div>
-                <div><strong>Date:</strong> {deleteTarget.date}</div>
-              </div>
-              <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '14px' }}>
-                {deleteTarget.type === 'deposit'
-                  ? `This will remove ${formatCurrency(deleteTarget.amount)} from the ledger balance.`
-                  : `This will restore ${formatCurrency(deleteTarget.amount)} to the ledger balance.`
-                }
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn ghost" onClick={cancelDeleteHistoryEntry}>Cancel</button>
-              <button className="btn danger" onClick={confirmDeleteHistoryEntry}>
-                Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Backup Restore Modal */}
-      {showBackupModal && (
-        <div className="modal-overlay no-print" onClick={() => setShowBackupModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h2>Restore from Backup</h2>
-              <button className="btn-icon" onClick={() => setShowBackupModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div style={{
-                marginBottom: '16px',
-                padding: '12px',
-                backgroundColor: '#1e3a5f',
-                borderRadius: '6px',
-                border: '1px solid #3b82f6'
-              }}>
-                <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
-                  🔒 <strong>Secure Auto-Backups:</strong> These backups are encrypted and stored securely in your app data folder. Select the most recent backup or choose an older version.
-                </div>
-              </div>
-
-              <div style={{
-                maxHeight: '400px',
-                overflowY: 'auto',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                backgroundColor: '#1e293b'
-              }}>
-                {(() => {
-                  const grouped = groupBackups(availableBackups)
-                  const groupOrder = ['Recent (Last 3 Days)', 'This Year']
-
-                  // Add year groups
-                  const years = Object.keys(grouped).filter(k => /^\d{4}$/.test(k)).sort().reverse()
-                  groupOrder.push(...years)
-
-                  // Add quarter groups
-                  const quarters = Object.keys(grouped).filter(k => /Q\d/.test(k)).sort().reverse()
-                  groupOrder.push(...quarters)
-
-                  return groupOrder.map(groupName => {
-                    if (!grouped[groupName]) return null
-
-                    return (
-                      <div key={groupName}>
-                        <div style={{
-                          padding: '8px 12px',
-                          backgroundColor: '#0f172a',
-                          fontWeight: '600',
-                          fontSize: '12px',
-                          color: '#94a3b8',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          borderBottom: '1px solid #334155'
-                        }}>
-                          {groupName}
-                        </div>
-                        {grouped[groupName].map((backup, index) => (
-                          <div
-                            key={backup.path}
-                            onClick={() => setSelectedBackup(backup)}
-                            style={{
-                              padding: '12px 16px',
-                              cursor: 'pointer',
-                              borderBottom: '1px solid #1e293b',
-                              backgroundColor: selectedBackup?.path === backup.path ? '#334155' : 'transparent',
-                              transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              if (selectedBackup?.path !== backup.path) {
-                                e.currentTarget.style.backgroundColor = '#2d3748'
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (selectedBackup?.path !== backup.path) {
-                                e.currentTarget.style.backgroundColor = 'transparent'
-                              }
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div>
-                                <div style={{ fontWeight: '500', color: '#f1f5f9', fontSize: '14px' }}>
-                                  {backup.friendlyName}
-                                </div>
-                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                                  {backup.fullDate} • {(backup.size / 1024).toFixed(1)} KB
-                                </div>
-                              </div>
-                              {selectedBackup?.path === backup.path && (
-                                <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>✓</div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })
-                })()}
-              </div>
-
-              <div style={{
-                marginTop: '16px',
-                padding: '16px',
-                backgroundColor: '#7f1d1d',
-                borderRadius: '6px',
-                border: '1px solid #ef4444'
-              }}>
-                <div style={{ fontWeight: '600', color: '#fecaca', marginBottom: '8px', fontSize: '14px' }}>
-                  ⚠️ WARNING: This action cannot be undone
-                </div>
-                <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.6' }}>
-                  Restoring this backup will replace ALL current data:
-                  <ul style={{ marginTop: '8px', marginBottom: '0', paddingLeft: '20px' }}>
-                    <li>All profiles and settings</li>
-                    <li>All field positions and layouts</li>
-                    <li>All check history</li>
-                    <li>All ledger data</li>
-                    <li>Current session data</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn ghost"
-                onClick={() => {
-                  setShowBackupModal(false)
-                  handleRestoreFromFile()
-                }}
-              >
-                Select File Instead
-              </button>
-              <button className="btn ghost" onClick={() => setShowBackupModal(false)}>Cancel</button>
-              <button
-                className="btn primary"
-                onClick={() => confirmRestoreBackup(selectedBackup?.path)}
-                disabled={!selectedBackup}
-              >
-                Restore Selected
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Backup Password Modal */}
-      {showBackupPasswordModal && (
-        <PasswordModal
-          title="Encrypt Backup"
-          message="Enter a password to encrypt this backup file. If you leave this blank, the file will be saved as plain text."
-          value={backupPassword}
-          onChange={setBackupPassword}
-          onSubmit={handleBackupPasswordSubmit}
-          onCancel={() => setShowBackupPasswordModal(false)}
-          confirmButtonText={backupPassword ? "Save Encrypted" : "Save Unencrypted"}
-          allowEmpty={true}
-        />
-      )}
-
-      {/* Restore Password Modal */}
-      {showRestorePasswordModal && (
-        <PasswordModal
-          title="Enter Password"
-          message="This backup file is encrypted. Please enter the password to restore it."
-          value={restorePassword}
-          onChange={(val) => {
-            setRestorePassword(val)
-            setRestoreError(null)
-          }}
-          onSubmit={handleRestorePasswordSubmit}
-          onCancel={() => {
-            setShowRestorePasswordModal(false)
-            setPendingRestorePath(null)
-            setRestoreError(null)
-          }}
-          error={restoreError}
-          confirmButtonText="Unlock & Restore"
-          allowEmpty={false}
-        />
-      )}
-
-      {/* Manual Backup Modal */}
-      {showManualBackupModal && (
-        <div className="modal-overlay no-print" onClick={() => setShowManualBackupModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
-            <div className="modal-header">
-              <h2>Create Manual Backup</h2>
-              <button className="btn-icon" onClick={() => setShowManualBackupModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div style={{
-                marginBottom: '20px',
-                padding: '16px',
-                backgroundColor: '#7f1d1d',
-                borderRadius: '6px',
-                border: '1px solid #ef4444'
-              }}>
-                <div style={{ fontWeight: '600', color: '#fecaca', marginBottom: '8px', fontSize: '14px' }}>
-                  🔒 SECURITY WARNING
-                </div>
-                <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.6' }}>
-                  This backup file will contain ALL your data in <strong>PLAIN TEXT</strong> (unencrypted) including:
-                  <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }}>
-                    <li>All check history and transactions</li>
-                    <li>Payee names and amounts</li>
-                    <li>Ledger balances</li>
-                    <li>All memo fields</li>
-                  </ul>
-                  <strong>⚠️ Save this file in a SECURE location.</strong> Anyone with access can read all your financial data.
-                </div>
-              </div>
-
-              <div style={{
-                marginBottom: '16px',
-                padding: '12px',
-                backgroundColor: '#1e3a5f',
-                borderRadius: '6px',
-                border: '1px solid #3b82f6'
-              }}>
-                <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
-                  ✓ An <strong>encrypted</strong> copy will also be saved automatically to your secure app data folder.
-                </div>
-              </div>
-
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#e2e8f0', fontSize: '14px' }}>
-                  You will be prompted to choose where to save this file
-                </label>
-                <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                  Recommended locations: Password manager, encrypted drive, or secure cloud storage
-                </p>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn ghost" onClick={() => setShowManualBackupModal(false)}>Cancel</button>
-              <button className="btn primary" onClick={confirmManualBackup}>
-                Choose Location & Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Generic Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="modal-overlay confirm-modal no-print" onClick={handleConfirmModalCancel}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-            <div className="modal-header">
-              <h2>{confirmConfig.title}</h2>
-              <button className="btn-icon" onClick={handleConfirmModalCancel}>×</button>
-            </div>
-            <div className="modal-body">
-              <p>{confirmConfig.message}</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn ghost" onClick={handleConfirmModalCancel}>Cancel</button>
-              <button className="btn primary" onClick={handleConfirmModalConfirm}>
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Batch Print Confirmation Modal */}
-      {showBatchPrintConfirm && (
-        <div className="modal-overlay no-print" onClick={cancelBatchPrintConfirm}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <h2>Print & Record All Checks?</h2>
-              <button className="btn-icon" onClick={cancelBatchPrintConfirm}>×</button>
-            </div>
-            <div className="modal-body" style={{ padding: '24px' }}>
-              <p style={{ marginBottom: '20px' }}>
-                Print and record {importQueue.length} checks? This will {activeProfile?.layoutMode === 'three_up' ? 'print checks in sheets of 3' : 'print each check'} and deduct amounts from your ledger balance.
-              </p>
-
-              {/* Auto-number checkbox */}
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              <div className="modal-body">
+                <div className="field">
+                  <label>Date</label>
                   <input
-                    type="checkbox"
-                    checked={batchAutoNumber}
-                    onChange={(e) => setBatchAutoNumber(e.target.checked)}
-                    style={{ marginRight: '8px', width: '18px', height: '18px', cursor: 'pointer' }}
+                    type="date"
+                    value={depositData.date}
+                    onChange={(e) => setDepositData({ ...depositData, date: e.target.value })}
                   />
-                  <span>Auto-number checks sequentially</span>
-                </label>
-              </div>
-
-              {/* Starting number input (only visible when auto-number is enabled) */}
-              {batchAutoNumber && (
-                <div style={{ marginLeft: '26px', marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: '#6b7280' }}>
-                    Starting check number:
-                  </label>
+                </div>
+                <div className="field">
+                  <label>Description</label>
                   <input
                     type="text"
-                    value={batchStartNumber}
-                    onChange={(e) => setBatchStartNumber(e.target.value)}
-                    placeholder="1001"
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid var(--border)',
-                      borderRadius: '4px',
-                      fontSize: '14px',
-                      width: '150px'
+                    value={depositData.description}
+                    onChange={(e) => setDepositData({ ...depositData, description: e.target.value })}
+                    placeholder="e.g., Deposit, Cash Adjustment, Transfer In"
+                    autoFocus
+                  />
+                </div>
+                <div className="field">
+                  <label>Amount</label>
+                  <input
+                    type="text"
+                    value={depositData.amount}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '')
+                      setDepositData({ ...depositData, amount: val })
+                    }}
+                    placeholder="0.00"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && depositData.amount && depositData.description) {
+                        const success = recordDeposit(depositData)
+                        if (success) {
+                          setShowDepositModal(false)
+                          setToast({ message: 'Deposit recorded successfully!', type: 'success' })
+                          setTimeout(() => setToast(null), 3000)
+                        }
+                      }
                     }}
                   />
                 </div>
-              )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={() => setShowDepositModal(false)}>Cancel</button>
+                <button
+                  className="btn primary"
+                  onClick={() => {
+                    const success = recordDeposit(depositData)
+                    if (success) {
+                      setShowDepositModal(false)
+                      setToast({ message: 'Deposit recorded successfully!', type: 'success' })
+                      setTimeout(() => setToast(null), 3000)
+                    } else {
+                      setToast({ message: 'Please enter a valid amount and description.', type: 'error' })
+                      setTimeout(() => setToast(null), 3000)
+                    }
+                  }}
+                  disabled={!depositData.amount || !depositData.description}
+                >
+                  Record Deposit
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
-              {/* Printer Mode Selection */}
-              <div style={{ marginBottom: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>
-                  Batch Print Mode:
-                </label>
+      {/* Delete Check Confirmation Modal */}
+      {
+        showDeleteConfirm && deleteTarget && (
+          <div className="modal-overlay confirm-modal no-print" onClick={cancelDeleteHistoryEntry}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h2>Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}?</h2>
+                <button className="btn-icon" onClick={cancelDeleteHistoryEntry}>×</button>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete this {deleteTarget.type === 'deposit' ? 'deposit' : 'check'}?</p>
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  backgroundColor: '#1e293b',
+                  borderRadius: '6px',
+                  border: '1px solid #334155'
+                }}>
+                  <div><strong>{deleteTarget.type === 'deposit' ? 'Description' : 'Payee'}:</strong> {deleteTarget.payee}</div>
+                  <div><strong>Amount:</strong> {formatCurrency(deleteTarget.amount)}</div>
+                  <div><strong>Date:</strong> {deleteTarget.date}</div>
+                </div>
+                <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '14px' }}>
+                  {deleteTarget.type === 'deposit'
+                    ? `This will remove ${formatCurrency(deleteTarget.amount)} from the ledger balance.`
+                    : `This will restore ${formatCurrency(deleteTarget.amount)} to the ledger balance.`
+                  }
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={cancelDeleteHistoryEntry}>Cancel</button>
+                <button className="btn danger" onClick={confirmDeleteHistoryEntry}>
+                  Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
-                {/* Interactive Mode Radio */}
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
-                  <input
-                    type="radio"
-                    checked={preferences.batchPrintMode === 'interactive'}
-                    onChange={() => setPreferences(p => ({ ...p, batchPrintMode: 'interactive' }))}
-                    style={{ marginRight: '8px', cursor: 'pointer' }}
-                  />
-                  <span>Interactive (show dialog for each check)</span>
-                </label>
+      {/* Backup Restore Modal */}
+      {
+        showBackupModal && (
+          <div className="modal-overlay no-print" onClick={() => setShowBackupModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+              <div className="modal-header">
+                <h2>Restore from Backup</h2>
+                <button className="btn-icon" onClick={() => setShowBackupModal(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '12px',
+                  backgroundColor: '#1e3a5f',
+                  borderRadius: '6px',
+                  border: '1px solid #3b82f6'
+                }}>
+                  <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                    🔒 <strong>Secure Auto-Backups:</strong> These backups are encrypted and stored securely in your app data folder. Select the most recent backup or choose an older version.
+                  </div>
+                </div>
 
-                {/* Silent Mode Radio */}
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
-                  <input
-                    type="radio"
-                    checked={preferences.batchPrintMode === 'silent'}
-                    onChange={() => {
-                      setPreferences(p => ({ ...p, batchPrintMode: 'silent' }))
-                      if (availablePrinters.length === 0) loadAvailablePrinters()
-                    }}
-                    style={{ marginRight: '8px', cursor: 'pointer' }}
-                  />
-                  <span>Use saved printer (silent printing)</span>
-                </label>
+                <div style={{
+                  maxHeight: '400px',
+                  overflowY: 'auto',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  backgroundColor: '#1e293b'
+                }}>
+                  {(() => {
+                    const grouped = groupBackups(availableBackups)
+                    const groupOrder = ['Recent (Last 3 Days)', 'This Year']
 
-                {/* Printer Dropdown (only when silent mode selected) */}
-                {preferences.batchPrintMode === 'silent' && (
-                  <div style={{ marginLeft: '26px', marginBottom: '8px' }}>
-                    <select
-                      value={preferences.batchPrinterDeviceName || ''}
-                      onChange={(e) => {
-                        const selectedPrinter = availablePrinters.find(p => p.name === e.target.value)
-                        setPreferences(p => ({
-                          ...p,
-                          batchPrinterDeviceName: e.target.value,
-                          batchPrinterFriendlyName: selectedPrinter?.displayName || e.target.value
-                        }))
-                      }}
+                    // Add year groups
+                    const years = Object.keys(grouped).filter(k => /^\d{4}$/.test(k)).sort().reverse()
+                    groupOrder.push(...years)
+
+                    // Add quarter groups
+                    const quarters = Object.keys(grouped).filter(k => /Q\d/.test(k)).sort().reverse()
+                    groupOrder.push(...quarters)
+
+                    return groupOrder.map(groupName => {
+                      if (!grouped[groupName]) return null
+
+                      return (
+                        <div key={groupName}>
+                          <div style={{
+                            padding: '8px 12px',
+                            backgroundColor: '#0f172a',
+                            fontWeight: '600',
+                            fontSize: '12px',
+                            color: '#94a3b8',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            borderBottom: '1px solid #334155'
+                          }}>
+                            {groupName}
+                          </div>
+                          {grouped[groupName].map((backup, index) => (
+                            <div
+                              key={backup.path}
+                              onClick={() => setSelectedBackup(backup)}
+                              style={{
+                                padding: '12px 16px',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #1e293b',
+                                backgroundColor: selectedBackup?.path === backup.path ? '#334155' : 'transparent',
+                                transition: 'background-color 0.2s'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (selectedBackup?.path !== backup.path) {
+                                  e.currentTarget.style.backgroundColor = '#2d3748'
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (selectedBackup?.path !== backup.path) {
+                                  e.currentTarget.style.backgroundColor = 'transparent'
+                                }
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontWeight: '500', color: '#f1f5f9', fontSize: '14px' }}>
+                                    {backup.friendlyName}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                    {backup.fullDate} • {(backup.size / 1024).toFixed(1)} KB
+                                  </div>
+                                </div>
+                                {selectedBackup?.path === backup.path && (
+                                  <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>✓</div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })
+                  })()}
+                </div>
+
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  backgroundColor: '#7f1d1d',
+                  borderRadius: '6px',
+                  border: '1px solid #ef4444'
+                }}>
+                  <div style={{ fontWeight: '600', color: '#fecaca', marginBottom: '8px', fontSize: '14px' }}>
+                    ⚠️ WARNING: This action cannot be undone
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.6' }}>
+                    Restoring this backup will replace ALL current data:
+                    <ul style={{ marginTop: '8px', marginBottom: '0', paddingLeft: '20px' }}>
+                      <li>All profiles and settings</li>
+                      <li>All field positions and layouts</li>
+                      <li>All check history</li>
+                      <li>All ledger data</li>
+                      <li>Current session data</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    setShowBackupModal(false)
+                    handleRestoreFromFile()
+                  }}
+                >
+                  Select File Instead
+                </button>
+                <button className="btn ghost" onClick={() => setShowBackupModal(false)}>Cancel</button>
+                <button
+                  className="btn primary"
+                  onClick={() => confirmRestoreBackup(selectedBackup?.path)}
+                  disabled={!selectedBackup}
+                >
+                  Restore Selected
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Backup Password Modal */}
+      {
+        showBackupPasswordModal && (
+          <PasswordModal
+            title="Encrypt Backup"
+            message="Enter a password to encrypt this backup file. If you leave this blank, the file will be saved as plain text."
+            value={backupPassword}
+            onChange={setBackupPassword}
+            onSubmit={handleBackupPasswordSubmit}
+            onCancel={() => setShowBackupPasswordModal(false)}
+            confirmButtonText={backupPassword ? "Save Encrypted" : "Save Unencrypted"}
+            allowEmpty={true}
+          />
+        )
+      }
+
+      {/* Restore Password Modal */}
+      {
+        showRestorePasswordModal && (
+          <PasswordModal
+            title="Enter Password"
+            message="This backup file is encrypted. Please enter the password to restore it."
+            value={restorePassword}
+            onChange={(val) => {
+              setRestorePassword(val)
+              setRestoreError(null)
+            }}
+            onSubmit={handleRestorePasswordSubmit}
+            onCancel={() => {
+              setShowRestorePasswordModal(false)
+              setPendingRestorePath(null)
+              setRestoreError(null)
+            }}
+            error={restoreError}
+            confirmButtonText="Unlock & Restore"
+            allowEmpty={false}
+          />
+        )
+      }
+
+      {/* Manual Backup Modal */}
+      {
+        showManualBackupModal && (
+          <div className="modal-overlay no-print" onClick={() => setShowManualBackupModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+              <div className="modal-header">
+                <h2>Create Manual Backup</h2>
+                <button className="btn-icon" onClick={() => setShowManualBackupModal(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <div style={{
+                  marginBottom: '20px',
+                  padding: '16px',
+                  backgroundColor: '#7f1d1d',
+                  borderRadius: '6px',
+                  border: '1px solid #ef4444'
+                }}>
+                  <div style={{ fontWeight: '600', color: '#fecaca', marginBottom: '8px', fontSize: '14px' }}>
+                    🔒 SECURITY WARNING
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#fca5a5', lineHeight: '1.6' }}>
+                    This backup file will contain ALL your data in <strong>PLAIN TEXT</strong> (unencrypted) including:
+                    <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px' }}>
+                      <li>All check history and transactions</li>
+                      <li>Payee names and amounts</li>
+                      <li>Ledger balances</li>
+                      <li>All memo fields</li>
+                    </ul>
+                    <strong>⚠️ Save this file in a SECURE location.</strong> Anyone with access can read all your financial data.
+                  </div>
+                </div>
+
+                <div style={{
+                  marginBottom: '16px',
+                  padding: '12px',
+                  backgroundColor: '#1e3a5f',
+                  borderRadius: '6px',
+                  border: '1px solid #3b82f6'
+                }}>
+                  <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
+                    ✓ An <strong>encrypted</strong> copy will also be saved automatically to your secure app data folder.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#e2e8f0', fontSize: '14px' }}>
+                    You will be prompted to choose where to save this file
+                  </label>
+                  <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                    Recommended locations: Password manager, encrypted drive, or secure cloud storage
+                  </p>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={() => setShowManualBackupModal(false)}>Cancel</button>
+                <button className="btn primary" onClick={confirmManualBackup}>
+                  Choose Location & Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Generic Confirmation Modal */}
+      {
+        showConfirmModal && (
+          <div className="modal-overlay confirm-modal no-print" onClick={handleConfirmModalCancel}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+              <div className="modal-header">
+                <h2>{confirmConfig.title}</h2>
+                <button className="btn-icon" onClick={handleConfirmModalCancel}>×</button>
+              </div>
+              <div className="modal-body">
+                <p>{confirmConfig.message}</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={handleConfirmModalCancel}>Cancel</button>
+                <button className="btn primary" onClick={handleConfirmModalConfirm}>
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Batch Print Confirmation Modal */}
+      {
+        showBatchPrintConfirm && (
+          <div className="modal-overlay no-print" onClick={cancelBatchPrintConfirm}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h2>Print & Record All Checks?</h2>
+                <button className="btn-icon" onClick={cancelBatchPrintConfirm}>×</button>
+              </div>
+              <div className="modal-body" style={{ padding: '24px' }}>
+                <p style={{ marginBottom: '20px' }}>
+                  Print and record {importQueue.length} checks? This will {activeProfile?.layoutMode === 'three_up' ? 'print checks in sheets of 3' : 'print each check'} and deduct amounts from your ledger balance.
+                </p>
+
+                {/* Auto-number checkbox */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={batchAutoNumber}
+                      onChange={(e) => setBatchAutoNumber(e.target.checked)}
+                      style={{ marginRight: '8px', width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <span>Auto-number checks sequentially</span>
+                  </label>
+                </div>
+
+                {/* Starting number input (only visible when auto-number is enabled) */}
+                {batchAutoNumber && (
+                  <div style={{ marginLeft: '26px', marginBottom: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', color: '#6b7280' }}>
+                      Starting check number:
+                    </label>
+                    <input
+                      type="text"
+                      value={batchStartNumber}
+                      onChange={(e) => setBatchStartNumber(e.target.value)}
+                      placeholder="1001"
                       style={{
                         padding: '8px 12px',
                         border: '1px solid var(--border)',
                         borderRadius: '4px',
                         fontSize: '14px',
-                        width: '100%'
+                        width: '150px'
                       }}
+                    />
+                  </div>
+                )}
+
+                {/* Printer Mode Selection */}
+                <div style={{ marginBottom: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>
+                    Batch Print Mode:
+                  </label>
+
+                  {/* Interactive Mode Radio */}
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
+                    <input
+                      type="radio"
+                      checked={preferences.batchPrintMode === 'interactive'}
+                      onChange={() => setPreferences(p => ({ ...p, batchPrintMode: 'interactive' }))}
+                      style={{ marginRight: '8px', cursor: 'pointer' }}
+                    />
+                    <span>Interactive (show dialog for each check)</span>
+                  </label>
+
+                  {/* Silent Mode Radio */}
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
+                    <input
+                      type="radio"
+                      checked={preferences.batchPrintMode === 'silent'}
+                      onChange={() => {
+                        setPreferences(p => ({ ...p, batchPrintMode: 'silent' }))
+                        if (availablePrinters.length === 0) loadAvailablePrinters()
+                      }}
+                      style={{ marginRight: '8px', cursor: 'pointer' }}
+                    />
+                    <span>Use saved printer (silent printing)</span>
+                  </label>
+
+                  {/* Printer Dropdown (only when silent mode selected) */}
+                  {preferences.batchPrintMode === 'silent' && (
+                    <div style={{ marginLeft: '26px', marginBottom: '8px' }}>
+                      <select
+                        value={preferences.batchPrinterDeviceName || ''}
+                        onChange={(e) => {
+                          const selectedPrinter = availablePrinters.find(p => p.name === e.target.value)
+                          setPreferences(p => ({
+                            ...p,
+                            batchPrinterDeviceName: e.target.value,
+                            batchPrinterFriendlyName: selectedPrinter?.displayName || e.target.value
+                          }))
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          fontSize: '14px',
+                          width: '100%'
+                        }}
+                      >
+                        <option value="">-- Select Printer --</option>
+                        {availablePrinters.map(printer => (
+                          <option key={printer.name} value={printer.name}>
+                            {printer.displayName || printer.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* PDF Export Mode Radio */}
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
+                    <input
+                      type="radio"
+                      checked={preferences.batchPrintMode === 'pdf'}
+                      onChange={() => setPreferences(p => ({ ...p, batchPrintMode: 'pdf' }))}
+                      style={{ marginRight: '8px', cursor: 'pointer' }}
+                    />
+                    <span>Export all as PDFs to folder</span>
+                  </label>
+
+                  {/* Folder selection (only when PDF mode selected) */}
+                  {preferences.batchPrintMode === 'pdf' && (
+                    <div style={{ marginLeft: '26px' }}>
+                      <button
+                        className="btn ghost"
+                        onClick={async () => {
+                          const res = await window.cs2.selectPdfFolder()
+                          if (res?.success && res.path) {
+                            setPreferences(p => ({ ...p, batchPdfExportPath: res.path }))
+                          }
+                        }}
+                        style={{ fontSize: '14px' }}
+                      >
+                        {preferences.batchPdfExportPath || 'Select Folder...'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={cancelBatchPrintConfirm}>Cancel</button>
+                <button className="btn primary" onClick={confirmBatchPrint}>
+                  Print & Record
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Batch Print Progress Modal */}
+      {
+        isBatchPrinting && (
+          <div className="modal-overlay no-print">
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h2>Batch Print & Record</h2>
+              </div>
+              <div className="modal-body" style={{ padding: '24px' }}>
+                <div style={{ marginBottom: '20px' }}>
+                  <p style={{ fontSize: '16px', marginBottom: '8px' }}>
+                    Printing check {batchPrintProgress.current} of {batchPrintProgress.total}...
+                  </p>
+                  <div style={{
+                    width: '100%',
+                    height: '24px',
+                    backgroundColor: '#e5e7eb',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    marginBottom: '16px'
+                  }}>
+                    <div style={{
+                      width: `${(batchPrintProgress.current / batchPrintProgress.total) * 100}%`,
+                      height: '100%',
+                      backgroundColor: '#3b82f6',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                  <p style={{ fontSize: '14px', color: '#6b7280' }}>
+                    Please wait while each check is printed and recorded. Do not close this window.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <button
+                    className="btn danger"
+                    onClick={cancelBatchPrint}
+                    style={{ minWidth: '120px' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Batch Complete Modal */}
+      {
+        showBatchCompleteModal && (
+          <div className="modal-overlay no-print" onClick={() => setShowBatchCompleteModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+              <div className="modal-header">
+                <h2>{batchCompleteData.cancelled ? 'Batch Cancelled' : 'Batch Complete'}</h2>
+                <button className="btn-icon" onClick={() => setShowBatchCompleteModal(false)}>×</button>
+              </div>
+              <div className="modal-body" style={{ textAlign: 'center', padding: '32px' }}>
+                <div style={{
+                  fontSize: '48px',
+                  marginBottom: '16px'
+                }}>
+                  {batchCompleteData.cancelled ? '⚠️' : '✅'}
+                </div>
+                <p style={{ fontSize: '18px', marginBottom: '8px', color: '#f1f5f9' }}>
+                  {batchCompleteData.cancelled
+                    ? `Processed ${batchCompleteData.processed} of ${batchCompleteData.total} checks`
+                    : `Successfully printed and recorded ${batchCompleteData.processed} checks`
+                  }
+                </p>
+                {batchCompleteData.cancelled && (
+                  <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '12px' }}>
+                    Already processed checks have been recorded.
+                  </p>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn primary"
+                  onClick={() => setShowBatchCompleteModal(false)}
+                  style={{ width: '100%' }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Column Mapping Modal */}
+      {
+        showColumnMapping && (
+          <div className="modal-overlay no-print">
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+              <div className="modal-header">
+                <h2>Map Import Columns</h2>
+                <button className="btn-icon" onClick={() => setShowColumnMapping(false)}>×</button>
+              </div>
+              <div className="modal-body" style={{ padding: '24px' }}>
+                <p style={{ marginBottom: '20px', color: '#6b7280' }}>
+                  Match your file's columns to the check fields. We've auto-detected likely matches, but you can adjust them below.
+                </p>
+
+                <div style={{ display: 'grid', gap: '16px' }}>
+                  {/* Date Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Date:</label>
+                    <select
+                      value={columnMapping.date}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, date: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                     >
-                      <option value="">-- Select Printer --</option>
-                      {availablePrinters.map(printer => (
-                        <option key={printer.name} value={printer.name}>
-                          {printer.displayName || printer.name}
-                        </option>
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
                       ))}
                     </select>
                   </div>
-                )}
 
-                {/* PDF Export Mode Radio */}
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '8px' }}>
-                  <input
-                    type="radio"
-                    checked={preferences.batchPrintMode === 'pdf'}
-                    onChange={() => setPreferences(p => ({ ...p, batchPrintMode: 'pdf' }))}
-                    style={{ marginRight: '8px', cursor: 'pointer' }}
-                  />
-                  <span>Export all as PDFs to folder</span>
-                </label>
-
-                {/* Folder selection (only when PDF mode selected) */}
-                {preferences.batchPrintMode === 'pdf' && (
-                  <div style={{ marginLeft: '26px' }}>
-                    <button
-                      className="btn ghost"
-                      onClick={async () => {
-                        const res = await window.cs2.selectPdfFolder()
-                        if (res?.success && res.path) {
-                          setPreferences(p => ({ ...p, batchPdfExportPath: res.path }))
-                        }
+                  {/* Payee Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Payee: *</label>
+                    <select
+                      value={columnMapping.payee}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, payee: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
                       }}
-                      style={{ fontSize: '14px' }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
                     >
-                      {preferences.batchPdfExportPath || 'Select Folder...'}
-                    </button>
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Amount Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Amount: *</label>
+                    <select
+                      value={columnMapping.amount}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, amount: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Memo Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Memo:</label>
+                    <select
+                      value={columnMapping.memo}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, memo: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* External Memo Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>External Memo:</label>
+                    <select
+                      value={columnMapping.external_memo}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, external_memo: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Internal Memo Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Internal Memo:</label>
+                    <select
+                      value={columnMapping.internal_memo}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, internal_memo: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Ledger Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Ledger:</label>
+                    <select
+                      value={columnMapping.ledger}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, ledger: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Use active ledger)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '12px' }}>
+                  * At least one of Payee or Amount must be mapped
+                </p>
+
+                {/* Preview Section */}
+                {previewRow && (
+                  <div style={{
+                    marginTop: '24px',
+                    padding: '16px',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '8px'
+                  }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#e2e8f0' }}>Preview (First Row)</h3>
+                    <div style={{ display: 'grid', gap: '8px', fontSize: '13px', color: '#cbd5e1' }}>
+                      {previewRow.date && (
+                        <div><strong>Date:</strong> {previewRow.date}</div>
+                      )}
+                      {previewRow.payee && (
+                        <div><strong>Payee:</strong> {previewRow.payee}</div>
+                      )}
+                      {previewRow.amount && (
+                        <div><strong>Amount:</strong> ${previewRow.amount}</div>
+                      )}
+                      {previewRow.memo && (
+                        <div><strong>Memo:</strong> {previewRow.memo}</div>
+                      )}
+                      {previewRow.external_memo && (
+                        <div><strong>External Memo:</strong> {previewRow.external_memo}</div>
+                      )}
+                      {previewRow.internal_memo && (
+                        <div><strong>Internal Memo:</strong> {previewRow.internal_memo}</div>
+                      )}
+                      {previewRow.ledger && (
+                        <div><strong>Ledger:</strong> {previewRow.ledger}</div>
+                      )}
+                    </div>
                   </div>
                 )}
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn"
+                    onClick={() => setShowColumnMapping(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn primary"
+                    onClick={processImportWithMapping}
+                  >
+                    Import
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn ghost" onClick={cancelBatchPrintConfirm}>Cancel</button>
-              <button className="btn primary" onClick={confirmBatchPrint}>
-                Print & Record
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {/* Batch Print Progress Modal */}
-      {isBatchPrinting && (
-        <div className="modal-overlay no-print">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <h2>Batch Print & Record</h2>
-            </div>
-            <div className="modal-body" style={{ padding: '24px' }}>
-              <div style={{ marginBottom: '20px' }}>
-                <p style={{ fontSize: '16px', marginBottom: '8px' }}>
-                  Printing check {batchPrintProgress.current} of {batchPrintProgress.total}...
-                </p>
-                <div style={{
-                  width: '100%',
-                  height: '24px',
-                  backgroundColor: '#e5e7eb',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  marginBottom: '16px'
-                }}>
-                  <div style={{
-                    width: `${(batchPrintProgress.current / batchPrintProgress.total) * 100}%`,
-                    height: '100%',
-                    backgroundColor: '#3b82f6',
-                    transition: 'width 0.3s ease'
-                  }} />
-                </div>
-                <p style={{ fontSize: '14px', color: '#6b7280' }}>
-                  Please wait while each check is printed and recorded. Do not close this window.
-                </p>
+      {/* Export Dialog Modal */}
+      {
+        showExportDialog && (
+          <div className="modal-overlay no-print" onClick={() => setShowExportDialog(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Export Check History</h2>
+                <button className="btn-icon" onClick={() => setShowExportDialog(false)}>×</button>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <button
-                  className="btn danger"
-                  onClick={cancelBatchPrint}
-                  style={{ minWidth: '120px' }}
-                >
-                  Cancel
+              <div className="modal-body">
+                <p className="hint">Select which ledgers to include in the export. The CSV will include per-ledger totals, per-profile breakdowns, and a grand total across all selected ledgers.</p>
+
+                <div className="ledger-checkbox-list">
+                  {ledgers.map(ledger => {
+                    const checksInLedger = checkHistory.filter(c => c.ledgerId === ledger.id).length
+                    return (
+                      <label key={ledger.id} className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={selectedLedgersForExport.includes(ledger.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedLedgersForExport([...selectedLedgersForExport, ledger.id])
+                            } else {
+                              setSelectedLedgersForExport(selectedLedgersForExport.filter(id => id !== ledger.id))
+                            }
+                          }}
+                        />
+                        <span>
+                          <strong>{ledger.name}</strong>
+                          <span className="ledger-meta">
+                            {formatCurrency(ledger.balance)} • {checksInLedger} check{checksInLedger !== 1 ? 's' : ''}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+
+                {/* Date Range Filter */}
+                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Date Range</h3>
+                  <div className="field">
+                    <select
+                      value={exportDateRange}
+                      onChange={(e) => setExportDateRange(e.target.value)}
+                      style={{
+                        width: '100%',
+                        backgroundColor: '#1e293b',
+                        color: '#f1f5f9',
+                        border: '1px solid #475569',
+                        padding: '8px',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <option value="all">All Time</option>
+                      <option value="custom">Custom Range</option>
+                      <option value="thisWeek">This Week</option>
+                      <option value="lastWeek">Last Week</option>
+                      <option value="thisMonth">This Month</option>
+                      <option value="lastMonth">Last Month</option>
+                      <option value="thisQuarter">This Quarter</option>
+                      <option value="ytd">Year-to-Date</option>
+                      <option value="last60">Last 60 Days</option>
+                    </select>
+                  </div>
+
+                  {exportDateRange === 'custom' && (
+                    <div className="field-row" style={{ marginTop: '12px', gap: '12px' }}>
+                      <div className="field" style={{ flex: 1 }}>
+                        <label>Start Date</label>
+                        <input
+                          type="date"
+                          value={exportStartDate}
+                          onChange={(e) => setExportStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="field" style={{ flex: 1 }}>
+                        <label>End Date</label>
+                        <input
+                          type="date"
+                          value={exportEndDate}
+                          onChange={(e) => setExportEndDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn" onClick={() => setShowExportDialog(false)}>Cancel</button>
+                <button className="btn primary" onClick={executeExport}>
+                  <DownloadIcon /> Export Selected
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {/* Batch Complete Modal */}
-      {showBatchCompleteModal && (
-        <div className="modal-overlay no-print" onClick={() => setShowBatchCompleteModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-            <div className="modal-header">
-              <h2>{batchCompleteData.cancelled ? 'Batch Cancelled' : 'Batch Complete'}</h2>
-              <button className="btn-icon" onClick={() => setShowBatchCompleteModal(false)}>×</button>
-            </div>
-            <div className="modal-body" style={{ textAlign: 'center', padding: '32px' }}>
-              <div style={{
-                fontSize: '48px',
-                marginBottom: '16px'
-              }}>
-                {batchCompleteData.cancelled ? '⚠️' : '✅'}
-              </div>
-              <p style={{ fontSize: '18px', marginBottom: '8px', color: '#f1f5f9' }}>
-                {batchCompleteData.cancelled
-                  ? `Processed ${batchCompleteData.processed} of ${batchCompleteData.total} checks`
-                  : `Successfully printed and recorded ${batchCompleteData.processed} checks`
-                }
-              </p>
-              {batchCompleteData.cancelled && (
-                <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '12px' }}>
-                  Already processed checks have been recorded.
-                </p>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button
-                className="btn primary"
-                onClick={() => setShowBatchCompleteModal(false)}
-                style={{ width: '100%' }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Column Mapping Modal */}
-      {showColumnMapping && (
-        <div className="modal-overlay no-print">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
-            <div className="modal-header">
-              <h2>Map Import Columns</h2>
-              <button className="btn-icon" onClick={() => setShowColumnMapping(false)}>×</button>
-            </div>
-            <div className="modal-body" style={{ padding: '24px' }}>
-              <p style={{ marginBottom: '20px', color: '#6b7280' }}>
-                Match your file's columns to the check fields. We've auto-detected likely matches, but you can adjust them below.
-              </p>
-
-              <div style={{ display: 'grid', gap: '16px' }}>
-                {/* Date Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>Date:</label>
-                  <select
-                    value={columnMapping.date}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, date: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Skip this field)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
+      {/* History Modal */}
+      {
+        showHistory && (
+          <div className="modal-overlay history-modal-overlay" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>
+            <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="history-modal-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2>
+                    {historyViewMode === 'all'
+                      ? `Full History - All Ledgers`
+                      : `Check History - ${activeLedger?.name}`
+                    }
+                  </h2>
+                  <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
                 </div>
 
-                {/* Payee Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>Payee: *</label>
-                  <select
-                    value={columnMapping.payee}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, payee: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Skip this field)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Amount Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>Amount: *</label>
-                  <select
-                    value={columnMapping.amount}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, amount: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Skip this field)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Memo Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>Memo:</label>
-                  <select
-                    value={columnMapping.memo}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, memo: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Skip this field)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* External Memo Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>External Memo:</label>
-                  <select
-                    value={columnMapping.external_memo}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, external_memo: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Skip this field)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Internal Memo Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>Internal Memo:</label>
-                  <select
-                    value={columnMapping.internal_memo}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, internal_memo: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Skip this field)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Ledger Field */}
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
-                  <label style={{ fontWeight: '600' }}>Ledger:</label>
-                  <select
-                    value={columnMapping.ledger}
-                    onChange={(e) => {
-                      const newMapping = { ...columnMapping, ledger: e.target.value }
-                      setColumnMapping(newMapping)
-                      setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
-                    }}
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
-                  >
-                    <option value="">(Use active ledger)</option>
-                    {fileHeaders.map(header => (
-                      <option key={header} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '12px' }}>
-                * At least one of Payee or Amount must be mapped
-              </p>
-
-              {/* Preview Section */}
-              {previewRow && (
-                <div style={{
-                  marginTop: '24px',
-                  padding: '16px',
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px'
-                }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#e2e8f0' }}>Preview (First Row)</h3>
-                  <div style={{ display: 'grid', gap: '8px', fontSize: '13px', color: '#cbd5e1' }}>
-                    {previewRow.date && (
-                      <div><strong>Date:</strong> {previewRow.date}</div>
-                    )}
-                    {previewRow.payee && (
-                      <div><strong>Payee:</strong> {previewRow.payee}</div>
-                    )}
-                    {previewRow.amount && (
-                      <div><strong>Amount:</strong> ${previewRow.amount}</div>
-                    )}
-                    {previewRow.memo && (
-                      <div><strong>Memo:</strong> {previewRow.memo}</div>
-                    )}
-                    {previewRow.external_memo && (
-                      <div><strong>External Memo:</strong> {previewRow.external_memo}</div>
-                    )}
-                    {previewRow.internal_memo && (
-                      <div><strong>Internal Memo:</strong> {previewRow.internal_memo}</div>
-                    )}
-                    {previewRow.ledger && (
-                      <div><strong>Ledger:</strong> {previewRow.ledger}</div>
-                    )}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                    <input
+                      type="text"
+                      placeholder="Search payee, memo, amount..."
+                      value={historySearchTerm}
+                      onChange={(e) => setHistorySearchTerm(e.target.value)}
+                      style={{ width: '100%' }}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="field" style={{ width: '200px', marginBottom: 0 }}>
+                    <select
+                      value={historySortOrder}
+                      onChange={(e) => setHistorySortOrder(e.target.value)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="date-desc">Date (Newest First)</option>
+                      <option value="date-asc">Date (Oldest First)</option>
+                      <option value="amount-desc">Amount (High to Low)</option>
+                      <option value="amount-asc">Amount (Low to High)</option>
+                      <option value="payee-asc">Payee (A-Z)</option>
+                    </select>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+              {(historyViewMode === 'all' ? checkHistory.length : checkHistory.filter(c => c.ledgerId === activeLedgerId).length) === 0 ? (
+                <div className="history-empty-state">
+                  <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                    <path d="M32 8L8 20V42C8 51.9 18.8 56 32 56C45.2 56 56 51.9 56 42V20L32 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.3" />
+                  </svg>
+                  <h3>No checks recorded yet</h3>
+                  <p>Checks you print and record will appear here</p>
+                </div>
+              ) : (
+                <div className="history-modal-body">
+                  <div className="history-list-column">
+                    {(historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId))
+                      .filter(entry => {
+                        if (!historySearchTerm) return true
+                        const term = historySearchTerm.toLowerCase()
+                        return (
+                          (entry.payee && entry.payee.toLowerCase().includes(term)) ||
+                          (entry.memo && entry.memo.toLowerCase().includes(term)) ||
+                          (entry.amount && entry.amount.toString().includes(term)) ||
+                          (entry.checkNumber && entry.checkNumber.toString().includes(term))
+                        )
+                      })
+                      .sort((a, b) => {
+                        switch (historySortOrder) {
+                          case 'date-asc': return new Date(a.date) - new Date(b.date)
+                          case 'date-desc': return new Date(b.date) - new Date(a.date)
+                          case 'amount-asc': return parseFloat(a.amount) - parseFloat(b.amount)
+                          case 'amount-desc': return parseFloat(b.amount) - parseFloat(a.amount)
+                          case 'payee-asc': return (a.payee || '').localeCompare(b.payee || '')
+                          default: return 0
+                        }
+                      })
+                      .map(entry => {
+                        const ledger = ledgers.find(l => l.id === entry.ledgerId)
+                        const profile = profiles.find(p => p.id === entry.profileId)
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`history-card ${selectedHistoryItem?.id === entry.id ? 'selected' : ''}`}
+                            onClick={() => setSelectedHistoryItem(entry)}
+                          >
+                            <div className="history-card-main">
+                              <div className="history-card-payee">{entry.payee}</div>
+                              <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
+                                {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
+                              </div>
+                            </div>
+                            <div className="history-card-meta">
+                              <span>{formatDate(entry.date)}</span>
+                              {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
+                            </div>
+                            <div className="history-card-tags">
+                              <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>
+                              <span className="tag tag-profile">{profile?.name || 'Unknown'}</span>
+                            </div>
+                            <button
+                              className="history-card-delete"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                deleteHistoryEntry(entry.id)
+                                if (selectedHistoryItem?.id === entry.id) {
+                                  setSelectedHistoryItem(null)
+                                }
+                              }}
+                              title="Delete and restore amount"
+                            >
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        )
+                      })}
+                  </div>
+
+                  {selectedHistoryItem ? (
+                    <div className="history-detail-column">
+                      <div className="history-detail-header">
+                        <h3>Check Details</h3>
+                        <button className="btn btn-sm" onClick={() => setSelectedHistoryItem(null)} style={{ minWidth: 'fit-content', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
+                          Close Preview
+                        </button>
+                      </div>
+
+                      <div className="check-detail-grid">
+                        <div className="detail-card">
+                          <label>Date</label>
+                          <div className="detail-value">{selectedHistoryItem.date}</div>
+                        </div>
+
+                        <div className="detail-card">
+                          <label>Payee</label>
+                          <div className="detail-value">{selectedHistoryItem.payee}</div>
+                        </div>
+
+                        <div className="detail-card">
+                          <label>Amount</label>
+                          <div className={`detail-value amount ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>{formatCurrency(selectedHistoryItem.amount)}</div>
+                        </div>
+
+                        {selectedHistoryItem.memo && (
+                          <div className="detail-card full-width">
+                            <label>Memo</label>
+                            <div className="detail-value">{selectedHistoryItem.memo}</div>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.external_memo && (
+                          <div className="detail-card full-width">
+                            <label>External Memo</label>
+                            <div className="detail-value">{selectedHistoryItem.external_memo}</div>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.internal_memo && (
+                          <div className="detail-card full-width">
+                            <label>Internal Memo</label>
+                            <div className="detail-value">{selectedHistoryItem.internal_memo}</div>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.line_items && selectedHistoryItem.line_items.length > 0 && (
+                          <div className="detail-card full-width">
+                            <label>Line Items</label>
+                            <div className="line-items-table">
+                              {selectedHistoryItem.line_items.map((item, idx) => (
+                                <div key={idx} className="line-item-row">
+                                  <span>{item.description}</span>
+                                  <span>{formatCurrency(item.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.ledger_snapshot && (
+                          <div className="detail-card full-width ledger-snapshot-card">
+                            <label>Ledger Snapshot</label>
+                            <div className="snapshot-grid">
+                              <div className="snapshot-item">
+                                <span className="snapshot-label">Previous Balance</span>
+                                <span className="snapshot-value">
+                                  {formatCurrency(selectedHistoryItem.ledger_snapshot.previous_balance)}
+                                </span>
+                              </div>
+                              <div className="snapshot-item">
+                                <span className="snapshot-label">Transaction</span>
+                                <span className={`snapshot-value ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>
+                                  {selectedHistoryItem.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount)))}
+                                </span>
+                              </div>
+                              <div className="snapshot-item balance-row">
+                                <span className="snapshot-label">New Balance</span>
+                                <span className={`snapshot-value ${selectedHistoryItem.ledger_snapshot.new_balance < 0 ? 'negative' : ''}`}>
+                                  {formatCurrency(selectedHistoryItem.ledger_snapshot.new_balance)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="detail-card full-width timestamp-card">
+                          <label>Recorded</label>
+                          <div className="detail-value">{new Date(selectedHistoryItem.timestamp).toLocaleString()}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                        <button
+                          className="btn btn-sm danger"
+                          onClick={() => {
+                            deleteHistoryEntry(selectedHistoryItem.id)
+                            setSelectedHistoryItem(null)
+                          }}
+                          style={{ width: '100%' }}
+                        >
+                          <TrashIcon /> Delete & Restore to Ledger
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="history-detail-column history-detail-empty">
+                      <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+                        <rect x="20" y="16" width="40" height="48" rx="2" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                        <path d="M28 28H52M28 36H52M28 44H44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.3" />
+                      </svg>
+                      <h3>Select a check</h3>
+                      <p>Click on a check from the list to view its details</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      {/* Print Failure Confirmation Modal */}
+      {
+        showPrintFailureModal && (
+          <div className="modal-overlay" style={{ zIndex: 10001 }}>
+            <div className="modal-content" style={{ maxWidth: '420px' }}>
+              <div className="modal-header" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                <h2 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  ⚠️ Print Failed
+                </h2>
+              </div>
+              <div className="modal-body" style={{ padding: '20px' }}>
+                <p style={{ marginBottom: '12px', fontWeight: 600 }}>
+                  Failed to print: {printFailureInfo.payee}
+                </p>
+                <p style={{ marginBottom: '16px', color: '#94a3b8', fontSize: '14px' }}>
+                  Error: {printFailureInfo.error}
+                </p>
+                <div style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginBottom: '8px'
+                }}>
+                  <p style={{ fontSize: '13px', color: '#fca5a5', margin: 0 }}>
+                    <strong>Note:</strong> The ledger has NOT been deducted for this check.
+                  </p>
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                 <button
-                  className="btn"
-                  onClick={() => setShowColumnMapping(false)}
+                  className="btn danger"
+                  onClick={handlePrintFailureAbort}
                 >
-                  Cancel
+                  Stop Batch
                 </button>
                 <button
                   className="btn primary"
-                  onClick={processImportWithMapping}
+                  onClick={handlePrintFailureContinue}
                 >
-                  Import
+                  Skip & Continue
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Export Dialog Modal */}
-      {showExportDialog && (
-        <div className="modal-overlay no-print" onClick={() => setShowExportDialog(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Export Check History</h2>
-              <button className="btn-icon" onClick={() => setShowExportDialog(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              <p className="hint">Select which ledgers to include in the export. The CSV will include per-ledger totals, per-profile breakdowns, and a grand total across all selected ledgers.</p>
-
-              <div className="ledger-checkbox-list">
-                {ledgers.map(ledger => {
-                  const checksInLedger = checkHistory.filter(c => c.ledgerId === ledger.id).length
-                  return (
-                    <label key={ledger.id} className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={selectedLedgersForExport.includes(ledger.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedLedgersForExport([...selectedLedgersForExport, ledger.id])
-                          } else {
-                            setSelectedLedgersForExport(selectedLedgersForExport.filter(id => id !== ledger.id))
-                          }
-                        }}
-                      />
-                      <span>
-                        <strong>{ledger.name}</strong>
-                        <span className="ledger-meta">
-                          {formatCurrency(ledger.balance)} • {checksInLedger} check{checksInLedger !== 1 ? 's' : ''}
-                        </span>
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-
-              {/* Date Range Filter */}
-              <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Date Range</h3>
-                <div className="field">
-                  <select
-                    value={exportDateRange}
-                    onChange={(e) => setExportDateRange(e.target.value)}
-                    style={{
-                      width: '100%',
-                      backgroundColor: '#1e293b',
-                      color: '#f1f5f9',
-                      border: '1px solid #475569',
-                      padding: '8px',
-                      borderRadius: '6px'
-                    }}
-                  >
-                    <option value="all">All Time</option>
-                    <option value="custom">Custom Range</option>
-                    <option value="thisWeek">This Week</option>
-                    <option value="lastWeek">Last Week</option>
-                    <option value="thisMonth">This Month</option>
-                    <option value="lastMonth">Last Month</option>
-                    <option value="thisQuarter">This Quarter</option>
-                    <option value="ytd">Year-to-Date</option>
-                    <option value="last60">Last 60 Days</option>
-                  </select>
-                </div>
-
-                {exportDateRange === 'custom' && (
-                  <div className="field-row" style={{ marginTop: '12px', gap: '12px' }}>
-                    <div className="field" style={{ flex: 1 }}>
-                      <label>Start Date</label>
-                      <input
-                        type="date"
-                        value={exportStartDate}
-                        onChange={(e) => setExportStartDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="field" style={{ flex: 1 }}>
-                      <label>End Date</label>
-                      <input
-                        type="date"
-                        value={exportEndDate}
-                        onChange={(e) => setExportEndDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn" onClick={() => setShowExportDialog(false)}>Cancel</button>
-              <button className="btn primary" onClick={executeExport}>
-                <DownloadIcon /> Export Selected
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* History Modal */}
-      {showHistory && (
-        <div className="modal-overlay history-modal-overlay" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>
-          <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="history-modal-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2>
-                  {historyViewMode === 'all'
-                    ? `Full History - All Ledgers`
-                    : `Check History - ${activeLedger?.name}`
-                  }
-                </h2>
-                <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-                  <input
-                    type="text"
-                    placeholder="Search payee, memo, amount..."
-                    value={historySearchTerm}
-                    onChange={(e) => setHistorySearchTerm(e.target.value)}
-                    style={{ width: '100%' }}
-                    autoFocus
-                  />
-                </div>
-                <div className="field" style={{ width: '200px', marginBottom: 0 }}>
-                  <select
-                    value={historySortOrder}
-                    onChange={(e) => setHistorySortOrder(e.target.value)}
-                    style={{ width: '100%' }}
-                  >
-                    <option value="date-desc">Date (Newest First)</option>
-                    <option value="date-asc">Date (Oldest First)</option>
-                    <option value="amount-desc">Amount (High to Low)</option>
-                    <option value="amount-asc">Amount (Low to High)</option>
-                    <option value="payee-asc">Payee (A-Z)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {(historyViewMode === 'all' ? checkHistory.length : checkHistory.filter(c => c.ledgerId === activeLedgerId).length) === 0 ? (
-              <div className="history-empty-state">
-                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                  <path d="M32 8L8 20V42C8 51.9 18.8 56 32 56C45.2 56 56 51.9 56 42V20L32 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.3" />
-                </svg>
-                <h3>No checks recorded yet</h3>
-                <p>Checks you print and record will appear here</p>
-              </div>
-            ) : (
-              <div className="history-modal-body">
-                <div className="history-list-column">
-                  {(historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId))
-                    .filter(entry => {
-                      if (!historySearchTerm) return true
-                      const term = historySearchTerm.toLowerCase()
-                      return (
-                        (entry.payee && entry.payee.toLowerCase().includes(term)) ||
-                        (entry.memo && entry.memo.toLowerCase().includes(term)) ||
-                        (entry.amount && entry.amount.toString().includes(term)) ||
-                        (entry.checkNumber && entry.checkNumber.toString().includes(term))
-                      )
-                    })
-                    .sort((a, b) => {
-                      switch (historySortOrder) {
-                        case 'date-asc': return new Date(a.date) - new Date(b.date)
-                        case 'date-desc': return new Date(b.date) - new Date(a.date)
-                        case 'amount-asc': return parseFloat(a.amount) - parseFloat(b.amount)
-                        case 'amount-desc': return parseFloat(b.amount) - parseFloat(a.amount)
-                        case 'payee-asc': return (a.payee || '').localeCompare(b.payee || '')
-                        default: return 0
-                      }
-                    })
-                    .map(entry => {
-                      const ledger = ledgers.find(l => l.id === entry.ledgerId)
-                      const profile = profiles.find(p => p.id === entry.profileId)
-                      return (
-                        <div
-                          key={entry.id}
-                          className={`history-card ${selectedHistoryItem?.id === entry.id ? 'selected' : ''}`}
-                          onClick={() => setSelectedHistoryItem(entry)}
-                        >
-                          <div className="history-card-main">
-                            <div className="history-card-payee">{entry.payee}</div>
-                            <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
-                              {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
-                            </div>
-                          </div>
-                          <div className="history-card-meta">
-                            <span>{formatDate(entry.date)}</span>
-                            {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
-                          </div>
-                          <div className="history-card-tags">
-                            <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>
-                            <span className="tag tag-profile">{profile?.name || 'Unknown'}</span>
-                          </div>
-                          <button
-                            className="history-card-delete"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteHistoryEntry(entry.id)
-                              if (selectedHistoryItem?.id === entry.id) {
-                                setSelectedHistoryItem(null)
-                              }
-                            }}
-                            title="Delete and restore amount"
-                          >
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      )
-                    })}
-                </div>
-
-                {selectedHistoryItem ? (
-                  <div className="history-detail-column">
-                    <div className="history-detail-header">
-                      <h3>Check Details</h3>
-                      <button className="btn btn-sm" onClick={() => setSelectedHistoryItem(null)} style={{ minWidth: 'fit-content', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
-                        Close Preview
-                      </button>
-                    </div>
-
-                    <div className="check-detail-grid">
-                      <div className="detail-card">
-                        <label>Date</label>
-                        <div className="detail-value">{selectedHistoryItem.date}</div>
-                      </div>
-
-                      <div className="detail-card">
-                        <label>Payee</label>
-                        <div className="detail-value">{selectedHistoryItem.payee}</div>
-                      </div>
-
-                      <div className="detail-card">
-                        <label>Amount</label>
-                        <div className={`detail-value amount ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>{formatCurrency(selectedHistoryItem.amount)}</div>
-                      </div>
-
-                      {selectedHistoryItem.memo && (
-                        <div className="detail-card full-width">
-                          <label>Memo</label>
-                          <div className="detail-value">{selectedHistoryItem.memo}</div>
-                        </div>
-                      )}
-
-                      {selectedHistoryItem.external_memo && (
-                        <div className="detail-card full-width">
-                          <label>External Memo</label>
-                          <div className="detail-value">{selectedHistoryItem.external_memo}</div>
-                        </div>
-                      )}
-
-                      {selectedHistoryItem.internal_memo && (
-                        <div className="detail-card full-width">
-                          <label>Internal Memo</label>
-                          <div className="detail-value">{selectedHistoryItem.internal_memo}</div>
-                        </div>
-                      )}
-
-                      {selectedHistoryItem.line_items && selectedHistoryItem.line_items.length > 0 && (
-                        <div className="detail-card full-width">
-                          <label>Line Items</label>
-                          <div className="line-items-table">
-                            {selectedHistoryItem.line_items.map((item, idx) => (
-                              <div key={idx} className="line-item-row">
-                                <span>{item.description}</span>
-                                <span>{formatCurrency(item.amount)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedHistoryItem.ledger_snapshot && (
-                        <div className="detail-card full-width ledger-snapshot-card">
-                          <label>Ledger Snapshot</label>
-                          <div className="snapshot-grid">
-                            <div className="snapshot-item">
-                              <span className="snapshot-label">Previous Balance</span>
-                              <span className="snapshot-value">
-                                {formatCurrency(selectedHistoryItem.ledger_snapshot.previous_balance)}
-                              </span>
-                            </div>
-                            <div className="snapshot-item">
-                              <span className="snapshot-label">Transaction</span>
-                              <span className={`snapshot-value ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>
-                                {selectedHistoryItem.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount)))}
-                              </span>
-                            </div>
-                            <div className="snapshot-item balance-row">
-                              <span className="snapshot-label">New Balance</span>
-                              <span className={`snapshot-value ${selectedHistoryItem.ledger_snapshot.new_balance < 0 ? 'negative' : ''}`}>
-                                {formatCurrency(selectedHistoryItem.ledger_snapshot.new_balance)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="detail-card full-width timestamp-card">
-                        <label>Recorded</label>
-                        <div className="detail-value">{new Date(selectedHistoryItem.timestamp).toLocaleString()}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                      <button
-                        className="btn btn-sm danger"
-                        onClick={() => {
-                          deleteHistoryEntry(selectedHistoryItem.id)
-                          setSelectedHistoryItem(null)
-                        }}
-                        style={{ width: '100%' }}
-                      >
-                        <TrashIcon /> Delete & Restore to Ledger
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="history-detail-column history-detail-empty">
-                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-                      <rect x="20" y="16" width="40" height="48" rx="2" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-                      <path d="M28 28H52M28 36H52M28 44H44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity="0.3" />
-                    </svg>
-                    <h3>Select a check</h3>
-                    <p>Click on a check from the list to view its details</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Print Failure Confirmation Modal */}
-      {showPrintFailureModal && (
-        <div className="modal-overlay" style={{ zIndex: 10001 }}>
-          <div className="modal-content" style={{ maxWidth: '420px' }}>
-            <div className="modal-header" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.3)' }}>
-              <h2 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                ⚠️ Print Failed
-              </h2>
-            </div>
-            <div className="modal-body" style={{ padding: '20px' }}>
-              <p style={{ marginBottom: '12px', fontWeight: 600 }}>
-                Failed to print: {printFailureInfo.payee}
-              </p>
-              <p style={{ marginBottom: '16px', color: '#94a3b8', fontSize: '14px' }}>
-                Error: {printFailureInfo.error}
-              </p>
-              <div style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '8px',
-                padding: '12px',
-                marginBottom: '8px'
-              }}>
-                <p style={{ fontSize: '13px', color: '#fca5a5', margin: 0 }}>
-                  <strong>Note:</strong> The ledger has NOT been deducted for this check.
-                </p>
-              </div>
-            </div>
-            <div className="modal-footer" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                className="btn danger"
-                onClick={handlePrintFailureAbort}
-              >
-                Stop Batch
-              </button>
-              <button
-                className="btn primary"
-                onClick={handlePrintFailureContinue}
-              >
-                Skip & Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Toast Notification */}
 
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#ef4444' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6',
-          color: 'white',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          zIndex: 10000,
-          maxWidth: '400px',
-          wordWrap: 'break-word',
-          animation: 'slideIn 0.3s ease-out'
-        }}>
-          {toast.message}
-        </div>
-      )}
+      {
+        toast && (
+          <div style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#ef4444' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 10000,
+            maxWidth: '400px',
+            wordWrap: 'break-word',
+            animation: 'slideIn 0.3s ease-out'
+          }}>
+            {toast.message}
+          </div>
+        )
+      }
 
       {/* Update Notification */}
       <UpdateNotification isAdmin={!preferences.adminLocked} />
-    </div>
+    </div >
   )
 }
