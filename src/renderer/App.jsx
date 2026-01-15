@@ -46,7 +46,7 @@ const DEFAULT_PROFILE = {
   layoutMode: 'standard', // 'standard' or 'three_up'
   layout: DEFAULT_LAYOUT,
   fields: DEFAULT_FIELDS,
-  template: { path: null, opacity: 0, fit: 'cover' },
+  template: { path: null, opacity: 0.9, fit: 'cover' },
   placement: { offsetXIn: 0, offsetYIn: 0 },
   nextCheckNumber: 1001, // Next check number to use
   dateFormat: {
@@ -101,7 +101,7 @@ const DEFAULT_MODEL = {
   placement: { offsetXIn: 0, offsetYIn: 0 },
   layout: DEFAULT_LAYOUT,
   view: { zoom: 0.9 },
-  template: { path: null, opacity: 0, fit: 'cover' },
+  template: { path: null, opacity: 0.9, fit: 'cover' },
   fields: DEFAULT_FIELDS,
   // Three-up mode: independent field positions per slot
   slotFields: {
@@ -228,14 +228,15 @@ function formatLineItems(lineItems, maxLines = 5) {
   return text
 }
 
-function formatLedgerSnapshot(snapshot) {
+function formatLedgerSnapshot(snapshot, ledgerName) {
   if (!snapshot) return ''
 
   const prev = formatCurrency(snapshot.previous_balance || 0)
   const amt = formatCurrency(snapshot.transaction_amount || 0)
   const remaining = formatCurrency(snapshot.new_balance || 0)
+  const ledgerLine = ledgerName ? `Ledger: ${ledgerName}\n` : ''
 
-  return `Previous Balance: ${prev}\nCheck Amount:     ${amt}\nRemaining Balance: ${remaining}`
+  return `${ledgerLine}Previous Balance: ${prev}\nCheck Amount:     ${amt}\nRemaining Balance: ${remaining}`
 }
 
 // Calculate date range for export filtering
@@ -1606,7 +1607,7 @@ export default function App() {
       name: `Check Profile ${profiles.length + 1}`,
       layout: { ...DEFAULT_LAYOUT },
       fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
-      template: { path: null, opacity: 0, fit: 'cover' },
+      template: { path: null, opacity: 0.9, fit: 'cover' },
       placement: { offsetXIn: 0, offsetYIn: 0 },
       dateFormat: {
         dateSlot1: 'MM',
@@ -1624,7 +1625,7 @@ export default function App() {
       ...m,
       layout: { ...DEFAULT_LAYOUT },
       fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
-      template: { path: null, opacity: 0, fit: 'cover' },
+      template: { path: null, opacity: 0.9, fit: 'cover' },
       placement: { offsetXIn: 0, offsetYIn: 0 }
     }))
 
@@ -6358,7 +6359,7 @@ export default function App() {
                             transaction_amount: checkAmount,
                             new_balance: hybridBalance - checkAmount
                           }
-                          value = formatLedgerSnapshot(snapshot)
+                          value = formatLedgerSnapshot(snapshot, activeLedger?.name)
                           isTextarea = true
                           isReadOnly = true
                         } else if (key.endsWith('_approved')) {
