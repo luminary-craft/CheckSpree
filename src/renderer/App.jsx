@@ -665,7 +665,25 @@ async function readTemplateDataUrl(path) {
   if (!path) return null
   const res = await window.cs2.readFileAsDataURL(path)
   if (!res?.success) return { url: null, error: res?.error || 'Failed to read template image' }
-  return { url: res.dataUrl, error: null, mime: res.mime, byteLength: res.byteLength }
+
+  // Load image to get dimensions for auto-detection
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      resolve({
+        url: res.dataUrl,
+        error: null,
+        mime: res.mime,
+        byteLength: res.byteLength,
+        width: img.naturalWidth,
+        height: img.naturalHeight
+      })
+    }
+    img.onerror = () => {
+      resolve({ url: res.dataUrl, error: null, mime: res.mime, byteLength: res.byteLength, width: 0, height: 0 })
+    }
+    img.src = res.dataUrl
+  })
 }
 
 // Icon components
@@ -1255,7 +1273,7 @@ export default function App() {
         if (cancelled) return
         setTemplateDataUrl(res?.url || null)
         setTemplateLoadError(res?.error || null)
-        setTemplateMeta(res?.url ? { mime: res?.mime, byteLength: res?.byteLength } : null)
+        setTemplateMeta(res?.url ? { mime: res?.mime, byteLength: res?.byteLength, width: res?.width, height: res?.height } : null)
         setTemplateDecodeError(null)
       })()
     return () => { cancelled = true }
@@ -4101,9 +4119,12 @@ export default function App() {
     return parts[parts.length - 1] || p
   }, [model.template?.path])
 
-  const templateFit = model.template?.fit || 'cover'
-  const templateObjectFit = templateFit === 'cover' ? 'cover' : templateFit === 'contain' ? 'contain' : 'fill'
-  const templateBgSize = templateFit === 'cover' ? 'cover' : templateFit === 'contain' ? 'contain' : '100% 100%'
+  // Auto-detect template fit mode based on aspect ratio
+  // Full-page images (tall) cover the entire paper, check-only images (wide) fit at the top
+  const isFullPageTemplate = templateMeta?.width && templateMeta?.height && (templateMeta.height / templateMeta.width > 1.2)
+  const templateObjectFit = isFullPageTemplate ? 'cover' : 'contain'
+  const templateBgSize = isFullPageTemplate ? 'cover' : 'contain'
+  const templateBgPosition = isFullPageTemplate ? 'center' : 'top left'
 
   // Calculate if balance will go negative
   const currentData = getCurrentCheckData()
@@ -5720,6 +5741,24 @@ export default function App() {
                   {templateDecodeError && (
                     <div className="error-msg">{templateDecodeError}</div>
                   )}
+                  {/* Opacity slider - only show when template is loaded */}
+                  {templateName && (
+                    <div className="field" style={{ marginTop: '12px' }}>
+                      <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Opacity</span>
+                        <span style={{ fontSize: '12px', color: '#888' }}>{Math.round((model.template.opacity ?? 0) * 100)}%</span>
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={model.template.opacity ?? 0}
+                        onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
+                        style={{ width: '100%' }}
+                      />
+                    </div>
+                  )}
                 </div>
               </section>
             )
@@ -5736,35 +5775,6 @@ export default function App() {
 
                 {showAdvanced && (
                   <div className="accordion-content">
-                    {/* Template Display */}
-                    <div className="card">
-                      <h4>Template Display</h4>
-                      <div className="field-row">
-                        <div className="field">
-                          <label>Fit Mode</label>
-                          <select
-                            value={model.template.fit || 'cover'}
-                            onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, fit: e.target.value } }))}
-                          >
-                            <option value="stretch">Stretch</option>
-                            <option value="contain">Contain</option>
-                            <option value="cover">Cover</option>
-                          </select>
-                        </div>
-                        <div className="field">
-                          <label>Opacity</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="1"
-                            step="0.1"
-                            value={model.template.opacity ?? 0}
-                            onChange={(e) => setModel((m) => ({ ...m, template: { ...m.template, opacity: clamp(parseFloat(e.target.value) || 0, 0, 1) } }))}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Calibration */}
                     <div className="card">
                       <h4>Printer Calibration</h4>
@@ -6003,6 +6013,25 @@ export default function App() {
           ) : (
             <div className="paperWrap" onPointerDown={onPointerDownStage}>
               <div className="paper" style={paperStyle} ref={paperRef}>
+                {/* Full-page template overlay */}
+                {templateDataUrl && isFullPageTemplate && (
+                  <img
+                    className="full-page-template no-print"
+                    src={templateDataUrl}
+                    alt="Template"
+                    draggable="false"
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      opacity: model.template.opacity ?? 0,
+                      pointerEvents: 'none',
+                      zIndex: 1
+                    }}
+                  />
+                )}
                 {selectionBox && (
                   <div style={{
                     position: 'absolute',
@@ -6118,31 +6147,30 @@ export default function App() {
                         pointerEvents: editMode && !isActiveSlot ? 'none' : 'auto'
                       }}
                     >
-                      {/* Rigid check face container with background image */}
+                      {/* Rigid check face container */}
                       <div
                         className="check-face-container"
                         style={{
-                          '--check-height': `${model.layout.checkHeightIn}in`,
-                          ...(templateDataUrl
-                            ? {
-                              backgroundImage: `url(${templateDataUrl})`,
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'top left',
-                              backgroundSize: templateBgSize
-                            }
-                            : {})
+                          '--check-height': `${model.layout.checkHeightIn}in`
                         }}
                       >
-                        {templateDataUrl && (
+                        {/* Check-only template image (wide images) */}
+                        {templateDataUrl && !isFullPageTemplate && (
                           <img
-                            className="templateImg"
+                            className="templateImg no-print"
                             src={templateDataUrl}
                             alt="Template"
                             draggable="false"
                             onError={() => setTemplateDecodeError('Template image failed to load.')}
                             style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: 'auto',
                               opacity: model.template.opacity ?? 0,
-                              objectFit: templateObjectFit
+                              pointerEvents: 'none',
+                              zIndex: 0
                             }}
                           />
                         )}
