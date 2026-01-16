@@ -752,6 +752,262 @@ function UploadIcon() {
   )
 }
 
+// ATM-style currency input - digits build from right (typing 123 shows $1.23)
+function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0.00' }) {
+  const inputRef = useRef(null)
+
+  // Convert external value (string like "1.23") to cents (123)
+  const valueToCents = (val) => {
+    if (!val || val === '') return 0
+    const cleaned = String(val).replace(/[^0-9.]/g, '')
+    const num = parseFloat(cleaned)
+    if (isNaN(num)) return 0
+    return Math.round(num * 100)
+  }
+
+  // Convert cents to display string with comma formatting
+  const centsToDisplay = (cents) => {
+    if (cents === 0) return '0.00'
+    const dollars = cents / 100
+    // Format with commas and always 2 decimal places
+    return dollars.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+  }
+
+  // Convert cents to external value (for onChange)
+  const centsToValue = (cents) => {
+    if (cents === 0) return ''
+    return (cents / 100).toFixed(2)
+  }
+
+  const cents = valueToCents(value)
+  const displayValue = centsToDisplay(cents)
+
+  const handleKeyDown = (e) => {
+    const input = e.target
+    const isAllSelected = input.selectionStart === 0 && input.selectionEnd === input.value.length
+
+    // Allow: backspace, delete, tab, escape, enter, arrows
+    if ([8, 46, 9, 27, 13, 37, 38, 39, 40].includes(e.keyCode)) {
+      if (e.keyCode === 8) { // Backspace
+        e.preventDefault()
+        // If all selected, clear to zero
+        if (isAllSelected) {
+          onChange('')
+        } else {
+          // Remove rightmost digit
+          const newCents = Math.floor(cents / 10)
+          onChange(centsToValue(newCents))
+        }
+      }
+      return
+    }
+
+    // Block non-numeric keys
+    if (e.key < '0' || e.key > '9') {
+      e.preventDefault()
+      return
+    }
+
+    e.preventDefault()
+
+    // If entire value is selected, start fresh with this digit
+    const digit = parseInt(e.key, 10)
+    let newCents
+    if (isAllSelected) {
+      newCents = digit // Start fresh from this digit
+    } else {
+      // Append digit and shift value left
+      newCents = (cents * 10) + digit
+    }
+
+    // Limit to reasonable max (e.g., $999,999,999.99 - nearly $1 billion)
+    if (newCents > 99999999999) return
+
+    onChange(centsToValue(newCents))
+  }
+
+  const handleFocus = (e) => {
+    // Select all on focus for easy replacement
+    e.target.select()
+  }
+
+  const handleChange = (e) => {
+    // Ignore direct input - we handle everything through keyDown
+    // This prevents issues with paste and other input methods
+  }
+
+  return (
+    <div className={`input-prefix ${isWarning ? 'warning' : ''}`}>
+      <span>$</span>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        value={displayValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        placeholder="0.00"
+        style={{ textAlign: 'right' }}
+      />
+    </div>
+  )
+}
+
+// Payee autocomplete - suggests previously used payees from history
+function PayeeAutocomplete({ value, onChange, checkHistory = [], placeholder = 'Recipient name' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const inputRef = useRef(null)
+  const dropdownRef = useRef(null)
+
+  // Get unique payees from check history (only checks, not deposits)
+  const uniquePayees = useMemo(() => {
+    if (!checkHistory || !Array.isArray(checkHistory)) return []
+    const payees = new Set()
+    checkHistory
+      .filter(entry => entry.type === 'check' || !entry.type) // Include legacy entries
+      .forEach(entry => {
+        if (entry.payee?.trim()) {
+          payees.add(entry.payee.trim())
+        }
+      })
+    return Array.from(payees).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+  }, [checkHistory])
+
+  // Filter suggestions based on current input
+  const suggestions = useMemo(() => {
+    if (!value || value.trim() === '') return []
+    const searchTerm = value.toLowerCase().trim()
+    return uniquePayees.filter(payee =>
+      payee.toLowerCase().includes(searchTerm) &&
+      payee.toLowerCase() !== searchTerm // Don't show if exact match
+    ).slice(0, 8) // Limit to 8 suggestions
+  }, [value, uniquePayees])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        inputRef.current && !inputRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleInputChange = (e) => {
+    onChange(e.target.value)
+    setIsOpen(true)
+    setHighlightedIndex(-1)
+  }
+
+  const handleSelect = (payee) => {
+    onChange(payee)
+    setIsOpen(false)
+    setHighlightedIndex(-1)
+    inputRef.current?.focus()
+  }
+
+  const handleKeyDown = (e) => {
+    if (!isOpen || suggestions.length === 0) {
+      if (e.key === 'ArrowDown' && suggestions.length > 0) {
+        setIsOpen(true)
+        setHighlightedIndex(0)
+        e.preventDefault()
+      }
+      return
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setHighlightedIndex(prev =>
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setHighlightedIndex(prev =>
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        )
+        break
+      case 'Enter':
+        if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+          e.preventDefault()
+          handleSelect(suggestions[highlightedIndex])
+        }
+        break
+      case 'Escape':
+        setIsOpen(false)
+        setHighlightedIndex(-1)
+        break
+      case 'Tab':
+        setIsOpen(false)
+        break
+    }
+  }
+
+  const showDropdown = isOpen && suggestions.length > 0
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => value && suggestions.length > 0 && setIsOpen(true)}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {showDropdown && (
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            backgroundColor: '#1e293b',
+            border: '1px solid #475569',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            zIndex: 1000,
+            maxHeight: '200px',
+            overflowY: 'auto'
+          }}
+        >
+          {suggestions.map((payee, index) => (
+            <div
+              key={payee}
+              onClick={() => handleSelect(payee)}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                backgroundColor: index === highlightedIndex ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                color: index === highlightedIndex ? '#60a5fa' : '#e2e8f0',
+                borderBottom: index < suggestions.length - 1 ? '1px solid #334155' : 'none',
+                fontSize: '13px',
+                transition: 'background-color 0.1s'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              {payee}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PasswordModal({ title, message, value, onChange, onSubmit, onCancel, error, confirmButtonText = 'Submit', allowEmpty = false }) {
   return (
     <div className="modal-overlay no-print" onClick={onCancel}>
@@ -1009,6 +1265,12 @@ export default function App() {
   const [checkMode, setCheckMode] = useState('simple') // 'simple' or 'itemized'
   const [lineItems, setLineItems] = useState([])
   const [nextLineItemId, setNextLineItemId] = useState(1)
+
+  // ===== DRAFT PERSISTENCE =====
+  // Form data (data/sheetData) is automatically persisted to disk:
+  // - On startup: settingsGet() restores all data including form drafts (lines below)
+  // - On change: Debounced settingsSet() saves data within 250ms (see useEffect below)
+  // This ensures that if the app closes, drafts are preserved and restored on reopen.
 
   // Load settings from disk on launch
   useEffect(() => {
@@ -1816,6 +2078,25 @@ export default function App() {
     setLedgers(prev => prev.map(l =>
       l.id === ledgerId ? { ...l, balance: newBalance } : l
     ))
+  }
+
+  // Quick Fill: populate form from a history entry (for "Copy Previous" feature)
+  const fillFromHistoryEntry = (entry) => {
+    if (!entry || entry.type === 'deposit') return // Don't fill from deposits
+
+    const today = new Date().toISOString().slice(0, 10)
+
+    updateCurrentCheckData({
+      date: today, // Use today's date, not historical
+      payee: entry.payee || '',
+      amount: entry.amount ? String(entry.amount) : '',
+      memo: entry.memo || '',
+      external_memo: entry.external_memo || '',
+      internal_memo: entry.internal_memo || '',
+      line_items: entry.line_items || [],
+      line_items_text: entry.line_items_text || '',
+      checkNumber: '' // Clear - user assigns new number
+    })
   }
 
   // Ledger helpers
@@ -4378,40 +4659,75 @@ export default function App() {
                                   />
                                 </div>
 
-                                {/* Initial Balance */}
-                                <div style={{ marginBottom: '12px' }}>
+                                {/* Initial Balance - ATM-style input */}
+                                <div style={{ marginBottom: '12px' }} onClick={(e) => e.stopPropagation()}>
                                   <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Initial Balance</label>
-                                  <input
-                                    type="text"
-                                    value={l.startingBalance === 0 ? '' : l.startingBalance}
-                                    placeholder="0.00"
-                                    onChange={(e) => {
-                                      // Allow numbers and one decimal point
-                                      const val = e.target.value
-                                      if (/^\d*\.?\d{0,2}$/.test(val)) {
+                                  <div className="input-prefix">
+                                    <span>$</span>
+                                    <input
+                                      key={`balance-input-${l.id}`}
+                                      type="text"
+                                      inputMode="numeric"
+                                      defaultValue={l.startingBalance ? (l.startingBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                                      placeholder="0.00"
+                                      onFocus={(e) => e.target.select()}
+                                      onKeyDown={(e) => {
+                                        // Check if entire text is selected
+                                        const isAllSelected = e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length
+
+                                        // ATM-style logic: get current value as cents
+                                        const currentVal = parseFloat(e.target.value.replace(/,/g, '')) || 0
+                                        let cents = Math.round(currentVal * 100)
+
+                                        if (e.key === 'Enter') {
+                                          e.target.blur()
+                                          return
+                                        } else if (e.key === 'Escape') {
+                                          setEditingLedgerName(null)
+                                          return
+                                        } else if (e.key === 'Backspace') {
+                                          e.preventDefault()
+                                          // If all selected, clear to zero
+                                          if (isAllSelected) {
+                                            cents = 0
+                                          } else {
+                                            // Remove rightmost digit
+                                            cents = Math.floor(cents / 10)
+                                          }
+                                        } else if (e.key >= '0' && e.key <= '9') {
+                                          e.preventDefault()
+                                          // If all selected, start fresh with this digit
+                                          if (isAllSelected) {
+                                            cents = parseInt(e.key, 10)
+                                          } else if (cents < 99999999999) { // Max $999,999,999.99
+                                            // Shift left and add new digit
+                                            cents = (cents * 10) + parseInt(e.key, 10)
+                                          }
+                                        } else if (!['Tab', 'ArrowLeft', 'ArrowRight', 'Delete'].includes(e.key)) {
+                                          e.preventDefault()
+                                          return
+                                        } else {
+                                          return // Let navigation keys through
+                                        }
+
+                                        // Update display and state
+                                        const newVal = cents / 100
+                                        e.target.value = newVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                                         setLedgers(ledgers.map(ledger =>
-                                          ledger.id === l.id ? { ...ledger, startingBalance: val } : ledger
+                                          ledger.id === l.id ? { ...ledger, startingBalance: newVal } : ledger
                                         ))
-                                      }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onBlur={(e) => {
-                                      // Format on blur
-                                      const val = parseFloat(e.target.value) || 0
-                                      setLedgers(ledgers.map(ledger =>
-                                        ledger.id === l.id ? { ...ledger, startingBalance: val } : ledger
-                                      ))
-                                    }}
-                                    style={{
-                                      width: '100%',
-                                      padding: '6px 10px',
-                                      backgroundColor: '#1e293b',
-                                      border: '1px solid #475569',
-                                      borderRadius: '4px',
-                                      color: '#f1f5f9',
-                                      fontSize: '13px'
-                                    }}
-                                  />
+                                      }}
+                                      onBlur={(e) => {
+                                        // Ensure properly formatted on blur
+                                        const val = parseFloat(e.target.value.replace(/,/g, '')) || 0
+                                        e.target.value = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        textAlign: 'right'
+                                      }}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -4465,27 +4781,13 @@ export default function App() {
                       gap: '10px',
                       alignItems: 'center'
                     }}>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={tempBalance}
-                        onChange={(e) => setTempBalance(e.target.value)}
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') updateBalance()
-                          if (e.key === 'Escape') setEditingBalance(false)
-                        }}
-                        placeholder="0.00"
-                        style={{
-                          flexGrow: 1,
-                          padding: '8px 12px',
-                          fontSize: '16px',
-                          backgroundColor: '#1e293b',
-                          color: '#f1f5f9',
-                          border: '1px solid #475569',
-                          borderRadius: '6px'
-                        }}
-                      />
+                      <div style={{ flexGrow: 1 }}>
+                        <AtmCurrencyInput
+                          value={tempBalance}
+                          onChange={setTempBalance}
+                          autoFocus
+                        />
+                      </div>
                       <button
                         className="btn-icon"
                         onClick={updateBalance}
@@ -4596,14 +4898,31 @@ export default function App() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                       {checkHistory.filter(c => c.ledgerId === activeLedgerId).slice(0, 2).map(entry => (
-                        <div key={entry.id} style={{
-                          position: 'relative',
-                          padding: '8px 40px 8px 10px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          border: '1px solid rgba(255, 255, 255, 0.08)'
-                        }}>
+                        <div
+                          key={entry.id}
+                          onClick={() => entry.type !== 'deposit' && fillFromHistoryEntry(entry)}
+                          title={entry.type !== 'deposit' ? 'Click to fill form with this check' : 'Deposits cannot be copied'}
+                          style={{
+                            position: 'relative',
+                            padding: '8px 40px 8px 10px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            cursor: entry.type !== 'deposit' ? 'pointer' : 'default',
+                            transition: 'background-color 0.15s, border-color 0.15s'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (entry.type !== 'deposit') {
+                              e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
+                              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                          }}
+                        >
                           <div style={{ marginBottom: '4px' }}>
                             <div style={{ fontWeight: '500', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {entry.payee}
@@ -4616,7 +4935,7 @@ export default function App() {
                             {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(entry.amount)}
                           </div>
                           <button
-                            onClick={() => deleteHistoryEntry(entry.id)}
+                            onClick={(e) => { e.stopPropagation(); deleteHistoryEntry(entry.id) }}
                             title="Delete and restore amount"
                             style={{
                               position: 'absolute',
@@ -4969,9 +5288,10 @@ export default function App() {
                 </div>
                 <div className="field">
                   <label>Pay to the Order of</label>
-                  <input
+                  <PayeeAutocomplete
                     value={getCurrentCheckData().payee || ''}
-                    onChange={(e) => updateCurrentCheckData({ payee: e.target.value })}
+                    onChange={(newPayee) => updateCurrentCheckData({ payee: newPayee })}
+                    checkHistory={checkHistory}
                     placeholder="Recipient name"
                   />
                 </div>
@@ -5032,24 +5352,15 @@ export default function App() {
                 </div>
 
                 {checkMode === 'simple' ? (
-                  // Simple Mode: Manual Amount Entry
+                  // Simple Mode: ATM-style Amount Entry
                   <div className="field-row">
                     <div className="field">
                       <label>Amount</label>
-                      <div className={`input-prefix ${isOverdrawn ? 'warning' : ''}`}>
-                        <span>$</span>
-                        <input
-                          value={getCurrentCheckData().amount || ''}
-                          onChange={(e) => updateCurrentCheckData({ amount: e.target.value })}
-                          onBlur={(e) => {
-                            const value = e.target.value.trim()
-                            if (value && value !== '') {
-                              updateCurrentCheckData({ amount: formatAmountForDisplay(value) })
-                            }
-                          }}
-                          placeholder="0.00"
-                        />
-                      </div>
+                      <AtmCurrencyInput
+                        value={getCurrentCheckData().amount || ''}
+                        onChange={(newAmount) => updateCurrentCheckData({ amount: newAmount })}
+                        isWarning={isOverdrawn}
+                      />
                     </div>
                   </div>
                 ) : (

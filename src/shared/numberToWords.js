@@ -25,7 +25,17 @@ function intToWords(n) {
     const r = n % 1000
     return r ? `${intToWords(th)} Thousand ${intToWords(r)}` : `${intToWords(th)} Thousand`
   }
-  // Keep it simple
+  if (n < 1000000000) {
+    const m = Math.floor(n / 1000000)
+    const r = n % 1000000
+    return r ? `${intToWords(m)} Million ${intToWords(r)}` : `${intToWords(m)} Million`
+  }
+  if (n < 1000000000000) {
+    const b = Math.floor(n / 1000000000)
+    const r = n % 1000000000
+    return r ? `${intToWords(b)} Billion ${intToWords(r)}` : `${intToWords(b)} Billion`
+  }
+  // For anything larger, just return the number
   return String(n)
 }
 
