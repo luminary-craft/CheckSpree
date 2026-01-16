@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { numberToWords } from '../shared/numberToWords'
+import { getLocalDateString } from './utils/date'
+import { generateId, formatCurrency, sanitizeCurrencyInput } from './utils/helpers'
 import * as XLSX from 'xlsx'
 import UpdateNotification from './UpdateNotification'
 import logoImg from './assets/logo.png'
@@ -125,25 +127,7 @@ function roundTo(n, step) {
 
 
 
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5)
-}
 
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount)
-}
-
-// Sanitize currency input by stripping commas and other non-numeric characters (except decimal point)
-function sanitizeCurrencyInput(value) {
-  if (value === null || value === undefined || value === '') return 0
-  // Remove commas, dollar signs, and spaces, but keep digits and decimal point
-  const cleaned = String(value).replace(/[$,\s]/g, '')
-  const num = parseFloat(cleaned)
-  return isNaN(num) ? 0 : num
-}
 
 // Format a number for display with 2 decimal places
 function formatAmountForDisplay(value) {
@@ -1275,13 +1259,7 @@ export default function App() {
   })
 
   // Helper for local date string
-  const getLocalDateString = () => {
-    const d = new Date()
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
+
 
   const [activeSlot, setActiveSlot] = useState('top') // 'top' | 'middle' | 'bottom'
   const [autoIncrementCheckNumbers, setAutoIncrementCheckNumbers] = useState(false)
