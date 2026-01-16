@@ -912,6 +912,11 @@ body {
   cursor: pointer;
 }
 
+.field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
 .field-row {
   display: flex;
   flex-wrap: wrap;
@@ -1425,6 +1430,7 @@ body {
 .fieldBox.editable.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+  z-index: 100;
 }
 
 .fieldBox .label {
@@ -1470,6 +1476,7 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: 3px;
   cursor: nwse-resize;
+  z-index: 10;
 }
 
 .fieldBox input {

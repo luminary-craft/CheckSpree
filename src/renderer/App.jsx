@@ -1194,7 +1194,13 @@ export default function App() {
   const [batchStartNumber, setBatchStartNumber] = useState('1001')
 
   const [data, setData] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: (() => {
+      const d = new Date()
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })(),
     payee: '',
     amount: '',
     amountWords: '',
@@ -1210,7 +1216,13 @@ export default function App() {
   // Three-up sheet editor state
   const [sheetData, setSheetData] = useState({
     top: {
-      date: new Date().toISOString().slice(0, 10),
+      date: (() => {
+        const d = new Date()
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })(),
       payee: '',
       amount: '',
       amountWords: '',
@@ -1223,7 +1235,13 @@ export default function App() {
       checkNumber: ''
     },
     middle: {
-      date: new Date().toISOString().slice(0, 10),
+      date: (() => {
+        const d = new Date()
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })(),
       payee: '',
       amount: '',
       amountWords: '',
@@ -1236,7 +1254,13 @@ export default function App() {
       checkNumber: ''
     },
     bottom: {
-      date: new Date().toISOString().slice(0, 10),
+      date: (() => {
+        const d = new Date()
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      })(),
       payee: '',
       amount: '',
       amountWords: '',
@@ -1250,13 +1274,22 @@ export default function App() {
     }
   })
 
+  // Helper for local date string
+  const getLocalDateString = () => {
+    const d = new Date()
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const [activeSlot, setActiveSlot] = useState('top') // 'top' | 'middle' | 'bottom'
   const [autoIncrementCheckNumbers, setAutoIncrementCheckNumbers] = useState(false)
 
   // Deposit/Adjustment modal state
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [depositData, setDepositData] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getLocalDateString(),
     description: '',
     amount: ''
   })
@@ -1280,8 +1313,35 @@ export default function App() {
         if (cancelled) return
 
         if (persisted?.model) setModel(normalizeModel(persisted.model))
-        if (persisted?.data) setData((prev) => ({ ...prev, ...persisted.data }))
-        if (persisted?.sheetData) setSheetData(persisted.sheetData)
+        if (persisted?.data) {
+          // Restore data but RESET the date to today (Local Time)
+          const { date, ...rest } = persisted.data
+          const d = new Date()
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          const today = `${year}-${month}-${day}`
+
+          console.log('Restoring data (FORCE RESET). Date was:', date, 'Now:', today)
+          setData((prev) => ({ ...prev, ...rest, date: today }))
+        }
+        if (persisted?.sheetData) {
+          // Restore sheet data but RESET dates to today (Local Time)
+          const newSheetData = { ...persisted.sheetData }
+
+          const d = new Date()
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          const today = `${year}-${month}-${day}`
+
+          Object.keys(newSheetData).forEach(slot => {
+            if (newSheetData[slot]) {
+              newSheetData[slot] = { ...newSheetData[slot], date: today }
+            }
+          })
+          setSheetData(newSheetData)
+        }
         if (persisted?.activeSlot) setActiveSlot(persisted.activeSlot)
         if (persisted?.autoIncrementCheckNumbers != null) setAutoIncrementCheckNumbers(persisted.autoIncrementCheckNumbers)
         if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
@@ -1337,6 +1397,7 @@ export default function App() {
       activeProfileId,
       ledgers,
       activeLedgerId,
+
       checkHistory,
       preferences,
       importQueue
@@ -1376,7 +1437,7 @@ export default function App() {
 
   // Get default empty slot data
   const getEmptySlotData = () => ({
-    date: new Date().toISOString().slice(0, 10),
+    date: getLocalDateString(),
     payee: '',
     amount: '',
     amountWords: '',
@@ -2112,7 +2173,7 @@ export default function App() {
     const checkEntry = {
       id: generateId(),
       type: 'check', // Transaction type
-      date: checkData.date || new Date().toISOString().slice(0, 10),
+      date: checkData.date || getLocalDateString(),
       payee: checkData.payee,
       amount: amount,
       memo: checkData.memo || '',
@@ -2154,7 +2215,7 @@ export default function App() {
     const depositEntry = {
       id: generateId(),
       type: 'deposit', // Transaction type
-      date: depositInfo.date || new Date().toISOString().slice(0, 10),
+      date: depositInfo.date || getLocalDateString(),
       payee: depositInfo.description, // Using payee field for deposit description
       amount: amount,
       memo: depositInfo.description || '',
@@ -2942,7 +3003,7 @@ export default function App() {
 
         newHistory.unshift({
           id: generateId(),
-          date: item.date || new Date().toISOString().slice(0, 10),
+          date: item.date || getLocalDateString(),
           payee: item.payee,
           amount: amount,
           memo: item.memo || '',
@@ -3221,7 +3282,7 @@ export default function App() {
       newHistory.unshift({
         id: generateId(),
         type: 'check',
-        date: item.date || new Date().toISOString().slice(0, 10),
+        date: item.date || getLocalDateString(),
         payee: item.payee,
         amount: amount,
         memo: item.memo || '',
@@ -3284,7 +3345,7 @@ export default function App() {
 
     // Clear the form fields
     setData({
-      date: new Date().toISOString().slice(0, 10),
+      date: getLocalDateString(),
       payee: '',
       amount: '',
       amountWords: '',
@@ -3386,7 +3447,7 @@ export default function App() {
         }
 
         // Normalize the date
-        let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
+        let normalizedDate = item.date || getLocalDateString()
         if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
           normalizedDate = convertExcelDate(item.date)
         }
@@ -3521,7 +3582,7 @@ export default function App() {
         newHistory.unshift({
           id: generateId(),
           type: 'check',
-          date: item.date || new Date().toISOString().slice(0, 10),
+          date: item.date || getLocalDateString(),
           payee: item.payee,
           amount: amount,
           memo: item.memo || '',
@@ -3574,7 +3635,7 @@ export default function App() {
 
     // Clear the form fields
     setData({
-      date: new Date().toISOString().slice(0, 10),
+      date: getLocalDateString(),
       payee: '',
       amount: '',
       amountWords: '',
@@ -4016,7 +4077,7 @@ export default function App() {
     const payee = (checkData.payee || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_')
 
     // FIX: Replace slashes with dashes to prevent folder errors (01/20/2026 -> 01-20-2026)
-    let rawDate = checkData.date || new Date().toISOString().slice(0, 10)
+    let rawDate = checkData.date || getLocalDateString()
     const date = rawDate.replace(/\//g, '-')
 
     const amount = sanitizeCurrencyInput(checkData.amount).toFixed(2).replace('.', '')
@@ -4179,7 +4240,7 @@ export default function App() {
 
         // Clear form for next check
         setData({
-          date: new Date().toISOString().slice(0, 10),
+          date: getLocalDateString(),
           payee: '',
           amount: '',
           amountWords: '',
@@ -4317,7 +4378,7 @@ export default function App() {
           const checkEntry = {
             id: generateId(),
             type: 'check', // Transaction type
-            date: checkData.date || new Date().toISOString().slice(0, 10),
+            date: checkData.date || getLocalDateString(),
             payee: checkData.payee,
             amount: amount,
             memo: checkData.memo || '',
@@ -4446,6 +4507,7 @@ export default function App() {
       onPointerCancel={onPointerUp}
     >
       <div className="topbar">
+
         <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img src={logoImg} alt="CheckSpree" className="logo-img" style={{ height: '44px', width: 'auto' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -4832,7 +4894,7 @@ export default function App() {
                         <button
                           onClick={() => {
                             setDepositData({
-                              date: new Date().toISOString().slice(0, 10),
+                              date: getLocalDateString(),
                               description: '',
                               amount: ''
                             })
@@ -5806,8 +5868,15 @@ export default function App() {
                     <div className="stub-group">
                       <div className="field-row">
                         <div className="field">
-                          <label>Date</label>
-                          <input type="date" value={data.stub1_date || ''} onChange={(e) => setData((p) => ({ ...p, stub1_date: e.target.value }))} />
+                          <label>Date (Synced)</label>
+                          <input
+                            value={activeProfile?.layoutMode === 'three_up' ? sheetData[activeSlot]?.date : data.date}
+                            readOnly
+                            className="readonly"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer' }}
+                            title="Date is synced from the main check"
+                            onClick={() => document.querySelector('input[type="date"]')?.focus()} // Focus main date picker on click
+                          />
                         </div>
                         <div className="field">
                           <label>Amount</label>
@@ -5937,8 +6006,15 @@ export default function App() {
                     <div className="stub-group">
                       <div className="field-row">
                         <div className="field">
-                          <label>Date</label>
-                          <input type="date" value={data.stub2_date || ''} onChange={(e) => setData((p) => ({ ...p, stub2_date: e.target.value }))} />
+                          <label>Date (Synced)</label>
+                          <input
+                            value={activeProfile?.layoutMode === 'three_up' ? sheetData[activeSlot]?.date : data.date}
+                            readOnly
+                            className="readonly"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer' }}
+                            title="Date is synced from the main check"
+                            onClick={() => document.querySelector('input[type="date"]')?.focus()} // Focus main date picker on click
+                          />
                         </div>
                         <div className="field">
                           <label>Amount</label>
@@ -6200,93 +6276,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Selected Field - only in edit mode */}
-                      {editMode && (
-                        <div className="card">
-                          <h4>Selected Field</h4>
-                          {selected.length === 0 ? (
-                            <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '8px 0' }}>No field selected</div>
-                          ) : selected.length > 1 ? (
-                            <div>
-                              <div style={{ marginBottom: '12px' }}>{selected.length} fields selected</div>
-                              <button className="btn ghost small full-width" onClick={() => setSelected([])}>Clear Selection</button>
-                            </div>
-                          ) : (
-                            (() => {
-                              const key = selected[0]
-                              const f = activeProfile?.layoutMode === 'three_up'
-                                ? model.slotFields?.[activeSlot]?.[key]
-                                : model.fields[key]
-
-                              if (!f) return <div>Field not found</div>
-
-                              return (
-                                <>
-                                  <div className="field">
-                                    <label>Field</label>
-                                    <select value={key} onChange={(e) => setSelected([e.target.value])}>
-                                      {Object.keys(activeProfile?.layoutMode === 'three_up' ? model.slotFields?.[activeSlot] || {} : model.fields).map((k) => {
-                                        const field = activeProfile?.layoutMode === 'three_up' ? model.slotFields?.[activeSlot]?.[k] : model.fields[k]
-                                        return <option value={k} key={k}>{field?.label || k}</option>
-                                      })}
-                                    </select>
-                                  </div>
-                                  <div className="field-row">
-                                    <div className="field">
-                                      <label>X (in)</label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        value={f.x}
-                                        onChange={(e) => setField(key, { x: parseFloat(e.target.value) || 0 })}
-                                      />
-                                    </div>
-                                    <div className="field">
-                                      <label>Y (in)</label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        value={f.y}
-                                        onChange={(e) => setField(key, { y: parseFloat(e.target.value) || 0 })}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="field-row">
-                                    <div className="field">
-                                      <label>Width (in)</label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        value={f.w}
-                                        onChange={(e) => setField(key, { w: parseFloat(e.target.value) || 0.2 })}
-                                      />
-                                    </div>
-                                    <div className="field">
-                                      <label>Height (in)</label>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        value={f.h}
-                                        onChange={(e) => setField(key, { h: parseFloat(e.target.value) || 0.18 })}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="field">
-                                    <label>Font Size (in)</label>
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={f.fontIn}
-                                      onChange={(e) => setField(key, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
-                                    />
-                                  </div>
-                                </>
-                              )
-                            })()
-                          )}
-                        </div>
-                      )}
-
                       {/* Reset */}
                       <button className="btn danger full-width" onClick={resetModel}>
                         Reset All Settings
@@ -6296,6 +6285,103 @@ export default function App() {
                 </section>
               )
             }
+
+            {/* Selected Field - only in edit mode - MOVED OUTSIDE Advanced Settings */}
+            {editMode && (
+              <section className="section">
+                <div className="card">
+                  <h4>Selected Field</h4>
+                  {selected.length === 0 ? (
+                    <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '8px 0' }}>No field selected</div>
+                  ) : selected.length > 1 ? (
+                    <div>
+                      <div style={{ marginBottom: '12px' }}>{selected.length} fields selected</div>
+
+                      <div className="field" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        {/* Bold/Italic are now in floating toolbar */}
+                      </div>
+
+                      <button className="btn ghost small full-width" onClick={() => setSelected([])}>Clear Selection</button>
+                    </div>
+                  ) : (
+                    (() => {
+                      const key = selected[0]
+                      const f = activeProfile?.layoutMode === 'three_up'
+                        ? model.slotFields?.[activeSlot]?.[key]
+                        : model.fields[key]
+
+                      if (!f) return <div>Field not found</div>
+
+                      return (
+                        <>
+                          <div className="field">
+                            <label>Field</label>
+                            <select value={key} onChange={(e) => setSelected([e.target.value])}>
+                              {Object.keys(activeProfile?.layoutMode === 'three_up' ? model.slotFields?.[activeSlot] || {} : model.fields).map((k) => {
+                                const field = activeProfile?.layoutMode === 'three_up' ? model.slotFields?.[activeSlot]?.[k] : model.fields[k]
+                                return <option value={k} key={k}>{field?.label || k}</option>
+                              })}
+                            </select>
+                          </div>
+                          <div className="field-row">
+                            <div className="field">
+                              <label>X (in)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={f.x}
+                                onChange={(e) => setField(key, { x: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                            <div className="field">
+                              <label>Y (in)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={f.y}
+                                onChange={(e) => setField(key, { y: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                          <div className="field-row">
+                            <div className="field">
+                              <label>Width (in)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={f.w}
+                                onChange={(e) => setField(key, { w: parseFloat(e.target.value) || 0.2 })}
+                              />
+                            </div>
+                            <div className="field">
+                              <label>Height (in)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={f.h}
+                                onChange={(e) => setField(key, { h: parseFloat(e.target.value) || 0.18 })}
+                              />
+                            </div>
+                          </div>
+                          <div className="field">
+                            <label>Font Size (in)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={f.fontIn}
+                              onChange={(e) => setField(key, { fontIn: clamp(parseFloat(e.target.value) || 0.2, 0.12, 0.6) })}
+                            />
+                          </div>
+                          <div className="field" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            {/* Bold/Italic are now in floating toolbar */}
+                          </div>
+                        </>
+                      )
+                    })()
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* End of Scrollable Content Area */}
           </div>
@@ -6814,7 +6900,9 @@ export default function App() {
                                   background: 'transparent',
                                   resize: 'none',
                                   padding: showFriendlyLabel ? '14px 0 0 0' : '0',
-                                  lineHeight: '1.3'
+                                  lineHeight: '1.3',
+                                  fontWeight: f.bold ? 'bold' : 'normal',
+                                  fontStyle: f.italic ? 'italic' : 'normal'
                                 }}
                               />
                             ) : (
@@ -6825,10 +6913,84 @@ export default function App() {
                                 style={{
                                   fontSize: `${fontSizePt}pt`,
                                   fontFamily: activeFontFamily,
-                                  paddingTop: showFriendlyLabel ? '14px' : '0'
+                                  paddingTop: showFriendlyLabel ? '14px' : '0',
+                                  fontWeight: f.bold ? 'bold' : 'normal',
+                                  fontStyle: f.italic ? 'italic' : 'normal'
                                 }}
                               />
                             )}
+                            {/* Floating Formatting Toolbar */}
+                            {editMode && selected.includes(key) && selected.length === 1 && (
+                              <div
+                                className="formatting-toolbar"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '-40px',
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  display: 'flex',
+                                  gap: '8px',
+                                  backgroundColor: '#1e293b',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                  border: '1px solid #334155',
+                                  zIndex: 1000
+                                }}
+                              >
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setField(key, { bold: !f.bold })
+                                  }}
+                                  style={{
+                                    background: f.bold ? '#3b82f6' : 'transparent',
+                                    color: f.bold ? '#fff' : '#94a3b8',
+                                    border: '1px solid',
+                                    borderColor: f.bold ? '#3b82f6' : '#475569',
+                                    borderRadius: '4px',
+                                    width: '24px',
+                                    height: '24px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold',
+                                    fontSize: '14px'
+                                  }}
+                                  title="Bold"
+                                >
+                                  B
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setField(key, { italic: !f.italic })
+                                  }}
+                                  style={{
+                                    background: f.italic ? '#3b82f6' : 'transparent',
+                                    color: f.italic ? '#fff' : '#94a3b8',
+                                    border: '1px solid',
+                                    borderColor: f.italic ? '#3b82f6' : '#475569',
+                                    borderRadius: '4px',
+                                    width: '24px',
+                                    height: '24px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    fontStyle: 'italic',
+                                    fontFamily: 'serif',
+                                    fontSize: '14px'
+                                  }}
+                                  title="Italic"
+                                >
+                                  I
+                                </button>
+                              </div>
+                            )}
+
                             {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
                           </div>
                         )
