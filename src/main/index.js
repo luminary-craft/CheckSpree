@@ -499,12 +499,13 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
 
     // Add check details
     csvContent += '=== CHECK DETAILS ===\n'
-    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
+    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
     const rows = checks.map(entry => [
       entry.date || '',
       `"${(entry.payee || '').replace(/"/g, '""')}"`,
       entry.amount || 0,
       `"${(entry.memo || '').replace(/"/g, '""')}"`,
+      `"${(entry.glCode || '').replace(/"/g, '""')}"`,
       entry.ledgerName || '',
       entry.profileName || '',
       entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
@@ -523,6 +524,69 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
     return { success: false, error: e?.message || String(e) }
   }
 })
+
+// Export history to PDF Report
+ipcMain.handle('export:pdf-report', async (_evt, { html, filename }) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: `${filename}.pdf`,
+    filters: [
+      { name: 'PDF Files', extensions: ['pdf'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+
+  if (result.canceled || !result.filePath) return { success: false }
+
+  try {
+    // Create a hidden window to render the report
+    const reportWindow = new BrowserWindow({
+      show: false,
+      width: 800,
+      height: 1100,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    })
+
+    // Load the HTML content
+    await reportWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+
+    // Wait for content to load
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Print to PDF
+    const pdfData = await reportWindow.webContents.printToPDF({
+      pageSize: 'Letter',
+      printBackground: true,
+      margins: {
+        marginType: 'custom',
+        top: 0.5,
+        bottom: 0.5,
+        left: 0.5,
+        right: 0.5
+      }
+    })
+
+    // Save to file
+    fs.writeFileSync(result.filePath, pdfData)
+
+    // Clean up
+    reportWindow.close()
+
+    // Open the file location
+    shell.showItemInFolder(result.filePath)
+    // Also try to open the file itself
+    shell.openPath(result.filePath)
+
+    return { success: true, path: result.filePath }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
 
 ipcMain.handle('print:dialog', async (_evt, filename) => {
   if (!mainWindow) return { success: false, error: 'No window' }

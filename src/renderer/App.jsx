@@ -45,6 +45,7 @@ const DEFAULT_FIELDS = {
   amount: { x: 6.95, y: 1.05, w: 1.25, h: 0.45, fontIn: 0.32, label: 'Amount ($)' },
   amountWords: { x: 0.75, y: 1.55, w: 7.5, h: 0.45, fontIn: 0.30, label: 'Amount in Words' },
   memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' },
+  address: { x: 0.75, y: 1.6, w: 3.5, h: 0.8, fontIn: 0.12, label: 'Address' },
   checkNumber: { x: 7.8, y: 0.15, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' }
 }
 
@@ -93,6 +94,7 @@ const DEFAULT_PREFERENCES = {
   stub2ShowDate: true,
   showCheckNumber: true, // Show/hide check number field on check itself
   showDate: true, // Show/hide date field on check itself
+  showAddress: false, // Show/hide address field on check itself
   adminLocked: true,
   adminPin: '0000',
   enableSnapping: false,
@@ -362,6 +364,8 @@ function parseCSV(content, delimiter = ',') {
     memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
     external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
     internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
+    glCode: ['gl code', 'glcode', 'gl', 'account code', 'account number'],
+    address: ['address', 'addr', 'recipient address', 'payee address'],
     ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
   }
 
@@ -402,6 +406,8 @@ function parseCSV(content, delimiter = ',') {
       memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
       external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
       internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : '',
+      glCode: columnIndices.glCode !== undefined ? values[columnIndices.glCode] || '' : '',
+      address: columnIndices.address !== undefined ? values[columnIndices.address] || '' : '',
       ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : ''
     }
 
@@ -456,6 +462,8 @@ function parseExcel(base64Content) {
       memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
       internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
+      glCode: ['gl code', 'glcode', 'gl', 'account code', 'account number'],
+      address: ['address', 'addr', 'recipient address', 'payee address'],
       ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
     }
 
@@ -1197,6 +1205,8 @@ export default function App() {
     line_items: [],
     line_items_text: '',
     ledger_snapshot: null,
+    glCode: '',
+    address: '',
     checkNumber: '' // For optional check numbering
   })
 
@@ -1219,6 +1229,8 @@ export default function App() {
       line_items: [],
       line_items_text: '',
       ledger_snapshot: null,
+      glCode: '',
+      address: '',
       checkNumber: ''
     },
     middle: {
@@ -1238,6 +1250,8 @@ export default function App() {
       line_items: [],
       line_items_text: '',
       ledger_snapshot: null,
+      glCode: '',
+      address: '',
       checkNumber: ''
     },
     bottom: {
@@ -1257,6 +1271,8 @@ export default function App() {
       line_items: [],
       line_items_text: '',
       ledger_snapshot: null,
+      glCode: '',
+      address: '',
       checkNumber: ''
     }
   })
@@ -1393,6 +1409,8 @@ export default function App() {
     line_items: [],
     line_items_text: '',
     ledger_snapshot: null,
+    glCode: '',
+    address: '',
     checkNumber: ''
   })
 
@@ -1404,6 +1422,8 @@ export default function App() {
       !slotData.memo?.trim() &&
       !slotData.external_memo?.trim() &&
       !slotData.internal_memo?.trim() &&
+      !slotData.glCode?.trim() &&
+      !slotData.address?.trim() &&
       !slotData.line_items_text?.trim()
   }
 
@@ -2660,7 +2680,121 @@ export default function App() {
     setExportDateRange('all')
     setExportStartDate('')
     setExportEndDate('')
+    setExportFormat('csv') // Default to CSV
     setShowExportDialog(true)
+  }
+
+  const [exportFormat, setExportFormat] = useState('csv')
+
+  const generateReportHtml = (checks, ledgerTotals, grandTotal, dateRangeStr) => {
+    const styles = `
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; color: #1e293b; }
+      h1 { color: #0f172a; margin-bottom: 5px; }
+      .meta { color: #64748b; font-size: 14px; margin-bottom: 30px; }
+      .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+      .card { background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+      .card-label { font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-bottom: 5px; }
+      .card-value { font-size: 24px; font-weight: 700; color: #0f172a; }
+      .section-title { font-size: 18px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-top: 40px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th { text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0; color: #64748b; font-weight: 600; }
+      td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+      .amount { font-family: monospace; font-weight: 600; }
+      .amount.negative { color: #ef4444; }
+      .amount.positive { color: #10b981; }
+      .ledger-group { margin-bottom: 30px; }
+      .ledger-header { background: #f1f5f9; padding: 10px; font-weight: 600; border-radius: 4px; margin-bottom: 10px; display: flex; justify-content: space-between; }
+      .tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+      .tag-profile { background: #e0f2fe; color: #0369a1; }
+    `
+
+    let html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Check History Report</title>
+        <style>${styles}</style>
+      </head>
+      <body>
+        <h1>Check History Report</h1>
+        <div class="meta">Generated on ${new Date().toLocaleString()} • Range: ${dateRangeStr}</div>
+
+        <div class="summary-grid">
+          <div class="card">
+            <div class="card-label">Total Checks</div>
+            <div class="card-value">${grandTotal.totalChecks}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Total Spent</div>
+            <div class="card-value">${formatCurrency(grandTotal.totalSpent)}</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Combined Balance</div>
+            <div class="card-value">${formatCurrency(grandTotal.totalBalance)}</div>
+          </div>
+        </div>
+    `
+
+    // Group checks by ledger
+    const checksByLedger = {}
+    checks.forEach(check => {
+      if (!checksByLedger[check.ledgerId]) checksByLedger[check.ledgerId] = []
+      checksByLedger[check.ledgerId].push(check)
+    })
+
+    Object.entries(ledgerTotals).forEach(([ledgerId, total]) => {
+      const ledgerChecks = checksByLedger[ledgerId] || []
+      if (ledgerChecks.length === 0) return
+
+      html += `
+        <div class="ledger-group">
+          <div class="ledger-header">
+            <span>${total.name}</span>
+            <span>Balance: ${formatCurrency(total.balance)}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 15%">Date</th>
+                <th style="width: 30%">Payee</th>
+                <th style="width: 15%">Amount</th>
+                <th style="width: 20%">Memo</th>
+                <th style="width: 10%">GL Code</th>
+                <th style="width: 10%">Profile</th>
+              </tr>
+            </thead>
+            <tbody>
+      `
+
+      ledgerChecks.forEach(check => {
+        html += `
+          <tr>
+            <td>${check.date}</td>
+            <td>${check.payee}</td>
+            <td class="amount ${check.type === 'deposit' ? 'positive' : 'negative'}">
+              ${check.type === 'deposit' ? '+' : ''}${formatCurrency(Math.abs(check.amount))}
+            </td>
+            <td>${check.memo || ''}</td>
+            <td>${check.glCode || ''}</td>
+            <td><span class="tag tag-profile">${check.profileName}</span></td>
+          </tr>
+        `
+      })
+
+      html += `
+            </tbody>
+          </table>
+        </div>
+      `
+    })
+
+    html += `
+      </body>
+      </html>
+    `
+
+    return html
   }
 
   const executeExport = async () => {
@@ -2745,22 +2879,44 @@ export default function App() {
       return {
         ...check,
         ledgerName: ledger?.name || 'Unknown',
-        profileName: profile?.name || 'Unknown'
+        profileName: profile?.name || 'Unknown',
+        glCode: check.glCode || ''
       }
     })
 
-    const res = await window.cs2.exportHistory({
-      checks: enrichedChecks,
-      ledgerTotals,
-      grandTotal,
-      exportDate: new Date().toISOString()
-    })
+    if (exportFormat === 'pdf') {
+      const html = generateReportHtml(enrichedChecks, ledgerTotals, grandTotal, exportDateRange === 'all' ? 'All Time' : `${exportStartDate} to ${exportEndDate} `)
+      const res = await window.cs2.exportPdfReport({
+        html,
+        filename: `CheckSpree_Report_${new Date().toISOString().slice(0, 10)} `
+      })
+
+      if (res?.success) {
+        setShowExportDialog(false)
+      } else if (res?.error) {
+        alert(`Export failed: ${res.error} `)
+      }
+    } else {
+      const res = await window.cs2.exportHistory({
+        checks: enrichedChecks,
+        ledgerTotals,
+        grandTotal,
+        exportDate: new Date().toISOString()
+      })
+
+      if (res?.success) {
+        setShowExportDialog(false)
+        // File saved and folder opened
+      } else if (res?.error) {
+        alert(`Export failed: ${res.error} `)
+      }
+    }
 
     if (res?.success) {
       setShowExportDialog(false)
       // File saved and folder opened
     } else if (res?.error) {
-      alert(`Export failed: ${res.error}`)
+      alert(`Export failed: ${res.error} `)
     }
   }
 
@@ -2895,6 +3051,7 @@ export default function App() {
           memo: item.memo || '',
           external_memo: item.external_memo || '',
           internal_memo: item.internal_memo || '',
+          glCode: item.glCode || '',
           line_items: item.line_items || [],
           line_items_text: item.line_items_text || '',
           ledgerId: targetLedgerId,
@@ -3096,6 +3253,7 @@ export default function App() {
         memo: item.memo || '',
         external_memo: item.external_memo || '',
         internal_memo: item.internal_memo || '',
+        glCode: item.glCode || '',
         line_items: item.line_items || [],
         line_items_text: item.line_items_text || '',
         ledger_snapshot: ledgerSnapshotForDisplay,
@@ -3133,13 +3291,13 @@ export default function App() {
         document.title = originalTitle
 
         if (res?.success === false) {
-          console.error(`Print failed for ${item.payee}:`, res.error)
+          console.error(`Print failed for ${item.payee}: `, res.error)
           printError = res.error || 'Print was cancelled or failed'
         } else {
           printSuccess = true
         }
       } catch (error) {
-        console.error(`Print error for ${item.payee}:`, error)
+        console.error(`Print error for ${item.payee}: `, error)
         printError = error.message || 'Unknown print error'
         // Restore original title on error
         document.title = originalTitle
@@ -3174,6 +3332,7 @@ export default function App() {
         memo: item.memo || '',
         external_memo: item.external_memo || '',
         internal_memo: item.internal_memo || '',
+        glCode: item.glCode || '',
         line_items: item.line_items || [],
         line_items_text: item.line_items_text || '',
         ledgerId: targetLedgerId,
@@ -3425,13 +3584,13 @@ export default function App() {
         document.title = originalTitle
 
         if (res?.success === false) {
-          console.error(`Print failed for sheet:`, res.error)
+          console.error(`Print failed for sheet: `, res.error)
           printError = res.error || 'Print was cancelled or failed'
         } else {
           printSuccess = true
         }
       } catch (error) {
-        console.error(`Print error for sheet:`, error)
+        console.error(`Print error for sheet: `, error)
         printError = error.message || 'Unknown print error'
         // Restore original title on error
         document.title = originalTitle
@@ -3441,7 +3600,7 @@ export default function App() {
       // Handle print failure - pause and ask user
       if (!printSuccess) {
         const firstPayee = slotMetadata[0]?.item?.payee || 'Sheet'
-        const decision = await confirmPrintFailure(`Sheet (${slotMetadata.length} checks starting with ${firstPayee})`, printError)
+        const decision = await confirmPrintFailure(`Sheet(${slotMetadata.length} checks starting with ${firstPayee})`, printError)
         if (decision === 'abort') {
           // User chose to stop - mark as cancelled and break
           setBatchPrintCancelled(true)
@@ -3577,14 +3736,14 @@ export default function App() {
 
   const stageVars = useMemo(() => {
     return {
-      '--stage-w': `${model.layout.widthIn}in`,
-      '--stage-h': `${stageHeightIn}in`
+      '--stage-w': `${model.layout.widthIn}in `,
+      '--stage-h': `${stageHeightIn}in `
     }
   }, [model.layout.widthIn, stageHeightIn])
 
   const checkPlacementStyle = useMemo(() => {
     return {
-      transform: `translate(${model.placement.offsetXIn}in, ${model.placement.offsetYIn}in)`
+      transform: `translate(${model.placement.offsetXIn} in, ${model.placement.offsetYIn} in)`
     }
   }, [model.placement.offsetXIn, model.placement.offsetYIn])
 
@@ -3637,27 +3796,27 @@ export default function App() {
       const defaults = isPayeeCopy
         ? {
           // PAYEE COPY (Stub 1) - External Memo, Line Items & Admin Fields
-          [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
-          [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
-          [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
-          [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
-          [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
-          [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' },
-          [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
-          [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-          [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+          [`${prefix} date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+          [`${prefix} payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+          [`${prefix} amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+          [`${prefix} checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+          [`${prefix} memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
+          [`${prefix} line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' },
+          [`${prefix} ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+          [`${prefix} approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+          [`${prefix} glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
         }
         : {
           // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
-          [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
-          [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
-          [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
-          [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
-          [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
-          [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
-          [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-          [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
-          [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
+          [`${prefix} date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+          [`${prefix} payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+          [`${prefix} amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+          [`${prefix} checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+          [`${prefix} memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
+          [`${prefix} ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+          [`${prefix} approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+          [`${prefix} glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
+          [`${prefix} line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
         }
 
       const nextFields = { ...m.fields }
@@ -3680,10 +3839,10 @@ export default function App() {
 
         return {
           ...d,
-          [`${prefix}date`]: d.date,
-          [`${prefix}payee`]: d.payee,
-          [`${prefix}amount`]: d.amount,
-          [`${prefix}memo`]: defaultMemo
+          [`${prefix} date`]: d.date,
+          [`${prefix} payee`]: d.payee,
+          [`${prefix} amount`]: d.amount,
+          [`${prefix} memo`]: defaultMemo
         }
       })
     }
@@ -3967,9 +4126,9 @@ export default function App() {
     const date = rawDate.replace(/\//g, '-')
 
     const amount = sanitizeCurrencyInput(checkData.amount).toFixed(2).replace('.', '')
-    const prefix = batchIndex !== null ? `${String(batchIndex).padStart(3, '0')}_` : ''
+    const prefix = batchIndex !== null ? `${String(batchIndex).padStart(3, '0')} _` : ''
 
-    return `Check_${prefix}${payee}_${date}_${amount}`
+    return `Check_${prefix}${payee}_${date}_${amount} `
   }
 
   // Load available printers for batch print configuration
@@ -3988,7 +4147,7 @@ export default function App() {
     setIsPrinting(true)
     setTimeout(async () => {
       const res = await window.cs2.previewPdf()
-      if (res?.success === false) alert(`Preview failed: ${res.error || 'Unknown error'}`)
+      if (res?.success === false) alert(`Preview failed: ${res.error || 'Unknown error'} `)
       setIsPrinting(false)
     }, 250)
   }
@@ -4012,7 +4171,7 @@ export default function App() {
       document.title = originalTitle
       if (wasInEditMode) setEditMode(true)
 
-      if (res?.success === false) alert(`Print failed: ${res.error || 'Unknown error'}`)
+      if (res?.success === false) alert(`Print failed: ${res.error || 'Unknown error'} `)
       setIsPrinting(false)
     }, 250)
   }
@@ -4077,7 +4236,7 @@ export default function App() {
           window.removeEventListener('afterprint', handleAfterPrint)
           setIsPrinting(false)
           if (wasInEditMode) setEditMode(true)
-          alert(`Print failed: ${res.error || 'Unknown error'}`)
+          alert(`Print failed: ${res.error || 'Unknown error'} `)
           return
         }
 
@@ -4145,7 +4304,7 @@ export default function App() {
       } catch (error) {
         setIsPrinting(false)
         if (wasInEditMode) setEditMode(true)
-        alert(`Print error: ${error?.message || 'Unknown error'}`)
+        alert(`Print error: ${error?.message || 'Unknown error'} `)
       }
     }, 250)
   }
@@ -4225,7 +4384,7 @@ export default function App() {
           window.removeEventListener('afterprint', handleAfterPrint)
           setIsPrinting(false)
           if (wasInEditMode) setEditMode(true)
-          alert(`Print failed: ${res.error || 'Unknown error'}`)
+          alert(`Print failed: ${res.error || 'Unknown error'} `)
           return
         }
 
@@ -4320,7 +4479,7 @@ export default function App() {
       } catch (error) {
         setIsPrinting(false)
         if (wasInEditMode) setEditMode(true)
-        alert(`Print error: ${error?.message || 'Unknown error'}`)
+        alert(`Print error: ${error?.message || 'Unknown error'} `)
       }
     }, 250)
   }
@@ -4387,7 +4546,7 @@ export default function App() {
 
   return (
     <div
-      className={`app ${isPrinting ? 'printing' : ''}`}
+      className={`app ${isPrinting ? 'printing' : ''} `}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
@@ -4412,7 +4571,8 @@ export default function App() {
             <span className={`tab-value ${(() => {
               const totalBalance = ledgers.reduce((sum, l) => sum + calculateHybridBalance(l.id), 0)
               return totalBalance < 0 ? 'negative' : ''
-            })()}`}>
+            })()
+              }`}>
               {formatCurrency(ledgers.reduce((sum, l) => sum + calculateHybridBalance(l.id), 0))}
             </span>
           </button>
@@ -4436,7 +4596,7 @@ export default function App() {
             <DownloadIcon /> Export
           </button>
           <button
-            className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}
+            className={`btn ghost ${preferences.adminLocked ? '' : 'active'} `}
             onClick={preferences.adminLocked ? handleUnlockRequest : handleLock}
             title={preferences.adminLocked ? 'Unlock admin settings' : 'Lock admin settings'}
           >
@@ -4451,7 +4611,7 @@ export default function App() {
                 📥 Restore
               </button>
               <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
-                <span className={`status-dot ${editMode ? 'active' : ''}`} />
+                <span className={`status - dot ${editMode ? 'active' : ''} `} />
                 Edit Layout
               </button>
               {editMode && (
@@ -4613,7 +4773,7 @@ export default function App() {
                                   <div className="input-prefix">
                                     <span>$</span>
                                     <input
-                                      key={`balance-input-${l.id}`}
+                                      key={`balance - input - ${l.id} `}
                                       type="text"
                                       inputMode="numeric"
                                       defaultValue={l.startingBalance ? (l.startingBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
@@ -4959,7 +5119,7 @@ export default function App() {
                         return (
                           <div
                             key={item.id}
-                            className={`import-item ${isSelected ? 'selected' : ''}`}
+                            className={`import -item ${isSelected ? 'selected' : ''} `}
                             onClick={() => loadFromQueue(item)}
                           >
                             <div className="import-main">
@@ -5059,7 +5219,7 @@ export default function App() {
                         <PlusIcon /> New
                       </button>
                       <button
-                        className={`btn btn-sm ${profileSaved ? 'success' : hasUnsavedChanges ? 'primary pulse' : 'primary'}`}
+                        className={`btn btn - sm ${profileSaved ? 'success' : hasUnsavedChanges ? 'primary pulse' : 'primary'} `}
                         onClick={saveCurrentProfile}
                       >
                         {hasUnsavedChanges && <span className="unsaved-dot">●</span>}
@@ -5072,7 +5232,7 @@ export default function App() {
                       <div className="profile-manager" style={{ marginTop: '12px' }}>
                         <div className="profile-list">
                           {profiles.map(p => (
-                            <div key={p.id} className={`profile-item ${p.id === activeProfileId ? 'active' : ''}`}>
+                            <div key={p.id} className={`profile - item ${p.id === activeProfileId ? 'active' : ''} `}>
                               {editingProfileName === p.id ? (
                                 <input
                                   className="profile-name-input"
@@ -5454,6 +5614,14 @@ export default function App() {
                     placeholder="Optional note"
                   />
                 </div>
+                <div className="field">
+                  <label>GL Code</label>
+                  <input
+                    value={getCurrentCheckData().glCode || ''}
+                    onChange={(e) => updateCurrentCheckData({ glCode: e.target.value })}
+                    placeholder="General Ledger Code"
+                  />
+                </div>
 
                 {/* Check Number Input Field */}
                 {preferences.showCheckNumber && (
@@ -5549,6 +5717,17 @@ export default function App() {
                         />
                         <span className="toggle-slider"></span>
                         <span className="toggle-label">Show Date</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={!!preferences.showAddress}
+                          onChange={(e) => setPreferences(p => ({ ...p, showAddress: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Include Address</span>
                       </label>
                     </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
@@ -5733,7 +5912,7 @@ export default function App() {
                       </div>
                       <div className="stub-controls">
                         <button
-                          className={`stub-toggle ${showStub1Labels ? 'active' : ''}`}
+                          className={`stub - toggle ${showStub1Labels ? 'active' : ''} `}
                           onClick={() => setShowStub1Labels(!showStub1Labels)}
                           title="Show/hide friendly field labels on check"
                         >
@@ -5871,7 +6050,7 @@ export default function App() {
                       </div>
                       <div className="stub-controls">
                         <button
-                          className={`stub-toggle ${showStub2Labels ? 'active' : ''}`}
+                          className={`stub - toggle ${showStub2Labels ? 'active' : ''} `}
                           onClick={() => setShowStub2Labels(!showStub2Labels)}
                           title="Show/hide friendly field labels on check"
                         >
@@ -6409,7 +6588,7 @@ export default function App() {
                         position: 'absolute',
                         left: 0,
                         right: 0,
-                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In}in)`,
+                        top: `calc(${model.placement.offsetYIn} in + ${model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In} in)`,
                         height: '20px',
                         marginTop: '-10px',
                         borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
@@ -6443,7 +6622,7 @@ export default function App() {
                         position: 'absolute',
                         left: 0,
                         right: 0,
-                        top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In}in)`,
+                        top: `calc(${model.placement.offsetYIn} in + ${model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In} in)`,
                         height: '20px',
                         marginTop: '-10px',
                         borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
@@ -6493,8 +6672,8 @@ export default function App() {
                       key={slot || 'single'}
                       className="checkStage"
                       style={{
-                        '--offset-x': `${model.placement.offsetXIn}in`,
-                        '--offset-y': `${isPrinting ? yOffset : (model.placement.offsetYIn + yOffset)}in`,
+                        '--offset-x': `${model.placement.offsetXIn}in `,
+                        '--offset-y': `${isPrinting ? yOffset : (model.placement.offsetYIn + yOffset)}in `,
                         ...stageVars,
                         opacity: editMode && !isActiveSlot ? 0.3 : 1,
                         pointerEvents: editMode && !isActiveSlot ? 'none' : 'auto'
@@ -6504,7 +6683,7 @@ export default function App() {
                       <div
                         className="check-face-container"
                         style={{
-                          '--check-height': `${model.layout.checkHeightIn}in`
+                          '--check-height': `${model.layout.checkHeightIn}in `
                         }}
                       >
                         {/* Check-only template image (wide images) */}
@@ -6537,7 +6716,7 @@ export default function App() {
                             position: 'absolute',
                             left: 0,
                             right: 0,
-                            top: `${model.layout.checkHeightIn}in`,
+                            top: `${model.layout.checkHeightIn}in `,
                             height: '2px',
                             borderTop: '2px dashed var(--accent)',
                             cursor: 'ns-resize',
@@ -6587,7 +6766,7 @@ export default function App() {
                             position: 'absolute',
                             left: 0,
                             right: 0,
-                            top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
+                            top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in `,
                             height: '2px',
                             borderTop: '2px dashed var(--accent)',
                             cursor: 'ns-resize',
@@ -6663,6 +6842,9 @@ export default function App() {
                         // Skip date field on check if preference is disabled
                         if (key === 'date' && !preferences.showDate) return null
 
+                        // Skip address field on check if preference is disabled
+                        if (key === 'address' && !preferences.showAddress) return null
+
                         // Smart field value handling
                         let value = checkData[key] ?? ''
                         let isTextarea = false
@@ -6720,6 +6902,8 @@ export default function App() {
                         } else if (key.endsWith('_glcode')) {
                           value = 'GL Code: ___________________'
                           isReadOnly = true
+                        } else if (key === 'address') {
+                          isTextarea = true
                         }
 
                         const isSelected = editMode && selected.includes(key)
@@ -6753,22 +6937,22 @@ export default function App() {
                         return (
                           <div
                             key={key}
-                            className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
+                            className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''} `}
                             style={{
-                              left: `${f.x}in`,
-                              top: `${actualY}in`,
-                              width: `${f.w}in`,
-                              height: `${f.h}in`
+                              left: `${f.x}in `,
+                              top: `${actualY}in `,
+                              width: `${f.w}in `,
+                              height: `${f.h}in `
                             }}
                             onPointerDown={(e) => onPointerDownField(e, key)}
                           >
                             {editMode && (
-                              <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                              <div className="label" style={{ fontSize: `${preferences.labelSize} px` }}>
                                 {f.label}
                               </div>
                             )}
                             {showFriendlyLabel && (
-                              <div className="friendly-label" style={{ fontSize: `${Math.max(preferences.labelSize - 2, 7)}px` }}>
+                              <div className="friendly-label" style={{ fontSize: `${Math.max(preferences.labelSize - 2, 7)} px` }}>
                                 {f.label}
                               </div>
                             )}
@@ -6778,7 +6962,7 @@ export default function App() {
                                 readOnly={isReadOnly}
                                 onChange={(e) => !isReadOnly && updateCurrentCheckData({ [key]: e.target.value })}
                                 style={{
-                                  fontSize: `${fontSizePt}pt`,
+                                  fontSize: `${fontSizePt} pt`,
                                   fontFamily: activeFontFamily,
                                   width: '100%',
                                   height: '100%',
@@ -6797,7 +6981,7 @@ export default function App() {
                                 readOnly={isReadOnly}
                                 onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
                                 style={{
-                                  fontSize: `${fontSizePt}pt`,
+                                  fontSize: `${fontSizePt} pt`,
                                   fontFamily: activeFontFamily,
                                   paddingTop: showFriendlyLabel ? '14px' : '0',
                                   fontWeight: f.bold ? 'bold' : 'normal',
@@ -6886,7 +7070,7 @@ export default function App() {
                       {preferences.showCheckNumber && !Object.keys(slot ? model.slotFields[slot] : model.fields).includes('checkNumber') && (
                         <div
                           key="manual-check-number"
-                          className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected.includes('checkNumber') ? 'selected' : ''}`}
+                          className={`fieldBox ${editMode ? 'editable' : ''} ${editMode && selected.includes('checkNumber') ? 'selected' : ''} `}
                           style={{
                             left: '7.8in',
                             top: '0.15in',
@@ -6944,7 +7128,7 @@ export default function App() {
                           }}
                         >
                           {editMode && (
-                            <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                            <div className="label" style={{ fontSize: `${preferences.labelSize} px` }}>
                               Check #
                             </div>
                           )}
@@ -6953,7 +7137,7 @@ export default function App() {
                             readOnly={editMode}
                             onChange={(e) => !editMode && updateCurrentCheckData({ checkNumber: e.target.value })}
                             style={{
-                              fontSize: `${preferences.checkFontSizePt}pt`,
+                              fontSize: `${preferences.checkFontSizePt} pt`,
                               fontFamily: activeFontFamily
                             }}
                           />
@@ -6986,7 +7170,7 @@ export default function App() {
                       className="stub-control-row"
                       style={{
                         position: 'absolute',
-                        top: `${model.layout.checkHeightIn}in`,
+                        top: `${model.layout.checkHeightIn}in `,
                         left: 0,
                         right: 0,
                         zIndex: 10
@@ -7028,7 +7212,7 @@ export default function App() {
                         className="stub-control-row"
                         style={{
                           position: 'absolute',
-                          top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
+                          top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in `,
                           left: 0,
                           right: 0,
                           zIndex: 10
@@ -7790,7 +7974,7 @@ export default function App() {
                     marginBottom: '16px'
                   }}>
                     <div style={{
-                      width: `${(batchPrintProgress.current / batchPrintProgress.total) * 100}%`,
+                      width: `${(batchPrintProgress.current / batchPrintProgress.total) * 100}% `,
                       height: '100%',
                       backgroundColor: '#3b82f6',
                       transition: 'width 0.3s ease'
@@ -8155,6 +8339,31 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* Format Selection */}
+                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Export Format</h3>
+                  <div style={{ display: 'flex', gap: '20px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        checked={exportFormat === 'csv'}
+                        onChange={() => setExportFormat('csv')}
+                        style={{ marginRight: '8px' }}
+                      />
+                      <span>CSV (Spreadsheet)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        checked={exportFormat === 'pdf'}
+                        onChange={() => setExportFormat('pdf')}
+                        style={{ marginRight: '8px' }}
+                      />
+                      <span>PDF (Visual Report)</span>
+                    </label>
+                  </div>
+                </div>
               </div>
               <div className="modal-footer">
                 <button className="btn" onClick={() => setShowExportDialog(false)}>Cancel</button>
@@ -8177,7 +8386,7 @@ export default function App() {
                   <h2>
                     {historyViewMode === 'all'
                       ? `Full History - All Ledgers`
-                      : `Check History - ${activeLedger?.name}`
+                      : `Check History - ${activeLedger?.name} `
                     }
                   </h2>
                   <button className="btn-icon" onClick={() => { setShowHistory(false); setSelectedHistoryItem(null); }}>×</button>
@@ -8205,6 +8414,7 @@ export default function App() {
                       <option value="amount-desc">Amount (High to Low)</option>
                       <option value="amount-asc">Amount (Low to High)</option>
                       <option value="payee-asc">Payee (A-Z)</option>
+                      <option value="gl-asc">GL Code (A-Z)</option>
                     </select>
                   </div>
                 </div>
@@ -8239,6 +8449,7 @@ export default function App() {
                           case 'amount-asc': return parseFloat(a.amount) - parseFloat(b.amount)
                           case 'amount-desc': return parseFloat(b.amount) - parseFloat(a.amount)
                           case 'payee-asc': return (a.payee || '').localeCompare(b.payee || '')
+                          case 'gl-asc': return (a.glCode || '').localeCompare(b.glCode || '')
                           default: return 0
                         }
                       })
