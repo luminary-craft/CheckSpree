@@ -1,18 +1,5 @@
 import React from 'react'
-
-// Utility: Format currency (assumes amount is a number or numeric string)
-function formatCurrency(amount) {
-    const num = typeof amount === 'string' ? parseFloat(amount) : amount
-    if (isNaN(num)) return '$0.00'
-    return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-// Utility: Format date
-function formatDate(dateStr) {
-    if (!dateStr) return ''
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+import { formatCurrency, formatDate } from '../utils/helpers'
 
 // Trash Icon Component
 function TrashIcon() {
@@ -30,110 +17,180 @@ function TrashIcon() {
 }
 
 /**
- * Sidebar Component - Displays recent check activity for the active ledger
+ * Sidebar Component - Displays recent check/deposit activity for the active ledger
+ * 
+ * Designed to work with the useLedger hook. Parent component should pass down
+ * the necessary data and callbacks.
  * 
  * @param {Object} props
- * @param {Array} props.checkHistory - Array of check history entries
+ * @param {Array} props.checkHistory - Array of transaction entries (checks & deposits)
  * @param {string} props.activeLedgerId - ID of the currently active ledger
- * @param {Function} props.onFillFromHistory - Callback when user clicks a check item: (entry) => void
+ * @param {string} props.activeLedgerName - Name of the currently active ledger (for display)
+ * @param {Function} props.onFillFromHistory - Callback when user clicks a check: (entry) => void
  * @param {Function} props.onDeleteEntry - Callback to delete an entry: (entryId) => void
- * @param {Function} props.onViewFullHistory - Callback to view full history modal
+ * @param {Function} props.onViewFullHistory - Callback to open full history modal
+ * @param {number} props.maxRecentItems - Maximum number of recent items to show (default: 2)
  */
 export default function Sidebar({
     checkHistory = [],
     activeLedgerId,
+    activeLedgerName = '',
     onFillFromHistory,
     onDeleteEntry,
-    onViewFullHistory
+    onViewFullHistory,
+    maxRecentItems = 2
 }) {
-    // Filter checks for active ledger
-    const ledgerChecks = checkHistory.filter(c => c.ledgerId === activeLedgerId)
-    const recentChecks = ledgerChecks.slice(0, 2) // Show only the 2 most recent
+    // Filter transactions for active ledger
+    const ledgerTransactions = checkHistory.filter(entry => entry.ledgerId === activeLedgerId)
+    const recentTransactions = ledgerTransactions.slice(0, maxRecentItems)
 
     return (
         <div style={{ borderTop: '1px solid #334155', paddingTop: '16px' }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>
                 Recent Activity
+                {activeLedgerName && (
+                    <span style={{ fontWeight: '400', opacity: 0.7, marginLeft: '6px' }}>
+                        · {activeLedgerName}
+                    </span>
+                )}
             </h4>
 
-            {ledgerChecks.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>
-                    No recent activity
+            {ledgerTransactions.length === 0 ? (
+                <div style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px 12px' }}>
+                    No transactions yet
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                    {recentChecks.map(entry => (
-                        <div
-                            key={entry.id}
-                            onClick={() => entry.type !== 'deposit' && onFillFromHistory(entry)}
-                            title={entry.type !== 'deposit' ? 'Click to fill form with this check' : 'Deposits cannot be copied'}
-                            style={{
-                                position: 'relative',
-                                padding: '8px 40px 8px 10px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                borderRadius: '6px',
-                                fontSize: '13px',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                cursor: entry.type !== 'deposit' ? 'pointer' : 'default',
-                                transition: 'background-color 0.15s, border-color 0.15s'
-                            }}
-                            onMouseEnter={(e) => {
-                                if (entry.type !== 'deposit') {
-                                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
-                                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
-                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'
-                            }}
-                        >
-                            <div style={{ marginBottom: '4px' }}>
-                                <div style={{ fontWeight: '500', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {entry.payee}
-                                </div>
-                                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                                    {formatDate(entry.date)}
-                                </div>
-                            </div>
-                            <div style={{ fontWeight: '600', color: entry.type === 'deposit' ? '#10b981' : '#f87171', whiteSpace: 'nowrap' }}>
-                                {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(entry.amount)}
-                            </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onDeleteEntry(entry.id) }}
-                                title="Delete and restore amount"
+                    {recentTransactions.map(entry => {
+                        const isDeposit = entry.type === 'deposit'
+                        const isClickable = !isDeposit
+
+                        return (
+                            <div
+                                key={entry.id}
+                                onClick={() => isClickable && onFillFromHistory(entry)}
+                                title={isClickable ? 'Click to copy this check to the form' : 'Deposits cannot be copied'}
                                 style={{
-                                    position: 'absolute',
-                                    top: '8px',
-                                    right: '8px',
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '4px',
-                                    color: '#64748b',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    transition: 'color 0.2s'
+                                    position: 'relative',
+                                    padding: '10px 40px 10px 12px',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    cursor: isClickable ? 'pointer' : 'default',
+                                    transition: 'all 0.15s ease'
                                 }}
-                                onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                                onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
+                                onMouseEnter={(e) => {
+                                    if (isClickable) {
+                                        e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
+                                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
+                                        e.currentTarget.style.transform = 'translateX(2px)'
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
+                                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                                    e.currentTarget.style.transform = 'translateX(0)'
+                                }}
                             >
-                                <TrashIcon />
-                            </button>
-                        </div>
-                    ))}
+                                {/* Transaction Type Badge */}
+                                {isDeposit && (
+                                    <div style={{
+                                        fontSize: '9px',
+                                        fontWeight: '600',
+                                        color: '#10b981',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px',
+                                        marginBottom: '4px'
+                                    }}>
+                                        Deposit
+                                    </div>
+                                )}
+
+                                {/* Payee/Description */}
+                                <div style={{ marginBottom: '4px' }}>
+                                    <div style={{
+                                        fontWeight: '500',
+                                        color: '#e2e8f0',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {entry.payee || 'Untitled'}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                                        {formatDate(entry.date)}
+                                        {entry.checkNumber && !isDeposit && (
+                                            <span style={{ marginLeft: '6px', opacity: 0.7 }}>
+                                                #{entry.checkNumber}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Amount */}
+                                <div style={{
+                                    fontWeight: '600',
+                                    fontSize: '14px',
+                                    color: isDeposit ? '#10b981' : '#f87171',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {isDeposit ? '+' : '-'}{formatCurrency(entry.amount)}
+                                </div>
+
+                                {/* Delete Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onDeleteEntry(entry.id)
+                                    }}
+                                    title={`Delete ${isDeposit ? 'deposit' : 'check'} and restore balance`}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '10px',
+                                        right: '10px',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        color: '#64748b',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'color 0.2s ease',
+                                        borderRadius: '4px'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.color = '#ef4444'
+                                        e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.color = '#64748b'
+                                        e.currentTarget.style.backgroundColor = 'transparent'
+                                    }}
+                                >
+                                    <TrashIcon />
+                                </button>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
 
-            {/* View History Button */}
-            {ledgerChecks.length > 0 && (
+            {/* View Full History Button */}
+            {ledgerTransactions.length > 0 && (
                 <button
                     className="btn btn-sm full-width"
                     onClick={onViewFullHistory}
+                    style={{
+                        fontSize: '12px',
+                        padding: '8px 12px'
+                    }}
                 >
-                    View Ledger History ({ledgerChecks.length})
+                    View Full History ({ledgerTransactions.length})
                 </button>
             )}
         </div>
     )
 }
+

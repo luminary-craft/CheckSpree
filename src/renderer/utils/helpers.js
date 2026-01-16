@@ -4,8 +4,40 @@
 // These functions have been extracted from App_MONOLITH.jsx
 // They are pure utility functions with no React state dependencies
 
-// Re-export existing utilities (already in this file)
-export { generateId, formatCurrency, sanitizeCurrencyInput }
+// ========================================
+// CORE UTILITIES
+// ========================================
+
+/**
+ * Generate a unique ID for records
+ */
+export function generateId() {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * Format a number as currency with $ sign
+ */
+export function formatCurrency(amount) {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount
+    if (isNaN(num)) return '$0.00'
+    return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/**
+ * Sanitize and parse currency input to a number
+ * Strips $ and , characters and returns a valid number
+ */
+export function sanitizeCurrencyInput(value) {
+    if (typeof value === 'number') return value
+    if (!value || value === '') return 0
+
+    // Remove currency symbols and commas
+    const cleaned = String(value).replace(/[$,]/g, '')
+    const num = parseFloat(cleaned)
+
+    return isNaN(num) ? 0 : num
+}
 
 // ========================================
 // MATH UTILITIES
