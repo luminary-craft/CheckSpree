@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { numberToWords } from '../shared/numberToWords'
 import { getLocalDateString } from './utils/date'
 import { generateId, formatCurrency, sanitizeCurrencyInput } from './utils/helpers'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
+import { useAutoIncrement } from './hooks/useAutoIncrement'
+import { usePersistenceSaver } from './hooks/usePersistenceSaver'
 import * as XLSX from 'xlsx'
 import UpdateNotification from './UpdateNotification'
 import logoImg from './assets/logo.png'
@@ -1362,47 +1365,12 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
-  // Immediate save for critical data (importQueue, checkHistory, ledgers)
-  useEffect(() => {
-    window.cs2.settingsSet({
-      model,
-      data,
-      sheetData,
-      activeSlot,
-      autoIncrementCheckNumbers,
-      editMode,
-      profiles,
-      activeProfileId,
-      ledgers,
-      activeLedgerId,
-
-      checkHistory,
-      preferences,
-      importQueue
-    })
-  }, [importQueue, checkHistory, ledgers, activeLedgerId, profiles, activeProfileId, sheetData, activeSlot])
-
-  // Debounced save for UI state changes (model, data, editMode, preferences)
-  useEffect(() => {
-    const t = setTimeout(() => {
-      window.cs2.settingsSet({
-        model,
-        data,
-        sheetData,
-        activeSlot,
-        autoIncrementCheckNumbers,
-        editMode,
-        profiles,
-        activeProfileId,
-        ledgers,
-        activeLedgerId,
-        checkHistory,
-        preferences,
-        importQueue
-      })
-    }, 250)
-    return () => clearTimeout(t)
-  }, [model, data, editMode, preferences, sheetData, activeSlot, autoIncrementCheckNumbers])
+  // ===== DRAFT PERSISTENCE SAVER =====
+  usePersistenceSaver({
+    model, data, sheetData, activeSlot, autoIncrementCheckNumbers,
+    editMode, profiles, activeProfileId, ledgers, activeLedgerId,
+    checkHistory, preferences, importQueue
+  })
 
   // Force exit Edit Layout mode when Admin is locked
   useEffect(() => {
@@ -1725,71 +1693,11 @@ export default function App() {
     }
   }, [activeProfile?.layoutMode])
 
-  // Auto-increment check numbers when switching slots
-  useEffect(() => {
-    if (!autoIncrementCheckNumbers || activeProfile?.layoutMode !== 'three_up') return
+  // Auto-increment check numbers
+  useAutoIncrement(autoIncrementCheckNumbers, activeProfile, activeSlot, sheetData, setSheetData)
 
-    const slots = ['top', 'middle', 'bottom']
-    const currentIndex = slots.indexOf(activeSlot)
-
-    if (currentIndex > 0) {
-      const previousSlot = slots[currentIndex - 1]
-      const previousNumber = sheetData[previousSlot]?.checkNumber
-
-      if (previousNumber && !isNaN(parseInt(previousNumber))) {
-        const nextNumber = (parseInt(previousNumber) + 1).toString()
-
-        // Only auto-populate if current slot's checkNumber is empty
-        if (!sheetData[activeSlot]?.checkNumber) {
-          setSheetData(prev => ({
-            ...prev,
-            [activeSlot]: { ...prev[activeSlot], checkNumber: nextNumber }
-          }))
-        }
-      }
-    }
-  }, [activeSlot, autoIncrementCheckNumbers, activeProfile?.layoutMode])
-
-  // Initialize check numbers for all slots when auto-increment is enabled
-  useEffect(() => {
-    if (!autoIncrementCheckNumbers || activeProfile?.layoutMode !== 'three_up') return
-
-    const slots = ['top', 'middle', 'bottom']
-    const baseNumber = parseInt(activeProfile?.nextCheckNumber) || 1001
-
-    // Check if ALL slots need initialization
-    const needsInit = slots.every(slot => !sheetData[slot]?.checkNumber)
-
-    if (needsInit) {
-      const updates = {}
-      slots.forEach((slot, index) => {
-        const expectedNumber = String(baseNumber + index)
-        updates[slot] = { ...sheetData[slot], checkNumber: expectedNumber }
-      })
-      setSheetData(prev => ({ ...prev, ...updates }))
-    }
-  }, [autoIncrementCheckNumbers, activeProfile?.layoutMode, activeProfile?.nextCheckNumber])
-
-  // Keyboard shortcuts for switching slots (Alt+1/2/3)
-  useEffect(() => {
-    if (activeProfile?.layoutMode !== 'three_up') return
-
-    const handleKeyDown = (e) => {
-      // Alt+1 = Top, Alt+2 = Middle, Alt+3 = Bottom
-      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
-        const slotMap = { '1': 'top', '2': 'middle', '3': 'bottom' }
-        const targetSlot = slotMap[e.key]
-
-        if (targetSlot) {
-          e.preventDefault()
-          setActiveSlot(targetSlot)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeProfile?.layoutMode])
+  // Keyboard shortcuts (Alt+1/2/3)
+  useKeyboardShortcuts(activeProfile, setActiveSlot)
 
   // Auto-generate amount words
   useEffect(() => {
