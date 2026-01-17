@@ -605,6 +605,11 @@ function parseExcelWithMapping(base64Content, mapping) {
         }
       }
 
+      // Explicitly capture address if mapped
+      if (mapping.address && row[mapping.address] !== undefined) {
+        entry.address = row[mapping.address]
+      }
+
       // Only include if we have at least payee or amount
       if (entry.payee || entry.amount) {
         results.push(entry)
@@ -669,7 +674,8 @@ function parseCSVWithMapping(content, delimiter, mapping) {
       internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : '',
       ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : '',
       glCode: columnIndices.glCode !== undefined ? values[columnIndices.glCode] || '' : '',
-      glDescription: columnIndices.glDescription !== undefined ? values[columnIndices.glDescription] || '' : ''
+      glDescription: columnIndices.glDescription !== undefined ? values[columnIndices.glDescription] || '' : '',
+      address: columnIndices.address !== undefined ? values[columnIndices.address] || '' : ''
     }
 
     // Only include if we have at least payee or amount
@@ -1344,7 +1350,8 @@ export default function App() {
     internal_memo: '',
     ledger: '',
     glCode: '',
-    glDescription: ''
+    glDescription: '',
+    address: ''
   })
   const [rawFileData, setRawFileData] = useState(null)
   const [fileExtension, setFileExtension] = useState('')
@@ -2345,6 +2352,7 @@ export default function App() {
       type: 'check', // Transaction type
       date: checkData.date || getLocalDateString(),
       payee: checkData.payee,
+      address: checkData.address || '',
       amount: amount,
       memo: checkData.memo || '',
       external_memo: checkData.external_memo || '',
@@ -2768,6 +2776,7 @@ export default function App() {
     const fieldMap = {
       date: ['date', 'check date', 'checkdate', 'dt', 'transaction date'],
       payee: ['payee', 'pay to', 'payto', 'recipient', 'name', 'to', 'vendor'],
+      address: ['address', 'payee address', 'recipient address'],
       amount: ['amount', 'amt', 'value', 'check amount', 'sum', 'total', 'cost', 'price'],
       memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
@@ -2780,6 +2789,7 @@ export default function App() {
     const mapping = {
       date: '',
       payee: '',
+      address: '',
       amount: '',
       memo: '',
       external_memo: '',
@@ -2997,6 +3007,7 @@ export default function App() {
       setData({
         date: normalizedDate,
         payee: firstItem.payee || '',
+        address: firstItem.address || '',
         amount: firstItem.amount || '',
         amountWords: firstItem.amount ? numberToWords(firstItem.amount) : '',
         memo: firstItem.memo || '',
@@ -3553,6 +3564,7 @@ export default function App() {
         type: 'check',
         date: item.date || getLocalDateString(),
         payee: item.payee,
+        address: item.address || item.payee, // Ensure address is recorded
         amount: amount,
         memo: item.memo || '',
         external_memo: item.external_memo || '',
@@ -3857,6 +3869,7 @@ export default function App() {
           type: 'check',
           date: item.date || getLocalDateString(),
           payee: item.payee,
+          address: item.address || item.payee, // Ensure address is recorded
           amount: amount,
           memo: item.memo || '',
           external_memo: item.external_memo || '',
@@ -4801,7 +4814,7 @@ export default function App() {
     : 0
 
   const downloadTemplate = () => {
-    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'External Memo', 'Internal Memo', 'Ledger', 'Check Number']
+    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'External Memo', 'Internal Memo', 'Ledger', 'Check Number', 'Address']
     const csvContent = headers.join(',') + '\n'
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -8555,6 +8568,25 @@ export default function App() {
                     </select>
                   </div>
 
+                  {/* Address Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>Address:</label>
+                    <select
+                      value={columnMapping.address}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, address: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Amount Field */}
                   <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
                     <label style={{ fontWeight: '600' }}>Amount: *</label>
@@ -8709,6 +8741,9 @@ export default function App() {
                       )}
                       {previewRow.payee && (
                         <div><strong>Payee:</strong> {previewRow.payee}</div>
+                      )}
+                      {previewRow.address && (
+                        <div><strong>Address:</strong> {previewRow.address}</div>
                       )}
                       {previewRow.amount && (
                         <div><strong>Amount:</strong> ${previewRow.amount}</div>
@@ -9077,6 +9112,13 @@ export default function App() {
                           <label>Payee</label>
                           <div className="detail-value">{selectedHistoryItem.payee}</div>
                         </div>
+
+                        {selectedHistoryItem.address && (
+                          <div className="detail-card full-width">
+                            <label>Address</label>
+                            <div className="detail-value" style={{ whiteSpace: 'pre-wrap' }}>{selectedHistoryItem.address}</div>
+                          </div>
+                        )}
 
                         <div className="detail-card">
                           <label>Amount</label>

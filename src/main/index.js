@@ -518,7 +518,7 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
 
   // Add check details
   csvContent += '=== CHECK DETAILS ===\n'
-  const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
+  const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Address', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
   const rows = checks.map(entry => [
     entry.date || '',
     `"${(entry.payee || '').replace(/"/g, '""')}"`,
@@ -526,6 +526,7 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
     `"${(entry.memo || '').replace(/"/g, '""')}"`,
     entry.glCode || '',
     `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
+    `"${(entry.address || '').replace(/"/g, '""')}"`,
     entry.ledgerName || '',
     entry.profileName || '',
     entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
@@ -614,6 +615,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
           <th>Memo</th>
           <th>GL Code</th>
           <th>GL Desc</th>
+          <th>Address</th>
           <th>Ledger</th>
         </tr>
       </thead>
@@ -629,6 +631,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
         <td>${entry.memo || ''}</td>
         <td class="gl-code">${entry.glCode || ''}</td>
         <td>${entry.glDescription || ''}</td>
+        <td>${entry.address || ''}</td>
         <td>${entry.ledgerName || ''}</td>
       </tr>
     `
