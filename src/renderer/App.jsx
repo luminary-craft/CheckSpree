@@ -1291,6 +1291,8 @@ export default function App() {
   const [exportDateRange, setExportDateRange] = useState('all')
   const [exportStartDate, setExportStartDate] = useState('')
   const [exportEndDate, setExportEndDate] = useState('')
+  const [exportFormat, setExportFormat] = useState('csv') // 'csv' or 'pdf'
+  const [exportGlCodeFilter, setExportGlCodeFilter] = useState('') // '' means all GL codes
   const [showHistory, setShowHistory] = useState(false)
   const [historyViewMode, setHistoryViewMode] = useState('all') // 'all' or 'current'
   const [historySearchTerm, setHistorySearchTerm] = useState('')
@@ -2949,6 +2951,8 @@ export default function App() {
     setExportDateRange('all')
     setExportStartDate('')
     setExportEndDate('')
+    setExportFormat('csv') // Initialize format selection
+    setExportGlCodeFilter('') // Reset GL filter ('' = all)
     setShowExportDialog(true)
   }
 
@@ -2976,8 +2980,13 @@ export default function App() {
       })
     }
 
+    // Apply GL Code filter if specified
+    if (exportGlCodeFilter) {
+      selectedChecks = selectedChecks.filter(check => check.glCode === exportGlCodeFilter)
+    }
+
     if (selectedChecks.length === 0) {
-      alert('No checks found in the selected ledgers for the specified date range')
+      alert('No checks found matching the selected filters')
       return
     }
 
@@ -3042,7 +3051,8 @@ export default function App() {
       checks: enrichedChecks,
       ledgerTotals,
       grandTotal,
-      exportDate: new Date().toISOString()
+      exportDate: new Date().toISOString(),
+      format: exportFormat
     })
 
     if (res?.success) {
@@ -4362,7 +4372,9 @@ export default function App() {
       line_items: data.line_items,
       line_items_text: data.line_items_text,
       ledger_snapshot: data.ledger_snapshot,
-      checkNumber: data.checkNumber
+      checkNumber: data.checkNumber,
+      glCode: data.glCode,
+      glDescription: data.glDescription
     }
 
     // Temporarily disable edit mode for printing
@@ -4618,7 +4630,8 @@ export default function App() {
             balanceAfter: newBalance,
             sheetSlot: slot,
             checkNumber: checkData.checkNumber || '',
-            glCode: checkData.glCode || ''
+            glCode: checkData.glCode || '',
+            glDescription: checkData.glDescription || ''
           }
 
           setCheckHistory(prev => [checkEntry, ...prev])
@@ -8597,6 +8610,32 @@ export default function App() {
                   })}
                 </div>
 
+                {/* GL Code Filter */}
+                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>GL Code</h3>
+                  <div className="field">
+                    <select
+                      value={exportGlCodeFilter}
+                      onChange={(e) => setExportGlCodeFilter(e.target.value)}
+                      style={{
+                        width: '100%',
+                        backgroundColor: '#1e293b',
+                        color: '#f1f5f9',
+                        border: '1px solid #475569',
+                        padding: '8px',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <option value="">All GL Codes</option>
+                      {[...new Set(checkHistory.filter(c => c.glCode).map(c => c.glCode))].sort().map(code => (
+                        <option key={code} value={code}>
+                          {code} {glCodes.find(g => g.code === code)?.description ? `- ${glCodes.find(g => g.code === code).description}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 {/* Date Range Filter */}
                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Date Range</h3>
@@ -8646,11 +8685,45 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* Export Format */}
+                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Export Format</h3>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="exportFormatRadio"
+                        value="csv"
+                        checked={exportFormat === 'csv'}
+                        onChange={(e) => setExportFormat(e.target.value)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>CSV (Spreadsheet)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="exportFormatRadio"
+                        value="pdf"
+                        checked={exportFormat === 'pdf'}
+                        onChange={(e) => setExportFormat(e.target.value)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>PDF (Document)</span>
+                    </label>
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>
+                    {exportFormat === 'csv'
+                      ? 'Best for importing into Excel or Google Sheets'
+                      : 'Best for printing or sharing as a formatted document'}
+                  </p>
+                </div>
               </div>
               <div className="modal-footer">
                 <button className="btn" onClick={() => setShowExportDialog(false)}>Cancel</button>
                 <button className="btn primary" onClick={executeExport}>
-                  <DownloadIcon /> Export Selected
+                  <DownloadIcon /> Export as {exportFormat.toUpperCase()}
                 </button>
               </div>
             </div>
@@ -9002,7 +9075,6 @@ export default function App() {
           </div>
         )
       }
-
 
       {/* Update Notification */}
       <UpdateNotification isAdmin={!preferences.adminLocked} />

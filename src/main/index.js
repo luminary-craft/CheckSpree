@@ -446,7 +446,7 @@ ipcMain.handle('import:read', async (_evt, filePath) => {
   }
 })
 
-// Export history to CSV
+// Export history to CSV or PDF
 ipcMain.handle('export:history', async (_evt, exportData) => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
@@ -455,76 +455,223 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
   const checks = isLegacyFormat ? exportData : exportData.checks
   const ledgerTotals = isLegacyFormat ? null : exportData.ledgerTotals
   const grandTotal = isLegacyFormat ? null : exportData.grandTotal
+  const format = exportData.format || 'csv' // Default to CSV for backward compatibility
+
+  // Determine file extension and filters based on format
+  const fileExt = format === 'pdf' ? 'pdf' : 'csv'
+  const fileName = `checkspree-history-${new Date().toISOString().slice(0, 10)}.${fileExt}`
+  const filters = format === 'pdf'
+    ? [{ name: 'PDF Files', extensions: ['pdf'] }, { name: 'All Files', extensions: ['*'] }]
+    : [{ name: 'CSV Files', extensions: ['csv'] }, { name: 'All Files', extensions: ['*'] }]
 
   const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: `checkspree-history-${new Date().toISOString().slice(0, 10)}.csv`,
-    filters: [
-      { name: 'CSV Files', extensions: ['csv'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
+    defaultPath: fileName,
+    filters
   })
 
   if (result.canceled || !result.filePath) return { success: false }
 
   try {
-    // Build CSV content
-    let csvContent = ''
-
-    // Add summary section if available
-    if (grandTotal && ledgerTotals) {
-      csvContent += '=== EXPORT SUMMARY ===\n'
-      csvContent += `Export Date,${new Date().toISOString()}\n`
-      csvContent += `Total Checks,${grandTotal.totalChecks}\n`
-      csvContent += `Total Amount Spent,$${grandTotal.totalSpent.toFixed(2)}\n`
-      csvContent += `Combined Ledger Balance,$${grandTotal.totalBalance.toFixed(2)}\n`
-      csvContent += '\n'
-
-      // Ledger breakdowns
-      csvContent += '=== LEDGER BREAKDOWN ===\n'
-      Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
-        csvContent += `\nLedger: ${ledger.name}\n`
-        csvContent += `Current Balance,$${ledger.balance.toFixed(2)}\n`
-        csvContent += `Total Spent,$${ledger.totalSpent.toFixed(2)}\n`
-        csvContent += `Check Count,${ledger.checkCount}\n`
-
-        if (Object.keys(ledger.profileBreakdown).length > 0) {
-          csvContent += '\nProfile Breakdown:\n'
-          Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
-            csvContent += `  ${profile.name},Checks: ${profile.checkCount},Amount: $${profile.totalSpent.toFixed(2)}\n`
-          })
-        }
-      })
-      csvContent += '\n'
+    if (format === 'pdf') {
+      // Generate PDF
+      return await generatePdfExport(result.filePath, checks, ledgerTotals, grandTotal)
+    } else {
+      // Generate CSV
+      return await generateCsvExport(result.filePath, checks, ledgerTotals, grandTotal)
     }
-
-    // Add check details
-    csvContent += '=== CHECK DETAILS ===\n'
-    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
-    const rows = checks.map(entry => [
-      entry.date || '',
-      `"${(entry.payee || '').replace(/"/g, '""')}"`,
-      entry.amount || 0,
-      `"${(entry.memo || '').replace(/"/g, '""')}"`,
-      entry.glCode || '',
-      `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
-      entry.ledgerName || '',
-      entry.profileName || '',
-      entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
-      entry.balanceAfter ?? ''
-    ])
-
-    csvContent += [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-
-    fs.writeFileSync(result.filePath, csvContent, 'utf8')
-
-    // Open the file location
-    shell.showItemInFolder(result.filePath)
-
-    return { success: true, path: result.filePath }
   } catch (e) {
     return { success: false, error: e?.message || String(e) }
   }
 })
+
+// Generate CSV export
+async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
+  // Build CSV content
+  let csvContent = ''
+
+  // Add summary section if available
+  if (grandTotal && ledgerTotals) {
+    csvContent += '=== EXPORT SUMMARY ===\n'
+    csvContent += `Export Date,${new Date().toISOString()}\n`
+    csvContent += `Total Checks,${grandTotal.totalChecks}\n`
+    csvContent += `Total Amount Spent,$${grandTotal.totalSpent.toFixed(2)}\n`
+    csvContent += `Combined Ledger Balance,$${grandTotal.totalBalance.toFixed(2)}\n`
+    csvContent += '\n'
+
+    // Ledger breakdowns
+    csvContent += '=== LEDGER BREAKDOWN ===\n'
+    Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
+      csvContent += `\nLedger: ${ledger.name}\n`
+      csvContent += `Current Balance,$${ledger.balance.toFixed(2)}\n`
+      csvContent += `Total Spent,$${ledger.totalSpent.toFixed(2)}\n`
+      csvContent += `Check Count,${ledger.checkCount}\n`
+
+      if (Object.keys(ledger.profileBreakdown).length > 0) {
+        csvContent += '\nProfile Breakdown:\n'
+        Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
+          csvContent += `  ${profile.name},Checks: ${profile.checkCount},Amount: $${profile.totalSpent.toFixed(2)}\n`
+        })
+      }
+    })
+    csvContent += '\n'
+  }
+
+  // Add check details
+  csvContent += '=== CHECK DETAILS ===\n'
+  const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
+  const rows = checks.map(entry => [
+    entry.date || '',
+    `"${(entry.payee || '').replace(/"/g, '""')}"`,
+    entry.amount || 0,
+    `"${(entry.memo || '').replace(/"/g, '""')}"`,
+    entry.glCode || '',
+    `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
+    entry.ledgerName || '',
+    entry.profileName || '',
+    entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
+    entry.balanceAfter ?? ''
+  ])
+
+  csvContent += [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+
+  fs.writeFileSync(filePath, csvContent, 'utf8')
+
+  // Open the file location
+  shell.showItemInFolder(filePath)
+
+  return { success: true, path: filePath }
+}
+
+// Generate PDF export
+async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
+  // Create HTML content for PDF
+  let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; border-bottom: 2px solid #4a5568; padding-bottom: 10px; }
+        h2 { color: #4a5568; margin-top: 20px; border-bottom: 1px solid #cbd5e0; padding-bottom: 5px; }
+        .summary { background: #f7fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .summary-item { margin: 5px 0; }
+        .ledger-section { margin: 15px 0; padding: 10px; background: #edf2f7; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th { background: #4a5568; color: white; padding: 10px; text-align: left; font-size: 11px; }
+        td { padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
+        tr:hover { background: #f7fafc; }
+        .amount { text-align: right; font-weight: 600; }
+        .gl-code { color: #2b6cb0; font-weight: 500; }
+      </style>
+    </head>
+    <body>
+      <h1>CheckSpree History Export</h1>
+  `
+
+  // Add summary section if available
+  if (grandTotal && ledgerTotals) {
+    html += `
+      <div class="summary">
+        <h2>Export Summary</h2>
+        <div class="summary-item"><strong>Export Date:</strong> ${new Date().toLocaleString()}</div>
+        <div class="summary-item"><strong>Total Checks:</strong> ${grandTotal.totalChecks}</div>
+        <div class="summary-item"><strong>Total Amount Spent:</strong> $${grandTotal.totalSpent.toFixed(2)}</div>
+        <div class="summary-item"><strong>Combined Ledger Balance:</strong> $${grandTotal.totalBalance.toFixed(2)}</div>
+      </div>
+      <h2>Ledger Breakdown</h2>
+    `
+
+    Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
+      html += `
+        <div class="ledger-section">
+          <strong>${ledger.name}</strong><br>
+          Current Balance: $${ledger.balance.toFixed(2)} | 
+          Total Spent: $${ledger.totalSpent.toFixed(2)} | 
+          Check Count: ${ledger.checkCount}
+      `
+
+      if (Object.keys(ledger.profileBreakdown).length > 0) {
+        html += '<br><br><em>Profile Breakdown:</em><br>'
+        Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
+          html += `&nbsp;&nbsp;${profile.name}: ${profile.checkCount} checks, $${profile.totalSpent.toFixed(2)}<br>`
+        })
+      }
+
+      html += '</div>'
+    })
+  }
+
+  // Add check details table
+  html += `
+    <h2>Check Details</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Payee</th>
+          <th>Amount</th>
+          <th>Memo</th>
+          <th>GL Code</th>
+          <th>GL Desc</th>
+          <th>Ledger</th>
+        </tr>
+      </thead>
+      <tbody>
+  `
+
+  checks.forEach(entry => {
+    html += `
+      <tr>
+        <td>${entry.date || ''}</td>
+        <td>${entry.payee || ''}</td>
+        <td class="amount">$${(entry.amount || 0).toFixed(2)}</td>
+        <td>${entry.memo || ''}</td>
+        <td class="gl-code">${entry.glCode || ''}</td>
+        <td>${entry.glDescription || ''}</td>
+        <td>${entry.ledgerName || ''}</td>
+      </tr>
+    `
+  })
+
+  html += `
+      </tbody>
+    </table>
+    </body>
+    </html>
+  `
+
+  // Create a hidden BrowserWindow to render PDF
+  const pdfWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    show: false,
+    webPreferences: {
+      nodeIntegration: false
+    }
+  })
+
+  await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+
+  // Generate PDF
+  const pdfData = await pdfWindow.webContents.printToPDF({
+    printBackground: true,
+    marginsType: 1, // Default margins
+    pageSize: 'Letter'
+  })
+
+  // Write PDF to file
+  fs.writeFileSync(filePath, pdfData)
+
+  // Close the hidden window
+  pdfWindow.close()
+
+  // Open the file location
+  shell.showItemInFolder(filePath)
+
+  return { success: true, path: filePath }
+}
+
 
 ipcMain.handle('print:dialog', async (_evt, filename) => {
   if (!mainWindow) return { success: false, error: 'No window' }
