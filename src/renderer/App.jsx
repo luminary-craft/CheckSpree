@@ -45,7 +45,9 @@ const DEFAULT_FIELDS = {
   amount: { x: 6.95, y: 1.05, w: 1.25, h: 0.45, fontIn: 0.32, label: 'Amount ($)' },
   amountWords: { x: 0.75, y: 1.55, w: 7.5, h: 0.45, fontIn: 0.30, label: 'Amount in Words' },
   memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' },
-  checkNumber: { x: 7.8, y: 0.15, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' }
+  checkNumber: { x: 7.8, y: 0.15, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' },
+  glCode: { x: 0.75, y: 2.85, w: 2.0, h: 0.30, fontIn: 0.26, label: 'GL Code' },
+  glDescription: { x: 0.75, y: 3.15, w: 3.8, h: 0.30, fontIn: 0.26, label: 'GL Description' }
 }
 
 const DEFAULT_PROFILE = {
@@ -362,7 +364,8 @@ function parseCSV(content, delimiter = ',') {
     memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
     external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
     internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
-    ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
+    ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name'],
+    glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code']
   }
 
   // Find column indices
@@ -456,7 +459,8 @@ function parseExcel(base64Content) {
       memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
       internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
-      ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
+      ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name'],
+      glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code']
     }
 
     // Process each row
@@ -1035,6 +1039,199 @@ function PasswordModal({ title, message, value, onChange, onSubmit, onCancel, er
   )
 }
 
+// GL Code Input with Autocomplete
+function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', ...props }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+  const inputRef = useRef(null)
+  const dropdownRef = useRef(null)
+
+  // Filter suggestions based on current input
+  const suggestions = useMemo(() => {
+    if (!value || value.trim() === '') return []
+    const searchTerm = value.toLowerCase().trim()
+    return glCodes.filter(item =>
+      item.code.toLowerCase().includes(searchTerm) ||
+      (item.description && item.description.toLowerCase().includes(searchTerm))
+    ).slice(0, 8)
+  }, [value, glCodes])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target) &&
+        inputRef.current && !inputRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleInputChange = (e) => {
+    onChange(e.target.value)
+    setIsOpen(true)
+    setHighlightedIndex(-1)
+  }
+
+  const handleSelect = (itemOrCode) => {
+    // If we get an object (from click/enter on suggestion), use it
+    // If we get a string (shouldn't happen with new logic but good safety), just pass code
+    if (typeof itemOrCode === 'object' && itemOrCode !== null) {
+      if (props.onSelect) {
+        props.onSelect(itemOrCode)
+      } else {
+        onChange(itemOrCode.code)
+      }
+    } else {
+      onChange(itemOrCode)
+    }
+    setIsOpen(false)
+    setHighlightedIndex(-1)
+    inputRef.current?.focus()
+  }
+
+  const handleKeyDown = (e) => {
+    if (!isOpen || suggestions.length === 0) {
+      if (e.key === 'ArrowDown' && suggestions.length > 0) {
+        setIsOpen(true)
+        setHighlightedIndex(0)
+        e.preventDefault()
+      }
+      return
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setHighlightedIndex(prev =>
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setHighlightedIndex(prev =>
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        )
+        break
+      case 'Enter':
+        if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+          e.preventDefault()
+          handleSelect(suggestions[highlightedIndex])
+        }
+        break
+      case 'Escape':
+        setIsOpen(false)
+        setHighlightedIndex(-1)
+        break
+      case 'Tab':
+        setIsOpen(false)
+        break
+    }
+  }
+
+  const showDropdown = isOpen && suggestions.length > 0
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => value && suggestions.length > 0 && setIsOpen(true)}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {showDropdown && (
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            backgroundColor: '#1e293b',
+            border: '1px solid #475569',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            zIndex: 1000,
+            maxHeight: '200px',
+            overflowY: 'auto'
+          }}
+        >
+          {suggestions.map((item, index) => (
+            <div
+              key={item.code}
+              onClick={() => handleSelect(item)}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                backgroundColor: index === highlightedIndex ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                color: index === highlightedIndex ? '#60a5fa' : '#e2e8f0',
+                borderBottom: index < suggestions.length - 1 ? '1px solid #334155' : 'none',
+                fontSize: '13px',
+                transition: 'background-color 0.1s',
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '8px'
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+            >
+              <span style={{ fontWeight: 600 }}>{item.code}</span>
+              <span style={{ opacity: 0.7, fontSize: '0.9em' }}>{item.description}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GlDescriptionModal({ code, onClose, onSave }) {
+  const [description, setDescription] = useState('')
+
+  return (
+    <div className="modal-overlay no-print" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>New GL Code: {code}</h2>
+          <button className="btn-icon" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ marginBottom: '16px', color: '#94a3b8' }}>
+            This GL Code is not recognized. Would you like to add a description for future reference?
+          </p>
+          <div className="field">
+            <label>Description (Optional)</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="e.g. Office Supplies"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSave(code, description)
+              }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn ghost" onClick={onClose}>Skip</button>
+          <button
+            className="btn primary"
+            onClick={() => onSave(code, description)}
+          >
+            Save GL Code
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [model, setModel] = useState(DEFAULT_MODEL)
 
@@ -1094,6 +1291,9 @@ export default function App() {
   const [historySortOrder, setHistorySortOrder] = useState('date-desc')
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
 
+  // GL Codes state
+  const [glCodes, setGlCodes] = useState([]) // Array of { code, description }
+
   // Import queue
   const [importQueue, setImportQueue] = useState([])
   const [showImportQueue, setShowImportQueue] = useState(false)
@@ -1114,7 +1314,8 @@ export default function App() {
     memo: '',
     external_memo: '',
     internal_memo: '',
-    ledger: ''
+    ledger: '',
+    glCode: ''
   })
   const [rawFileData, setRawFileData] = useState(null)
   const [fileExtension, setFileExtension] = useState('')
@@ -1197,7 +1398,9 @@ export default function App() {
     line_items: [],
     line_items_text: '',
     ledger_snapshot: null,
-    checkNumber: '' // For optional check numbering
+    checkNumber: '', // For optional check numbering
+    glCode: '',
+    glDescription: ''
   })
 
   // Three-up sheet editor state
@@ -1238,7 +1441,9 @@ export default function App() {
       line_items: [],
       line_items_text: '',
       ledger_snapshot: null,
-      checkNumber: ''
+      checkNumber: '',
+      glCode: '',
+      glDescription: ''
     },
     bottom: {
       date: (() => {
@@ -1257,7 +1462,9 @@ export default function App() {
       line_items: [],
       line_items_text: '',
       ledger_snapshot: null,
-      checkNumber: ''
+      checkNumber: '',
+      glCode: '',
+      glDescription: ''
     }
   })
 
@@ -1352,6 +1559,7 @@ export default function App() {
         }
 
         if (persisted?.checkHistory) setCheckHistory(persisted.checkHistory)
+        if (persisted?.glCodes) setGlCodes(persisted.glCodes)
         if (persisted?.preferences) {
           // Always force admin to be locked on startup for security
           setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true })
@@ -1369,7 +1577,7 @@ export default function App() {
   usePersistenceSaver({
     model, data, sheetData, activeSlot, autoIncrementCheckNumbers,
     editMode, profiles, activeProfileId, ledgers, activeLedgerId,
-    checkHistory, preferences, importQueue
+    checkHistory, glCodes, preferences, importQueue
   })
 
   // Force exit Edit Layout mode when Admin is locked
@@ -1378,6 +1586,9 @@ export default function App() {
       setEditMode(false)
     }
   }, [preferences.adminLocked, editMode])
+
+  // Handle pending actions after GL Code save
+  // Dependency on glCodes ensures we run after the update
 
   // ===== HELPER FUNCTIONS FOR THREE-UP MODE =====
 
@@ -1393,7 +1604,9 @@ export default function App() {
     line_items: [],
     line_items_text: '',
     ledger_snapshot: null,
-    checkNumber: ''
+    checkNumber: '',
+    glCode: '',
+    glDescription: ''
   })
 
   // Check if a slot is empty (no meaningful data)
@@ -1494,7 +1707,9 @@ export default function App() {
       amount: data.amount,
       memo: data.memo,
       external_memo: data.external_memo,
-      internal_memo: data.internal_memo
+      internal_memo: data.internal_memo,
+      glCode: data.glCode,
+      glDescription: data.glDescription
     }
 
     // Check if any parent field changed
@@ -1510,10 +1725,8 @@ export default function App() {
         const updates = {}
 
         if (model.layout.stub1Enabled) {
-          updates.stub1_date = currentParent.date
-          updates.stub1_payee = currentParent.payee
-          updates.stub1_amount = currentParent.amount
-          updates.stub1_memo = currentParent.external_memo || currentParent.memo || ''
+          updates.stub1_glcode = currentParent.glCode
+          updates.stub1_glDescription = currentParent.glDescription
         }
 
         if (model.layout.stub2Enabled) {
@@ -1521,12 +1734,14 @@ export default function App() {
           updates.stub2_payee = currentParent.payee
           updates.stub2_amount = currentParent.amount
           updates.stub2_memo = currentParent.internal_memo || currentParent.memo || ''
+          updates.stub2_glCode = currentParent.glCode
+          updates.stub2_glDescription = currentParent.glDescription
         }
 
         return Object.keys(updates).length > 0 ? { ...d, ...updates } : d
       })
     }
-  }, [data.date, data.payee, data.amount, data.memo, data.external_memo, data.internal_memo, model.layout.stub1Enabled, model.layout.stub2Enabled])
+  }, [data.date, data.payee, data.amount, data.memo, data.external_memo, data.internal_memo, data.glCode, data.glDescription, model.layout.stub1Enabled, model.layout.stub2Enabled])
 
   // Load template dataURL when template path changes
   useEffect(() => {
@@ -1642,6 +1857,10 @@ export default function App() {
         nextFields.stub1_glcode = { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
         hasChanges = true
       }
+      if (!nextFields.stub1_glDescription) {
+        nextFields.stub1_glDescription = { x: 0.55, y: baseY + 2.95, w: 3.6, h: 0.35, fontIn: 0.16, label: 'GL Description' }
+        hasChanges = true
+      }
     }
 
     // Add missing stub2 fields if stub2 is enabled
@@ -1656,6 +1875,14 @@ export default function App() {
       }
       if (!nextFields.stub2_line_items) {
         nextFields.stub2_line_items = { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
+        hasChanges = true
+      }
+      if (!nextFields.stub2_glCode) {
+        nextFields.stub2_glCode = { x: 6.35, y: baseY + 2.10, w: 0.75, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+        hasChanges = true
+      }
+      if (!nextFields.stub2_glDescription) {
+        nextFields.stub2_glDescription = { x: 7.20, y: baseY + 2.10, w: 1.2, h: 0.35, fontIn: 0.16, label: 'GL Description' }
         hasChanges = true
       }
     }
@@ -2075,11 +2302,35 @@ export default function App() {
         new_balance: newBalance
       },
       timestamp: Date.now(),
-      balanceAfter: newBalance
+      balanceAfter: newBalance,
+      checkNumber: checkData.checkNumber || '',
+      glCode: checkData.glCode || '',
+      glDescription: checkData.glDescription || ''
     }
 
     setCheckHistory(prev => [checkEntry, ...prev])
     // Note: We don't update ledger.balance anymore - hybrid balance is calculated from transactions
+
+    // Learning Mode: Update GL Codes list
+    if (checkEntry.glCode) {
+      const code = checkEntry.glCode
+      const desc = checkEntry.glDescription || ''
+      const existing = glCodes.find(g => g.code === code)
+
+      // Update if new code OR if description changed (and new description is not empty)
+      if (!existing || (desc && desc !== existing.description)) {
+        const newGlEntry = { code, description: desc }
+        setGlCodes(prev => {
+          const existingIdx = prev.findIndex(g => g.code === code)
+          if (existingIdx >= 0) {
+            const copy = [...prev]
+            copy[existingIdx] = newGlEntry
+            return copy
+          }
+          return [...prev, newGlEntry].sort((a, b) => a.code.localeCompare(b.code))
+        })
+      }
+    }
 
     // Trigger auto-backup (debounced, silent)
     window.cs2.backupTriggerAuto().catch(err => {
@@ -3099,7 +3350,8 @@ export default function App() {
         line_items: item.line_items || [],
         line_items_text: item.line_items_text || '',
         ledger_snapshot: ledgerSnapshotForDisplay,
-        checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
+        checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
+        glCode: item.glCode || ''
       })
 
       // Wait a brief moment for the UI to update with the new data
@@ -3187,7 +3439,8 @@ export default function App() {
         },
         timestamp: Date.now(),
         balanceAfter: newBalanceForCheck,
-        checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
+        checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
+        glCode: item.glCode || ''
       })
       processed++
 
@@ -3358,7 +3611,8 @@ export default function App() {
           line_items: item.line_items || [],
           line_items_text: item.line_items_text || '',
           ledger_snapshot: ledgerSnapshotForDisplay,
-          checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
+          checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
+          glCode: item.glCode || ''
         }
 
         // Deduct from balance NOW so next check in this batch gets the updated balance
@@ -3372,7 +3626,8 @@ export default function App() {
           amount,
           previousBalance: previousBalance,
           newBalance: ledgerBalances[targetLedgerId],
-          checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || '')
+          checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
+          glCode: item.glCode || ''
         })
 
         // Increment check number if auto-numbering
@@ -3464,7 +3719,7 @@ export default function App() {
 
       // Record all filled slots to history (balances already calculated and deducted)
       const timestamp = Date.now()
-      for (const { slot, item, targetLedgerId, amount, previousBalance, newBalance, checkNumber } of slotMetadata) {
+      for (const { slot, item, targetLedgerId, amount, previousBalance, newBalance, checkNumber, glCode } of slotMetadata) {
         newHistory.unshift({
           id: generateId(),
           type: 'check',
@@ -3488,7 +3743,8 @@ export default function App() {
           timestamp: timestamp,
           balanceAfter: newBalance,
           sheetSlot: slot,
-          checkNumber: checkNumber
+          checkNumber: checkNumber,
+          glCode: glCode || ''
         })
         processed++
       }
@@ -4017,6 +4273,17 @@ export default function App() {
     }, 250)
   }
 
+  // Save new GL Code from modal
+  const handleSaveGlCode = (code, description) => {
+    setGlCodes(prev => {
+      // Avoid duplicates just in case
+      if (prev.some(g => g.code.toLowerCase() === code.toLowerCase())) return prev
+      return [...prev, { code, description }]
+    })
+    setShowGlModal(false)
+    setPendingGlCode(null)
+  }
+
   // Single check print and record (standard mode)
   const handlePrintAndRecordSingle = async () => {
     const amount = sanitizeCurrencyInput(data.amount)
@@ -4027,6 +4294,18 @@ export default function App() {
     if (!data.payee.trim()) {
       alert('Please enter a payee')
       return
+    }
+
+    // Check for novel GL Code
+    if (data.glCode && data.glCode.trim()) {
+      const code = data.glCode.trim()
+      const exists = glCodes.some(g => g.code.toLowerCase() === code.toLowerCase())
+      if (!exists) {
+        setPendingGlCode(code)
+        setPendingAction('print_single')
+        setShowGlModal(true)
+        return
+      }
     }
 
     // Capture the current check data BEFORE any async operations
@@ -4192,6 +4471,20 @@ export default function App() {
       return
     }
 
+    // Check for novel GL Codes
+    for (const { data: checkData } of filledSlots) {
+      if (checkData.glCode && checkData.glCode.trim()) {
+        const code = checkData.glCode.trim()
+        const exists = glCodes.some(g => g.code.toLowerCase() === code.toLowerCase())
+        if (!exists) {
+          setPendingGlCode(code)
+          setPendingAction('print_sheet')
+          setShowGlModal(true)
+          return
+        }
+      }
+    }
+
     // Temporarily disable edit mode for printing
     const wasInEditMode = editMode
     if (wasInEditMode) setEditMode(false)
@@ -4282,7 +4575,8 @@ export default function App() {
             timestamp: timestamp,
             balanceAfter: newBalance,
             sheetSlot: slot,
-            checkNumber: checkData.checkNumber || ''
+            checkNumber: checkData.checkNumber || '',
+            glCode: checkData.glCode || ''
           }
 
           setCheckHistory(prev => [checkEntry, ...prev])
@@ -5243,6 +5537,47 @@ export default function App() {
                     placeholder="Recipient name"
                   />
                 </div>
+                <div className="field">
+                  <label>GL Code & Description</label>
+                  <div style={{ display: 'flex', gap: '0' }}>
+                    <div style={{ flex: '0 0 120px' }}>
+                      <GlCodeInput
+                        value={getCurrentCheckData().glCode || ''}
+                        onChange={(val) => {
+                          if (typeof val === 'object') {
+                            updateCurrentCheckData({
+                              glCode: val.code,
+                              glDescription: val.description
+                            })
+                          } else {
+                            updateCurrentCheckData({ glCode: val })
+                          }
+                        }}
+                        glCodes={glCodes}
+                        placeholder="Code"
+                        style={{
+                          borderTopRightRadius: 0,
+                          borderBottomRightRadius: 0,
+                          borderRight: 'none',
+                          width: '100%' // Ensure input takes full width of container
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        value={getCurrentCheckData().glDescription || ''}
+                        onChange={(e) => updateCurrentCheckData({ glDescription: e.target.value })}
+                        placeholder="Description"
+                        style={{
+                          borderTopLeftRadius: 0,
+                          borderBottomLeftRadius: 0,
+                          width: '100%' // Ensure input takes full width
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
 
                 {/* Check Builder Mode Toggle */}
                 <div style={{
@@ -5549,6 +5884,17 @@ export default function App() {
                         />
                         <span className="toggle-slider"></span>
                         <span className="toggle-label">Show Date</span>
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={!!preferences.showGlOnCheck}
+                          onChange={(e) => setPreferences(p => ({ ...p, showGlOnCheck: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show GL Code on Check</span>
                       </label>
                     </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
@@ -6632,255 +6978,314 @@ export default function App() {
                       )}
 
                       {/* Use slot-specific fields in three-up mode, shared fields in standard mode */}
-                      {Object.entries(slot ? model.slotFields[slot] : model.fields).map(([key, f]) => {
-                        // Check if this field belongs to a disabled stub
-                        const isStub1Field = key.startsWith('stub1_')
-                        const isStub2Field = key.startsWith('stub2_')
+                      {Object.entries(slot ? model.slotFields[slot] : model.fields)
+                        .filter(([key]) => {
+                          const isStub1 = key.startsWith('stub1_')
+                          const isStub2 = key.startsWith('stub2_')
 
-                        // Skip rendering stub fields if their stub is disabled OR in three_up mode
-                        if (isStub1Field && (!model.layout.stub1Enabled || activeProfile?.layoutMode === 'three_up')) return null
-                        if (isStub2Field && (!model.layout.stub2Enabled || activeProfile?.layoutMode === 'three_up')) return null
+                          // Always hide if it's a stub field and that stub is disabled
+                          if (isStub1 && !model.layout.stub1Enabled) return false
+                          if (isStub2 && !model.layout.stub2Enabled) return false
 
-                        // Skip stub1 fields if their preferences are disabled
-                        if (key === 'stub1_ledger' && !preferences.stub1ShowLedger) return null
-                        if (key === 'stub1_approved' && !preferences.stub1ShowApproved) return null
-                        if (key === 'stub1_glcode' && !preferences.stub1ShowGLCode) return null
-                        if (key === 'stub1_line_items' && !preferences.stub1ShowLineItems) return null
-                        if (key === 'stub1_checkNumber' && !preferences.stub1ShowCheckNumber) return null
-                        if (key === 'stub1_date' && !preferences.stub1ShowDate) return null
+                          // Hiding check number on check face check
+                          if (key === 'checkNumber' && !preferences.showCheckNumber) return false
 
-                        // Skip stub2 fields if their preferences are disabled
-                        if (key === 'stub2_ledger' && !preferences.stub2ShowLedger) return null
-                        if (key === 'stub2_approved' && !preferences.stub2ShowApproved) return null
-                        if (key === 'stub2_glcode' && !preferences.stub2ShowGLCode) return null
-                        if (key === 'stub2_line_items' && !preferences.stub2ShowLineItems) return null
-                        if (key === 'stub2_checkNumber' && !preferences.stub2ShowCheckNumber) return null
-                        if (key === 'stub2_date' && !preferences.stub2ShowDate) return null
+                          // Hiding date on check face
+                          if (key === 'date' && !preferences.showDate) return false
 
-                        // Skip check number field on check if preference is disabled
-                        if (key === 'checkNumber' && !preferences.showCheckNumber) return null
+                          // GL Code visibility (Check face ONLY)
+                          // Stub fields should NOT be affected by 'showGlOnCheck'
+                          if ((key === 'glCode' || key === 'glDescription') && !isStub1 && !isStub2 && (!preferences.showGlOnCheck && !editMode)) return false
 
-                        // Skip date field on check if preference is disabled
-                        if (key === 'date' && !preferences.showDate) return null
+                          return true
+                        })
+                        .map(([key, f]) => {
+                          // Check if this field belongs to a disabled stub
+                          const isStub1Field = key.startsWith('stub1_')
+                          const isStub2Field = key.startsWith('stub2_')
 
-                        // Smart field value handling
-                        let value = checkData[key] ?? ''
-                        let isTextarea = false
-                        let isReadOnly = editMode || key === 'amountWords'
+                          // Skip rendering stub fields if their stub is disabled OR in three_up mode
+                          if (isStub1Field && (!model.layout.stub1Enabled || activeProfile?.layoutMode === 'three_up')) return null
+                          if (isStub2Field && (!model.layout.stub2Enabled || activeProfile?.layoutMode === 'three_up')) return null
 
-                        // Special handling for check number - default to profile's nextCheckNumber
-                        if (key === 'checkNumber' && !value) {
-                          value = String(activeProfile.nextCheckNumber || '')
-                        }
-
-                        // Sync stub check numbers from check data
-                        if ((key === 'stub1_checkNumber' || key === 'stub2_checkNumber')) {
-                          value = checkData.checkNumber || String(activeProfile.nextCheckNumber || '')
-                          isReadOnly = true
-                        }
-
-                        // Sync stub dates from check data
-                        if ((key === 'stub1_date' || key === 'stub2_date')) {
-                          value = checkData.date || ''
-                          isReadOnly = true
-                        }
-
-                        // Special handling for date formatting (check and stubs)
-                        if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
-                          value = formatDateByPreference(value, preferences)
-                        }
-
-                        // Special handling for amount fields - format with commas (1,250.00)
-                        if ((key === 'amount' || key === 'stub1_amount' || key === 'stub2_amount') && value) {
-                          const numValue = parseFloat(value)
-                          if (!isNaN(numValue)) {
-                            value = numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          // Apply Stub Preferences (Hide if toggle is off)
+                          if (isStub1Field) {
+                            if (key.includes('_ledger') && !preferences.stub1ShowLedger) return null
+                            if (key.includes('_approved') && !preferences.stub1ShowApproved) return null
+                            if ((key.includes('_glCode') || key.includes('_glcode') || key.includes('_glDescription')) && !preferences.stub1ShowGLCode) return null
+                            if (key.includes('_line_items') && !preferences.stub1ShowLineItems) return null
+                            if (key.includes('_checkNumber') && !preferences.stub1ShowCheckNumber) return null
+                            if (key.includes('_date') && !preferences.stub1ShowDate) return null
                           }
-                        }
-
-                        // Special handling for smart stub fields
-                        if (key.endsWith('_line_items')) {
-                          value = checkData.line_items_text || ''
-                          isTextarea = true
-                          isReadOnly = true
-                        } else if (key.endsWith('_ledger')) {
-                          // Generate live ledger snapshot based on current hybrid balance and check amount
-                          const checkAmount = sanitizeCurrencyInput(checkData.amount)
-                          const snapshot = checkData.ledger_snapshot || {
-                            previous_balance: hybridBalance,
-                            transaction_amount: checkAmount,
-                            new_balance: hybridBalance - checkAmount
+                          if (isStub2Field) {
+                            if (key.includes('_ledger') && !preferences.stub2ShowLedger) return null
+                            if (key.includes('_approved') && !preferences.stub2ShowApproved) return null
+                            if ((key.includes('_glCode') || key.includes('_glcode') || key.includes('_glDescription')) && !preferences.stub2ShowGLCode) return null
+                            if (key.includes('_line_items') && !preferences.stub2ShowLineItems) return null
+                            if (key.includes('_checkNumber') && !preferences.stub2ShowCheckNumber) return null
+                            if (key.includes('_date') && !preferences.stub2ShowDate) return null
                           }
-                          value = formatLedgerSnapshot(snapshot, activeLedger?.name)
-                          isTextarea = true
-                          isReadOnly = true
-                        } else if (key.endsWith('_approved')) {
-                          value = 'Approved By: ___________________'
-                          isReadOnly = true
-                        } else if (key.endsWith('_glcode')) {
-                          value = 'GL Code: ___________________'
-                          isReadOnly = true
-                        }
+                          // Smart field value handling
+                          let value = checkData[key] ?? ''
+                          let isTextarea = false
+                          let isReadOnly = editMode || key === 'amountWords'
 
-                        const isSelected = editMode && selected.includes(key)
-                        // Use stub font size for stub fields, check font size for others
-                        const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
+                          // Force Hide MICR (legacy data cleanup)
+                          if (key === 'micr') return null
 
-                        // Don't show labels for stub2 approved/glcode fields since they already have labels in the value
-                        const showFriendlyLabel = !editMode && (
-                          (isStub1Field && showStub1Labels) ||
-                          (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
-                        )
+                          // Clean up potential duplicate Stub 2 GL key (legacy)
+                          if (key === 'stub2_glcode') return null
 
-                        // Calculate actual Y position for stub fields (they should stay pinned to their stub section)
-                        // When stubs are created, fields get Y positions like checkHeight + 0.25
-                        // We need to extract the relative offset and re-apply it to the current stub position
-                        let actualY = f.y
-                        if (isStub1Field) {
-                          // Stub1 starts at checkHeightIn
-                          // Find what the stub1 start was when this field was created (use 3.0 as default check height)
-                          const originalStub1Start = 3.0
-                          const relativeY = f.y - originalStub1Start
-                          actualY = model.layout.checkHeightIn + relativeY
-                        } else if (isStub2Field) {
-                          // Stub2 starts at checkHeightIn + stub1HeightIn
-                          // Find what the stub2 start was when this field was created
-                          const originalStub2Start = 3.0 + 3.0 // default check + default stub1
-                          const relativeY = f.y - originalStub2Start
-                          actualY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
-                        }
+                          // Special Handling: Unified GL Field on Check Face
+                          if (key === 'glCode' && !isStub1Field && !isStub2Field) {
+                            // Apply Visibility Toggle (Check Face Only)
+                            if (!preferences.showGlOnCheck && !editMode) return null
 
-                        return (
-                          <div
-                            key={key}
-                            className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
-                            style={{
-                              left: `${f.x}in`,
-                              top: `${actualY}in`,
-                              width: `${f.w}in`,
-                              height: `${f.h}in`
-                            }}
-                            onPointerDown={(e) => onPointerDownField(e, key)}
-                          >
-                            {editMode && (
-                              <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
-                                {f.label}
-                              </div>
-                            )}
-                            {showFriendlyLabel && (
-                              <div className="friendly-label" style={{ fontSize: `${Math.max(preferences.labelSize - 2, 7)}px` }}>
-                                {f.label}
-                              </div>
-                            )}
-                            {isTextarea ? (
-                              <textarea
-                                value={value}
-                                readOnly={isReadOnly}
-                                onChange={(e) => !isReadOnly && updateCurrentCheckData({ [key]: e.target.value })}
-                                style={{
-                                  fontSize: `${fontSizePt}pt`,
-                                  fontFamily: activeFontFamily,
-                                  width: '100%',
-                                  height: '100%',
-                                  border: 'none',
-                                  background: 'transparent',
-                                  resize: 'none',
-                                  padding: showFriendlyLabel ? '14px 0 0 0' : '0',
-                                  lineHeight: '1.3',
-                                  fontWeight: f.bold ? 'bold' : 'normal',
-                                  fontStyle: f.italic ? 'italic' : 'normal'
-                                }}
-                              />
-                            ) : (
-                              <input
-                                value={value}
-                                readOnly={isReadOnly}
-                                onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
-                                style={{
-                                  fontSize: `${fontSizePt}pt`,
-                                  fontFamily: activeFontFamily,
-                                  paddingTop: showFriendlyLabel ? '14px' : '0',
-                                  fontWeight: f.bold ? 'bold' : 'normal',
-                                  fontStyle: f.italic ? 'italic' : 'normal'
-                                }}
-                              />
-                            )}
-                            {/* Floating Formatting Toolbar */}
-                            {editMode && selected.includes(key) && selected.length === 1 && (
-                              <div
-                                className="formatting-toolbar"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                style={{
-                                  position: 'absolute',
-                                  bottom: '-40px',
-                                  left: '50%',
-                                  transform: 'translateX(-50%)',
-                                  display: 'flex',
-                                  gap: '8px',
-                                  backgroundColor: '#1e293b',
-                                  padding: '4px 8px',
-                                  borderRadius: '6px',
-                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                                  border: '1px solid #334155',
-                                  zIndex: 1000
-                                }}
-                              >
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setField(key, { bold: !f.bold })
-                                  }}
+                            const desc = checkData.glDescription ? ` - ${checkData.glDescription}` : ''
+                            value = `GL Code: ${checkData.glCode || ''}${desc}`
+                          }
+
+                          // Hide glDescription on check face
+                          if (key === 'glDescription' && !isStub1Field && !isStub2Field) {
+                            return null
+                          }
+
+                          // Unified GL Field on Stub 1 (Generic lowercase match)
+                          if (isStub1Field && key.toLowerCase().endsWith('_glcode')) {
+                            const codeVal = checkData[key] || checkData.glCode || ''
+                            // Fallback to main glDescription
+                            const descRaw = checkData.stub1_glDescription || checkData.glDescription
+                            const descVal = descRaw ? ` - ${descRaw}` : ''
+                            value = `GL Code: ${codeVal}${descVal}`
+                          }
+                          // Hide Stub 1 Description (Generic lowercase match)
+                          if (isStub1Field && key.toLowerCase().endsWith('_gldescription')) return null
+
+
+                          // Unified GL Field on Stub 2 (Generic lowercase match)
+                          if (isStub2Field && key.toLowerCase().endsWith('_glcode')) {
+                            const codeVal = checkData[key] || checkData.glCode || ''
+                            // Fallback to main glDescription
+                            const descRaw = checkData.stub2_glDescription || checkData.glDescription
+                            const descVal = descRaw ? ` - ${descRaw}` : ''
+                            value = `GL Code: ${codeVal}${descVal}`
+                          }
+                          // Hide Stub 2 Description (Generic lowercase match)
+                          if (isStub2Field && key.toLowerCase().endsWith('_gldescription')) return null
+
+                          // Special handling for check number - default to profile's nextCheckNumber
+                          if (key === 'checkNumber' && !value) {
+                            value = String(activeProfile.nextCheckNumber || '')
+                          }
+
+                          // Sync stub check numbers from check data
+                          if ((key === 'stub1_checkNumber' || key === 'stub2_checkNumber')) {
+                            value = checkData.checkNumber || String(activeProfile.nextCheckNumber || '')
+                            isReadOnly = true
+                          }
+
+                          // Sync stub dates from check data
+                          if ((key === 'stub1_date' || key === 'stub2_date')) {
+                            value = checkData.date || ''
+                            isReadOnly = true
+                          }
+
+                          // Special handling for date formatting (check and stubs)
+                          if ((key === 'date' || key === 'stub1_date' || key === 'stub2_date') && value) {
+                            value = formatDateByPreference(value, preferences)
+                          }
+
+                          // Special handling for amount fields - format with commas (1,250.00)
+                          if ((key === 'amount' || key === 'stub1_amount' || key === 'stub2_amount') && value) {
+                            const numValue = parseFloat(value)
+                            if (!isNaN(numValue)) {
+                              value = numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            }
+                          }
+
+                          // Special handling for smart stub fields
+                          if (key.endsWith('_line_items')) {
+                            value = checkData.line_items_text || ''
+                            isTextarea = true
+                            isReadOnly = true
+                          } else if (key.endsWith('_ledger')) {
+                            // Generate live ledger snapshot based on current hybrid balance and check amount
+                            const checkAmount = sanitizeCurrencyInput(checkData.amount)
+                            const snapshot = checkData.ledger_snapshot || {
+                              previous_balance: hybridBalance,
+                              transaction_amount: checkAmount,
+                              new_balance: hybridBalance - checkAmount
+                            }
+                            value = formatLedgerSnapshot(snapshot, activeLedger?.name)
+                            isTextarea = true
+                            isReadOnly = true
+                          } else if (key.endsWith('_approved')) {
+                            value = 'Approved By: ___________________'
+                            isReadOnly = true
+                          } else if (key.toLowerCase().endsWith('_glcode') || key.toLowerCase().endsWith('_gldescription')) {
+                            // Value is handled by early unification logic. Just ensure read-only.
+                            isReadOnly = true
+                          }
+
+                          const isSelected = editMode && selected.includes(key)
+                          // Use stub font size for stub fields, check font size for others
+                          const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
+
+                          // Don't show labels for stub2 approved/glcode fields since they already have labels in the value
+                          const showFriendlyLabel = !editMode && (
+                            (isStub1Field && showStub1Labels) ||
+                            (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
+                          )
+
+                          // Calculate actual Y position for stub fields (they should stay pinned to their stub section)
+                          // When stubs are created, fields get Y positions like checkHeight + 0.25
+                          // We need to extract the relative offset and re-apply it to the current stub position
+                          let actualY = f.y
+                          if (isStub1Field) {
+                            // Stub1 starts at checkHeightIn
+                            // Find what the stub1 start was when this field was created (use 3.0 as default check height)
+                            const originalStub1Start = 3.0
+                            const relativeY = f.y - originalStub1Start
+                            actualY = model.layout.checkHeightIn + relativeY
+                          } else if (isStub2Field) {
+                            // Stub2 starts at checkHeightIn + stub1HeightIn
+                            // Find what the stub2 start was when this field was created
+                            const originalStub2Start = 3.0 + 3.0 // default check + default stub1
+                            const relativeY = f.y - originalStub2Start
+                            actualY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
+                          }
+
+                          return (
+                            <div
+                              key={key}
+                              className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
+                              style={{
+                                left: `${f.x}in`,
+                                top: `${actualY}in`,
+                                width: `${f.w}in`,
+                                height: `${f.h}in`
+                              }}
+                              onPointerDown={(e) => onPointerDownField(e, key)}
+                            >
+                              {editMode && (
+                                <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                                  {f.label}
+                                </div>
+                              )}
+                              {showFriendlyLabel && (
+                                <div className="friendly-label" style={{ fontSize: `${Math.max(preferences.labelSize - 2, 7)}px` }}>
+                                  {f.label}
+                                </div>
+                              )}
+                              {isTextarea ? (
+                                <textarea
+                                  value={value}
+                                  readOnly={isReadOnly}
+                                  onChange={(e) => !isReadOnly && updateCurrentCheckData({ [key]: e.target.value })}
                                   style={{
-                                    background: f.bold ? '#3b82f6' : 'transparent',
-                                    color: f.bold ? '#fff' : '#94a3b8',
-                                    border: '1px solid',
-                                    borderColor: f.bold ? '#3b82f6' : '#475569',
-                                    borderRadius: '4px',
-                                    width: '24px',
-                                    height: '24px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    fontWeight: 'bold',
-                                    fontSize: '14px'
+                                    fontSize: `${fontSizePt}pt`,
+                                    fontFamily: activeFontFamily,
+                                    width: '100%',
+                                    height: '100%',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    resize: 'none',
+                                    padding: showFriendlyLabel ? '14px 0 0 0' : '0',
+                                    lineHeight: '1.3',
+                                    fontWeight: f.bold ? 'bold' : 'normal',
+                                    fontStyle: f.italic ? 'italic' : 'normal'
                                   }}
-                                  title="Bold"
-                                >
-                                  B
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setField(key, { italic: !f.italic })
-                                  }}
+                                />
+                              ) : (
+                                <input
+                                  value={value}
+                                  readOnly={isReadOnly}
+                                  onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
                                   style={{
-                                    background: f.italic ? '#3b82f6' : 'transparent',
-                                    color: f.italic ? '#fff' : '#94a3b8',
-                                    border: '1px solid',
-                                    borderColor: f.italic ? '#3b82f6' : '#475569',
-                                    borderRadius: '4px',
-                                    width: '24px',
-                                    height: '24px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    fontStyle: 'italic',
-                                    fontFamily: 'serif',
-                                    fontSize: '14px'
+                                    fontSize: `${fontSizePt}pt`,
+                                    fontFamily: activeFontFamily,
+                                    paddingTop: showFriendlyLabel ? '14px' : '0',
+                                    fontWeight: f.bold ? 'bold' : 'normal',
+                                    fontStyle: f.italic ? 'italic' : 'normal'
                                   }}
-                                  title="Italic"
+                                />
+                              )}
+                              {/* Floating Formatting Toolbar */}
+                              {editMode && selected.includes(key) && selected.length === 1 && (
+                                <div
+                                  className="formatting-toolbar"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: '-40px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    display: 'flex',
+                                    gap: '8px',
+                                    backgroundColor: '#1e293b',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                    border: '1px solid #334155',
+                                    zIndex: 1000
+                                  }}
                                 >
-                                  I
-                                </button>
-                              </div>
-                            )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setField(key, { bold: !f.bold })
+                                    }}
+                                    style={{
+                                      background: f.bold ? '#3b82f6' : 'transparent',
+                                      color: f.bold ? '#fff' : '#94a3b8',
+                                      border: '1px solid',
+                                      borderColor: f.bold ? '#3b82f6' : '#475569',
+                                      borderRadius: '4px',
+                                      width: '24px',
+                                      height: '24px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      fontWeight: 'bold',
+                                      fontSize: '14px'
+                                    }}
+                                    title="Bold"
+                                  >
+                                    B
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setField(key, { italic: !f.italic })
+                                    }}
+                                    style={{
+                                      background: f.italic ? '#3b82f6' : 'transparent',
+                                      color: f.italic ? '#fff' : '#94a3b8',
+                                      border: '1px solid',
+                                      borderColor: f.italic ? '#3b82f6' : '#475569',
+                                      borderRadius: '4px',
+                                      width: '24px',
+                                      height: '24px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      fontStyle: 'italic',
+                                      fontFamily: 'serif',
+                                      fontSize: '14px'
+                                    }}
+                                    title="Italic"
+                                  >
+                                    I
+                                  </button>
+                                </div>
+                              )}
 
-                            {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
-                          </div>
-                        )
-                      })}
+                              {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
+                            </div>
+                          )
+                        })}
 
                       {/* FORCE FIX: Manual Check Number Render */}
                       {preferences.showCheckNumber && !Object.keys(slot ? model.slotFields[slot] : model.fields).includes('checkNumber') && (
@@ -8259,6 +8664,7 @@ export default function App() {
                             </div>
                             <div className="history-card-meta">
                               <span>{formatDate(entry.date)}</span>
+                              {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}</span>}
                               {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
                             </div>
                             <div className="history-card-tags">
@@ -8326,6 +8732,19 @@ export default function App() {
                           <div className="detail-card full-width">
                             <label>Internal Memo</label>
                             <div className="detail-value">{selectedHistoryItem.internal_memo}</div>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.glCode && (
+                          <div className="detail-card full-width">
+                            <label>GL Code</label>
+                            <div className="detail-value">
+                              {selectedHistoryItem.glCode}
+                              {(() => {
+                                const match = glCodes.find(g => g.code === selectedHistoryItem.glCode)
+                                return match && match.description ? ` - ${match.description}` : ''
+                              })()}
+                            </div>
                           </div>
                         )}
 
@@ -8475,6 +8894,7 @@ export default function App() {
           </div>
         )
       }
+
 
       {/* Update Notification */}
       <UpdateNotification isAdmin={!preferences.adminLocked} />
