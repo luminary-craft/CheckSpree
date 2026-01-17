@@ -350,6 +350,23 @@ function normalizeModel(maybeModel) {
     fields.stub2_address = { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
   }
 
+  // Ensure 3-Up slotFields have address and glCode
+  if (m.slotFields) {
+    ['top', 'middle', 'bottom'].forEach(slot => {
+      if (m.slotFields[slot]) {
+        if (!m.slotFields[slot].address) {
+          m.slotFields[slot].address = DEFAULT_FIELDS.address
+        }
+        if (!m.slotFields[slot].glCode) {
+          m.slotFields[slot].glCode = DEFAULT_FIELDS.glCode
+        }
+        if (!m.slotFields[slot].glDescription) {
+          m.slotFields[slot].glDescription = DEFAULT_FIELDS.glDescription
+        }
+      }
+    })
+  }
+
   // Merge slotFields for three-up mode - ensure each slot has all required fields
   const slotFields = {
     top: { ...DEFAULT_FIELDS, ...(m.slotFields?.top || {}) },
@@ -2044,6 +2061,7 @@ export default function App() {
         newSheetData[slot] = {
           date: normalizedDate,
           payee: item.payee || '',
+          address: item.address || '',
           amount: item.amount || '',
           amountWords: item.amount ? numberToWords(item.amount) : '',
           memo: item.memo || '',
@@ -2052,7 +2070,9 @@ export default function App() {
           line_items: item.line_items || [],
           line_items_text: item.line_items_text || '',
           ledger_snapshot: null,
-          checkNumber: item.checkNumber || ''
+          checkNumber: item.checkNumber || '',
+          glCode: item.glCode || '',
+          glDescription: item.glDescription || ''
         }
       }
       setSheetData(newSheetData)
@@ -3792,8 +3812,8 @@ export default function App() {
       // Update progress
       setBatchPrintProgress({ current: chunkStart + chunk.length, total: queueCopy.length })
 
-      // Wait for UI to update with the new data
-      await new Promise(resolve => setTimeout(resolve, 300))
+      // Wait for the UI to update with the new data - increased delay for heavier DOM
+      await new Promise(resolve => setTimeout(resolve, 800))
 
       // Set document title for PDF filename (use first slot's data)
       const originalTitle = document.title
