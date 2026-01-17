@@ -2915,6 +2915,31 @@ export default function App() {
     setImportQueue(enrichedQueue)
     setShowImportQueue(true)
 
+    // Learn GL Codes from imported data immediately
+    const newGlCodes = []
+    enrichedQueue.forEach(item => {
+      if (item.glCode) {
+        const existing = glCodes.find(g => g.code === item.glCode) || newGlCodes.find(g => g.code === item.glCode)
+        if (!existing || (item.glDescription && item.glDescription !== existing.description)) {
+          newGlCodes.push({ code: item.glCode, description: item.glDescription || '' })
+        }
+      }
+    })
+    if (newGlCodes.length > 0) {
+      setGlCodes(prev => {
+        const updated = [...prev]
+        newGlCodes.forEach(newCode => {
+          const idx = updated.findIndex(g => g.code === newCode.code)
+          if (idx >= 0) {
+            updated[idx] = newCode
+          } else {
+            updated.push(newCode)
+          }
+        })
+        return updated.sort((a, b) => a.code.localeCompare(b.code))
+      })
+    }
+
     // Auto-load first item in standard mode
     if (activeProfile?.layoutMode !== 'three_up' && enrichedQueue.length > 0) {
       const firstItem = enrichedQueue[0]
@@ -3040,10 +3065,13 @@ export default function App() {
     const enrichedChecks = selectedChecks.map(check => {
       const ledger = ledgers.find(l => l.id === check.ledgerId)
       const profile = profiles.find(p => p.id === check.profileId)
+      // Fallback description lookup if not stored in entry
+      const glDescription = check.glDescription || (check.glCode ? (glCodes.find(g => g.code === check.glCode)?.description || '') : '')
       return {
         ...check,
         ledgerName: ledger?.name || 'Unknown',
-        profileName: profile?.name || 'Unknown'
+        profileName: profile?.name || 'Unknown',
+        glDescription: glDescription
       }
     })
 
@@ -3210,7 +3238,10 @@ export default function App() {
             new_balance: newBalance
           },
           timestamp: Date.now(),
-          balanceAfter: newBalance
+          balanceAfter: newBalance,
+          checkNumber: item.checkNumber || '',
+          glCode: item.glCode || '',
+          glDescription: item.glDescription || ''
         })
 
         // Update local balance tracker
@@ -4819,6 +4850,22 @@ export default function App() {
 
 
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
+          <button className="btn" onClick={() => {
+            if (!data.payee?.trim()) {
+              alert('Please enter a payee name')
+              return
+            }
+            const amount = sanitizeCurrencyInput(data.amount)
+            if (amount <= 0) {
+              alert('Please enter a valid amount')
+              return
+            }
+            recordCheck(data)
+            clearForm()
+            showToast('Check recorded to ledger!', 'success')
+          }} title="Record without printing">
+            <CheckIcon /> Record Only
+          </button>
           <button className="btn primary" onClick={handlePrintAndRecord}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -8845,7 +8892,10 @@ export default function App() {
                             </div>
                             <div className="history-card-meta">
                               <span>{formatDate(entry.date)}</span>
-                              {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}{entry.glDescription ? ` - ${entry.glDescription}` : ''}</span>}
+                              {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}{entry.glDescription ? ` - ${entry.glDescription}` : (() => {
+                                const match = glCodes.find(g => g.code === entry.glCode)
+                                return match && match.description ? ` - ${match.description}` : ''
+                              })()}</span>}
                               {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
                             </div>
                             <div className="history-card-tags">
