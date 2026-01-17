@@ -5,163 +5,81 @@ import AtmCurrencyInput_Glass from './AtmCurrencyInput_Glass'
 import PayeeAutocomplete from './PayeeAutocomplete'
 
 /**
- * CheckForm_Glass Component - Restored "Glass" aesthetic with draft persistence
+ * CheckForm_Glass Component - Controlled Component
+ * 
+ * Receives data and handlers from parent (App -> useCheckForm)
+ * Does NOT manage its own state or persistence.
  */
 export default function CheckForm_Glass({
+    data,
+    onChange,
     onRecord,
     onClear,
-    checkNumber = '',
     payeeHistory = [],
     currentBalance = 0,
     showCheckNumber = true,
-    showGLCode = false,
-    initialData = null
+    showGLCode = false
 }) {
-    // Form state
-    const [formData, setFormData] = useState({
-        date: getLocalDateString(),
-        payee: '',
-        amount: '',
-        memo: '',
-        external_memo: '',
-        internal_memo: '',
-        glCode: '',
-        address: '',
-        checkNumber: checkNumber
-    })
-
-    // UI state
+    // UI state only (visual toggles)
     const [showAddress, setShowAddress] = useState(false)
     const [showMemoOptions, setShowMemoOptions] = useState(false)
 
-    // DRAFT PERSISTENCE: Load on mount
+    // Sync UI toggles with incoming data
     useEffect(() => {
-        const savedDraft = localStorage.getItem('checkspree_draft')
-        if (savedDraft) {
-            try {
-                const parsed = JSON.parse(savedDraft)
-                // Only restore if we don't have initialData passed in (which implies editing an existing check)
-                if (!initialData) {
-                    setFormData(prev => ({
-                        ...prev,
-                        ...parsed,
-                        checkNumber: checkNumber || prev.checkNumber // Prefer prop check number if available
-                    }))
-                    if (parsed.address) setShowAddress(true)
-                    if (parsed.external_memo || parsed.internal_memo) setShowMemoOptions(true)
-                }
-            } catch (e) {
-                console.error('Failed to load draft:', e)
-            }
-        }
-    }, [])
-
-    // DRAFT PERSISTENCE: Save on change
-    useEffect(() => {
-        // Don't save if we are editing an existing check (initialData present) 
-        // or maybe we SHOULD save it as a draft? 
-        // For now, let's save everything to be safe, but maybe key it differently?
-        // The requirement was "Restore Draft Persistence".
-        if (!initialData) {
-            localStorage.setItem('checkspree_draft', JSON.stringify(formData))
-        }
-    }, [formData, initialData])
-
-    // Initialize form with initial data if provided
-    useEffect(() => {
-        if (initialData) {
-            setFormData(prev => ({
-                ...prev,
-                ...initialData,
-                checkNumber: checkNumber // Always use prop check number
-            }))
-            if (initialData.address) setShowAddress(true)
-        }
-    }, [initialData, checkNumber])
-
-    // Update check number when prop changes
-    useEffect(() => {
-        setFormData(prev => ({ ...prev, checkNumber }))
-    }, [checkNumber])
+        if (data.address && !showAddress) setShowAddress(true)
+        if ((data.external_memo || data.internal_memo) && !showMemoOptions) setShowMemoOptions(true)
+    }, [data.address, data.external_memo, data.internal_memo])
 
     // Calculate if amount exceeds balance
-    const amount = sanitizeCurrencyInput(formData.amount)
+    const amount = sanitizeCurrencyInput(data.amount)
     const isOverBalance = amount > currentBalance && currentBalance >= 0
-
-    // Update form field
-    const updateField = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }))
-    }
 
     // Handle form submission
     const handleSubmit = (e) => {
         e.preventDefault()
 
-        if (!formData.payee?.trim()) {
+        if (!data.payee?.trim()) {
             alert('Please enter a payee name')
             return
         }
 
-        const parsedAmount = sanitizeCurrencyInput(formData.amount)
+        const parsedAmount = sanitizeCurrencyInput(data.amount)
         if (parsedAmount <= 0) {
             alert('Please enter a valid amount')
             return
         }
 
+        // Prepare record data (cleaning up strings)
         const checkData = {
-            date: formData.date || getLocalDateString(),
-            payee: formData.payee.trim(),
-            amount: formData.amount,
-            memo: formData.memo.trim(),
-            external_memo: formData.external_memo.trim(),
-            internal_memo: formData.internal_memo.trim(),
-            glCode: formData.glCode.trim(),
-            address: showAddress ? formData.address.trim() : '',
-            checkNumber: formData.checkNumber.trim(),
-            line_items: [],
-            line_items_text: ''
+            ...data,
+            payee: data.payee.trim(),
+            memo: data.memo?.trim() || '',
+            external_memo: data.external_memo?.trim() || '',
+            internal_memo: data.internal_memo?.trim() || '',
+            glCode: data.glCode?.trim() || '',
+            address: showAddress ? data.address?.trim() || '' : '',
+            checkNumber: data.checkNumber?.trim() || ''
         }
 
         onRecord(checkData)
-        handleClear()
-
-        // Clear draft after successful record
-        localStorage.removeItem('checkspree_draft')
     }
 
-    // Clear form
     const handleClear = () => {
-        const resetData = {
-            date: getLocalDateString(),
-            payee: '',
-            amount: '',
-            memo: '',
-            external_memo: '',
-            internal_memo: '',
-            glCode: '',
-            address: '',
-            checkNumber: checkNumber
-        }
-        setFormData(resetData)
         setShowAddress(false)
         setShowMemoOptions(false)
-        localStorage.removeItem('checkspree_draft')
-
         if (onClear) onClear()
     }
 
     return (
         <div className="card card-main">
             <form onSubmit={handleSubmit}>
-                {/* Header / Title if needed, or just fields */}
-
                 {/* Date Field */}
                 <div className="field">
                     <label>Date</label>
                     <input
                         type="date"
-                        value={formData.date}
-                        onChange={(e) => updateField('date', e.target.value)}
+                        value={data.date || getLocalDateString()}
+                        onChange={(e) => onChange({ date: e.target.value })}
                         required
                     />
                 </div>
@@ -172,8 +90,8 @@ export default function CheckForm_Glass({
                         <label>Check Number</label>
                         <input
                             type="text"
-                            value={formData.checkNumber}
-                            onChange={(e) => updateField('checkNumber', e.target.value)}
+                            value={data.checkNumber || ''}
+                            onChange={(e) => onChange({ checkNumber: e.target.value })}
                             placeholder="Optional"
                         />
                     </div>
@@ -183,8 +101,8 @@ export default function CheckForm_Glass({
                 <div className="field">
                     <label>Pay to the Order of</label>
                     <PayeeAutocomplete
-                        value={formData.payee}
-                        onChange={(value) => updateField('payee', value)}
+                        value={data.payee || ''}
+                        onChange={(value) => onChange({ payee: value })}
                         checkHistory={payeeHistory}
                         placeholder="Recipient name..."
                     />
@@ -203,8 +121,8 @@ export default function CheckForm_Glass({
                     <div className={`input-prefix ${isOverBalance ? 'warning' : ''}`}>
                         <span>$</span>
                         <AtmCurrencyInput_Glass
-                            value={formData.amount}
-                            onChange={(value) => updateField('amount', value)}
+                            value={data.amount || ''}
+                            onChange={(value) => onChange({ amount: value })}
                             isWarning={isOverBalance}
                         />
                     </div>
@@ -233,22 +151,22 @@ export default function CheckForm_Glass({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <input
                                 type="text"
-                                value={formData.external_memo}
-                                onChange={(e) => updateField('external_memo', e.target.value)}
+                                value={data.external_memo || ''}
+                                onChange={(e) => onChange({ external_memo: e.target.value })}
                                 placeholder="External memo (printed)..."
                             />
                             <input
                                 type="text"
-                                value={formData.internal_memo}
-                                onChange={(e) => updateField('internal_memo', e.target.value)}
+                                value={data.internal_memo || ''}
+                                onChange={(e) => onChange({ internal_memo: e.target.value })}
                                 placeholder="Internal notes (private)..."
                             />
                         </div>
                     ) : (
                         <input
                             type="text"
-                            value={formData.memo}
-                            onChange={(e) => updateField('memo', e.target.value)}
+                            value={data.memo || ''}
+                            onChange={(e) => onChange({ memo: e.target.value })}
                             placeholder="Check memo..."
                         />
                     )}
@@ -260,8 +178,8 @@ export default function CheckForm_Glass({
                         <label>GL Code</label>
                         <input
                             type="text"
-                            value={formData.glCode}
-                            onChange={(e) => updateField('glCode', e.target.value)}
+                            value={data.glCode || ''}
+                            onChange={(e) => onChange({ glCode: e.target.value })}
                             placeholder="General Ledger code..."
                         />
                     </div>
@@ -283,8 +201,8 @@ export default function CheckForm_Glass({
                         <div className="field" style={{ marginTop: '12px' }}>
                             <label>Recipient Address</label>
                             <textarea
-                                value={formData.address}
-                                onChange={(e) => updateField('address', e.target.value)}
+                                value={data.address || ''}
+                                onChange={(e) => onChange({ address: e.target.value })}
                                 placeholder="Street address&#10;City, State ZIP"
                                 rows={3}
                                 style={{
@@ -312,11 +230,6 @@ export default function CheckForm_Glass({
                     >
                         Clear
                     </button>
-                    {/* Note: Submit button is handled by parent or external trigger usually, 
-                        but here we have it inline. The original App.jsx had external buttons.
-                        We'll keep these here as they were in CheckForm.jsx, but App.jsx might hide them?
-                        Actually CheckForm.jsx had them.
-                    */}
                 </div>
             </form>
         </div>
