@@ -336,6 +336,20 @@ function normalizeModel(maybeModel) {
     ...(m.fields || {})
   }
 
+  // FORCE MIGRATION: Ensure stub address fields exist if stubs are enabled
+  // Stub 1 (Payee Copy)
+  if (layout.stub1Enabled && !fields.stub1_address) {
+    const baseY = layout.checkHeightIn
+    fields.stub1_address = { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
+  }
+
+  // Stub 2 (Bookkeeper Copy)
+  if (layout.stub2Enabled && !fields.stub2_address) {
+    const stub1Offset = layout.stub1Enabled ? layout.stub1HeightIn : 0
+    const baseY = layout.checkHeightIn + stub1Offset
+    fields.stub2_address = { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
+  }
+
   // Merge slotFields for three-up mode - ensure each slot has all required fields
   const slotFields = {
     top: { ...DEFAULT_FIELDS, ...(m.slotFields?.top || {}) },
@@ -1549,7 +1563,31 @@ export default function App() {
         if (persisted?.activeSlot) setActiveSlot(persisted.activeSlot)
         if (persisted?.autoIncrementCheckNumbers != null) setAutoIncrementCheckNumbers(persisted.autoIncrementCheckNumbers)
         if (persisted?.editMode != null) setEditMode(!!persisted.editMode)
-        if (persisted?.profiles?.length) setProfiles(persisted.profiles)
+        if (persisted?.profiles?.length) {
+          // Migration: Ensure all profiles have the new address fields
+          const migratedProfiles = persisted.profiles.map(p => {
+            // Merge defaults to get 'address' on check face
+            const fields = { ...DEFAULT_FIELDS, ...p.fields }
+
+            // Check Layout dimensions for proper placement
+            const checkHeight = p.layout?.checkHeightIn || 3.0
+            const stub1Height = p.layout?.stub1HeightIn || 3.5
+
+            // Ensure Stub 1 Address exists if enabled
+            if (p.layout?.stub1Enabled && !fields.stub1_address) {
+              fields.stub1_address = { x: 2.0, y: checkHeight + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
+            }
+
+            // Ensure Stub 2 Address exists if enabled
+            if (p.layout?.stub2Enabled && !fields.stub2_address) {
+              const s1h = p.layout.stub1Enabled ? stub1Height : 0
+              fields.stub2_address = { x: 2.0, y: checkHeight + s1h + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
+            }
+
+            return { ...p, fields }
+          })
+          setProfiles(migratedProfiles)
+        }
         if (persisted?.activeProfileId) setActiveProfileId(persisted.activeProfileId)
 
         // Migrate old single-ledger system to multi-ledger
@@ -1714,12 +1752,13 @@ export default function App() {
 
   // Parent-to-child data flow: Check details (parent) ALWAYS update stub details (children)
   // This is one-way only - stub edits don't affect parent, but parent edits always overwrite stubs
-  const parentFieldsRef = useRef({ date: '', payee: '', amount: '', memo: '', external_memo: '', internal_memo: '' })
+  const parentFieldsRef = useRef({ date: '', payee: '', address: '', amount: '', memo: '', external_memo: '', internal_memo: '' })
 
   useEffect(() => {
     const currentParent = {
       date: data.date,
       payee: data.payee,
+      address: data.address,
       amount: data.amount,
       memo: data.memo,
       external_memo: data.external_memo,
@@ -1743,11 +1782,13 @@ export default function App() {
         if (model.layout.stub1Enabled) {
           updates.stub1_glcode = currentParent.glCode
           updates.stub1_glDescription = currentParent.glDescription
+          updates.stub1_address = currentParent.address // Sync address
         }
 
         if (model.layout.stub2Enabled) {
           updates.stub2_date = currentParent.date
           updates.stub2_payee = currentParent.payee
+          updates.stub2_address = currentParent.address // Sync address
           updates.stub2_amount = currentParent.amount
           updates.stub2_memo = currentParent.internal_memo || currentParent.memo || ''
           updates.stub2_glCode = currentParent.glCode
@@ -1757,7 +1798,7 @@ export default function App() {
         return Object.keys(updates).length > 0 ? { ...d, ...updates } : d
       })
     }
-  }, [data.date, data.payee, data.amount, data.memo, data.external_memo, data.internal_memo, data.glCode, data.glDescription, model.layout.stub1Enabled, model.layout.stub2Enabled])
+  }, [data.date, data.payee, data.address, data.amount, data.memo, data.external_memo, data.internal_memo, data.glCode, data.glDescription, model.layout.stub1Enabled, model.layout.stub2Enabled])
 
   // Load template dataURL when template path changes
   useEffect(() => {
@@ -3431,6 +3472,7 @@ export default function App() {
       setData({
         date: normalizedDate,
         payee: item.payee,
+        address: item.address || item.payee, // Auto-populate address if missing
         amount: item.amount,
         amountWords: numberToWords(item.amount),
         memo: item.memo || '',
@@ -3692,6 +3734,7 @@ export default function App() {
         newSheetData[slot] = {
           date: normalizedDate,
           payee: item.payee,
+          address: item.address || item.payee, // Auto-populate address if missing
           amount: item.amount,
           amountWords: numberToWords(item.amount),
           memo: item.memo || '',
@@ -3984,10 +4027,11 @@ export default function App() {
           // PAYEE COPY (Stub 1) - External Memo, Line Items & Admin Fields
           [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
           [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+          [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
           [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
           [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
           [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
-          [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.15, w: nextLayout.widthIn - 1.10, h: 1.20, fontIn: 0.16, label: 'Line Items' },
+          [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.25, w: nextLayout.widthIn - 1.10, h: 1.10, fontIn: 0.16, label: 'Line Items' },
           [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
           [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
           [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
@@ -3996,6 +4040,7 @@ export default function App() {
           // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
           [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
           [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+          [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
           [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
           [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
           [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
@@ -5637,12 +5682,49 @@ export default function App() {
                   />
                 </div>
                 <div className="field">
-                  <label>Pay to the Order of</label>
                   <PayeeAutocomplete
                     value={getCurrentCheckData().payee || ''}
-                    onChange={(newPayee) => updateCurrentCheckData({ payee: newPayee })}
+                    onChange={(newPayee) => {
+                      const currentAddress = getCurrentCheckData().address || ''
+                      // Auto-populate address if empty or if it only contains the old payee name
+                      // But effectively, simplified: just default to payee name if address empty
+                      // or if user wants it sync'd. For now, we'll append/replace first line logic
+                      // simpler: If address is empty, set it to payee.
+                      // If it's not empty, we leave it alone (user might have edited it).
+                      // User requested "automatically added to the top of the field"
+                      // So we should ensure the first line matches the payee.
+
+                      const lines = currentAddress.split('\n')
+                      if (lines.length === 0 || !currentAddress.trim()) {
+                        updateCurrentCheckData({ payee: newPayee, address: newPayee })
+                      } else {
+                        // Update first line to match new payee
+                        lines[0] = newPayee
+                        updateCurrentCheckData({ payee: newPayee, address: lines.join('\n') })
+                      }
+                    }}
                     checkHistory={checkHistory}
                     placeholder="Recipient name"
+                  />
+                </div>
+                {/* Address Field (for Window Envelopes) */}
+                <div className="field">
+                  <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Address</span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'normal' }}>Window Envelope</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={getCurrentCheckData().address || ''}
+                    onChange={(e) => updateCurrentCheckData({ address: e.target.value })}
+                    placeholder="Recipient Address"
+                    style={{
+                      width: '100%',
+                      resize: 'vertical',
+                      minHeight: '60px',
+                      fontFamily: 'monospace',
+                      lineHeight: '1.4'
+                    }}
                   />
                 </div>
                 <div className="field">
@@ -6005,6 +6087,17 @@ export default function App() {
                         <span className="toggle-label">Show GL Code on Check</span>
                       </label>
                     </div>
+                    <div className="field">
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={!!preferences.showAddressOnCheck}
+                          onChange={(e) => setPreferences(p => ({ ...p, showAddressOnCheck: e.target.checked }))}
+                        />
+                        <span className="toggle-slider"></span>
+                        <span className="toggle-label">Show Address (Window Envelope)</span>
+                      </label>
+                    </div>
                     <small style={{ color: '#888', fontSize: '11px', marginTop: '8px', display: 'block' }}>
                       {activeProfile?.layoutMode === 'three_up'
                         ? 'Toggle visibility of fields on all checks. Hide check numbers if using pre-numbered check stock.'
@@ -6252,6 +6345,17 @@ export default function App() {
                           <label className="toggle-switch">
                             <input
                               type="checkbox"
+                              checked={!!preferences.showAddressOnStub1}
+                              onChange={(e) => setPreferences(p => ({ ...p, showAddressOnStub1: e.target.checked }))}
+                            />
+                            <span className="toggle-slider"></span>
+                            <span className="toggle-label">Show Address Block</span>
+                          </label>
+                        </div>
+                        <div className="field">
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
                               checked={preferences.stub1ShowApproved}
                               onChange={(e) => setPreferences(p => ({ ...p, stub1ShowApproved: e.target.checked }))}
                             />
@@ -6384,6 +6488,17 @@ export default function App() {
                             />
                             <span className="toggle-slider"></span>
                             <span className="toggle-label">Show Ledger Snapshot</span>
+                          </label>
+                        </div>
+                        <div className="field">
+                          <label className="toggle-switch">
+                            <input
+                              type="checkbox"
+                              checked={!!preferences.showAddressOnStub2}
+                              onChange={(e) => setPreferences(p => ({ ...p, showAddressOnStub2: e.target.checked }))}
+                            />
+                            <span className="toggle-slider"></span>
+                            <span className="toggle-label">Show Address Block</span>
                           </label>
                         </div>
                         <div className="field">
@@ -7196,6 +7311,23 @@ export default function App() {
                           if ((key === 'stub1_date' || key === 'stub2_date')) {
                             value = checkData.date || ''
                             isReadOnly = true
+                          }
+
+                          // Address Field Logic (Check & Stubs)
+                          if (key === 'address' && !isStub1Field && !isStub2Field) {
+                            if (!preferences.showAddressOnCheck && !editMode) return null
+                            value = checkData.address || ''
+                            isTextarea = true
+                          }
+                          if ((key === 'stub1_address' || key === 'stub2_address')) {
+                            const isStub1 = key === 'stub1_address'
+                            const show = isStub1 ? preferences.showAddressOnStub1 : preferences.showAddressOnStub2
+                            if (!show && !editMode) return null
+
+                            // Sync from main address
+                            value = checkData.address || ''
+                            isReadOnly = true
+                            isTextarea = true
                           }
 
                           // Special handling for date formatting (check and stubs)
