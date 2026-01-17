@@ -5348,7 +5348,7 @@ export default function App() {
                         </button>
                       </div>
                       <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>
-                        {(!preferences.adminLocked || preferences.allowUserLedgerManagement) ? 'Click to edit starting balance' : 'Click to view • Use + to adjust'}
+                        {(!preferences.adminLocked || preferences.allowUserLedgerManagement) ? 'Click to view ledger history' : 'Click to view • Use + to adjust'}
                       </div>
                     </div>
                   )}
@@ -5569,6 +5569,17 @@ export default function App() {
                     <label>Layout Mode</label>
                     <select
                       value={activeProfile.layoutMode || 'standard'}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        backgroundColor: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text)',
+                        fontSize: '14px',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
                       onChange={(e) => {
                         const newMode = e.target.value
                         setProfiles(profiles.map(p =>
@@ -5585,8 +5596,8 @@ export default function App() {
                         }
                       }}
                     >
-                      <option value="standard">Standard (Check + 2 Stubs)</option>
-                      <option value="three_up">3-Up (3 Checks per Page)</option>
+                      <option value="standard" style={{ backgroundColor: '#1e293b', color: '#f1f5f9' }}>Standard (Check + 2 Stubs)</option>
+                      <option value="three_up" style={{ backgroundColor: '#1e293b', color: '#f1f5f9' }}>3-Up (3 Checks per Page)</option>
                     </select>
                   </div>
                 )}
@@ -6032,7 +6043,7 @@ export default function App() {
                                   backgroundColor: 'rgba(0, 0, 0, 0.2)',
                                   border: '1px solid rgba(255, 255, 255, 0.08)',
                                   borderRadius: '4px',
-                                  color: '#f1f5f9',
+                                  color: 'var(--text)',
                                   fontSize: '13px',
                                   width: '100%',
                                   outline: 'none',
@@ -6065,7 +6076,7 @@ export default function App() {
                                   backgroundColor: 'rgba(0, 0, 0, 0.2)',
                                   border: '1px solid rgba(255, 255, 255, 0.08)',
                                   borderRadius: '4px',
-                                  color: '#f1f5f9',
+                                  color: 'var(--text)',
                                   fontSize: '13px',
                                   textAlign: 'right',
                                   width: '100%',
@@ -6186,11 +6197,14 @@ export default function App() {
                       fontSize: '13px',
                       lineHeight: '1.5',
                       resize: 'vertical',
-                      backgroundColor: '#1e293b',
-                      color: '#f1f5f9',
-                      border: '1px solid #475569',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '4px',
+                      color: 'var(--text)',
+                      width: '100%',
+                      outline: 'none',
                       padding: '8px',
-                      borderRadius: '6px'
+                      transition: 'all 0.2s'
                     }}
                   />
                   <small style={{ color: '#888', fontSize: '11px', marginTop: '4px', display: 'block' }}>
