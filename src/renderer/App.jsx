@@ -7575,13 +7575,34 @@ export default function App() {
                               key={key}
                               className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
                               style={{
+                                position: 'absolute',
                                 left: `${f.x}in`,
                                 top: `${actualY}in`,
-                                width: `${f.w}in`,
+                                minWidth: !isTextarea ? `${f.w}in` : undefined,
+                                width: !isTextarea ? 'fit-content' : `${f.w}in`,
                                 height: `${f.h}in`
                               }}
                               onPointerDown={(e) => onPointerDownField(e, key)}
                             >
+                              {/* Ghost element for auto-width expansion (Inputs only) */}
+                              {!isTextarea && (
+                                <div style={{
+                                  visibility: 'hidden',
+                                  height: 0,
+                                  overflow: 'hidden',
+                                  whiteSpace: 'pre',
+                                  fontSize: `${fontSizePt}pt`,
+                                  fontFamily: activeFontFamily,
+                                  fontWeight: f.bold ? 'bold' : 'normal',
+                                  fontStyle: f.italic ? 'italic' : 'normal',
+                                  paddingTop: showFriendlyLabel ? '14px' : '0',
+                                  paddingLeft: '2px', // Match input default padding
+                                  paddingRight: '10px' // Extra buffer to prevent cutoff
+                                }}>
+                                  {(value || ' ') + '  '}
+                                </div>
+                              )}
+
                               {editMode && (
                                 <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
                                   {f.label}
@@ -7617,11 +7638,19 @@ export default function App() {
                                   readOnly={isReadOnly}
                                   onChange={(e) => updateCurrentCheckData({ [key]: e.target.value })}
                                   style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
                                     fontSize: `${fontSizePt}pt`,
                                     fontFamily: activeFontFamily,
                                     paddingTop: showFriendlyLabel ? '14px' : '0',
                                     fontWeight: f.bold ? 'bold' : 'normal',
-                                    fontStyle: f.italic ? 'italic' : 'normal'
+                                    fontStyle: f.italic ? 'italic' : 'normal',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    outline: 'none'
                                   }}
                                 />
                               )}
