@@ -343,7 +343,7 @@ body {
   border-right: 1px solid var(--border);
   background: var(--surface);
   overflow-y: auto;
-  overflow-x: hidden;
+
 }
 
 .section,
@@ -2439,4 +2439,60 @@ body {
 
   input:checked+.slider:before {
     transform: translateX(14px);
+  }
+
+  /* ===== Form Elements ===== */
+  textarea.input-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    outline: none;
+    transition: all 150ms ease;
+    min-height: 80px;
+  }
+
+  textarea.input-textarea:focus {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+  }
+
+  /* Autocomplete Dropdown */
+  .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .autocomplete-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    transition: all 100ms ease;
+  }
+
+  .autocomplete-item:last-child {
+    border-bottom: none;
+  }
+
+  .autocomplete-item:hover,
+  .autocomplete-item.active {
+    background: var(--accent-soft);
+    color: var(--accent);
   }

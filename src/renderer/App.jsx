@@ -6,6 +6,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useAutoIncrement } from './hooks/useAutoIncrement'
 import { usePersistenceSaver } from './hooks/usePersistenceSaver'
 import * as XLSX from 'xlsx'
+import { AddressInput } from './AddressInput'
 import UpdateNotification from './UpdateNotification'
 import logoImg from './assets/logo.png'
 
@@ -919,7 +920,7 @@ function PayeeAutocomplete({ value, onChange, checkHistory = [], placeholder = '
 
   // Filter suggestions based on current input
   const suggestions = useMemo(() => {
-    if (!value || value.trim() === '') return []
+    if (!value || value.trim() === '') return uniquePayees.slice(0, 50) // Show top 50 if empty
     const searchTerm = value.toLowerCase().trim()
     return uniquePayees.filter(payee =>
       payee.toLowerCase().includes(searchTerm) &&
@@ -953,14 +954,16 @@ function PayeeAutocomplete({ value, onChange, checkHistory = [], placeholder = '
   }
 
   const handleKeyDown = (e) => {
-    if (!isOpen || suggestions.length === 0) {
-      if (e.key === 'ArrowDown' && suggestions.length > 0) {
+    if (!isOpen) { // Removed empty check to allow opening on arrow down even if empty
+      if (e.key === 'ArrowDown') {
         setIsOpen(true)
         setHighlightedIndex(0)
         e.preventDefault()
       }
       return
     }
+
+    if (suggestions.length === 0) return
 
     switch (e.key) {
       case 'ArrowDown':
@@ -1001,7 +1004,8 @@ function PayeeAutocomplete({ value, onChange, checkHistory = [], placeholder = '
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={() => value && suggestions.length > 0 && setIsOpen(true)}
+        onFocus={() => setIsOpen(true)} // Open on focus
+        onClick={() => setIsOpen(true)} // Open on click
         placeholder={placeholder}
         autoComplete="off"
       />
@@ -1026,7 +1030,10 @@ function PayeeAutocomplete({ value, onChange, checkHistory = [], placeholder = '
           {suggestions.map((payee, index) => (
             <div
               key={payee}
-              onClick={() => handleSelect(payee)}
+              onMouseDown={(e) => {
+                e.preventDefault() // Prevent blur
+                handleSelect(payee)
+              }}
               style={{
                 padding: '8px 12px',
                 cursor: 'pointer',
@@ -1096,7 +1103,7 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', .
 
   // Filter suggestions based on current input
   const suggestions = useMemo(() => {
-    if (!value || value.trim() === '') return []
+    if (!value || value.trim() === '') return glCodes.slice(0, 50) // Show top 50 if empty
     const searchTerm = value.toLowerCase().trim()
     return glCodes.filter(item =>
       item.code.toLowerCase().includes(searchTerm) ||
@@ -1122,32 +1129,37 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', .
     setHighlightedIndex(-1)
   }
 
-  const handleSelect = (itemOrCode) => {
-    // If we get an object (from click/enter on suggestion), use it
-    // If we get a string (shouldn't happen with new logic but good safety), just pass code
-    if (typeof itemOrCode === 'object' && itemOrCode !== null) {
+  const handleSelect = (item) => {
+    // Explicitly pass the structure expected by App.jsx
+    if (typeof item === 'object') {
       if (props.onSelect) {
-        props.onSelect(itemOrCode)
+        props.onSelect(item)
       } else {
-        onChange(itemOrCode.code)
+        onChange({
+          code: item.code,
+          description: item.description
+        })
       }
     } else {
-      onChange(itemOrCode)
+      onChange(item)
     }
+
     setIsOpen(false)
     setHighlightedIndex(-1)
     inputRef.current?.focus()
   }
 
   const handleKeyDown = (e) => {
-    if (!isOpen || suggestions.length === 0) {
-      if (e.key === 'ArrowDown' && suggestions.length > 0) {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown') {
         setIsOpen(true)
         setHighlightedIndex(0)
         e.preventDefault()
       }
       return
     }
+
+    if (suggestions.length === 0) return
 
     switch (e.key) {
       case 'ArrowDown':
@@ -1188,7 +1200,8 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', .
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={() => value && suggestions.length > 0 && setIsOpen(true)}
+        onFocus={() => setIsOpen(true)}
+        onClick={() => setIsOpen(true)}
         placeholder={placeholder}
         autoComplete="off"
       />
@@ -1213,7 +1226,10 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', .
           {suggestions.map((item, index) => (
             <div
               key={item.code}
-              onClick={() => handleSelect(item)}
+              onMouseDown={(e) => {
+                e.preventDefault() // Prevent blur
+                handleSelect(item)
+              }}
               style={{
                 padding: '8px 12px',
                 cursor: 'pointer',
@@ -1344,6 +1360,23 @@ export default function App() {
 
   // GL Codes state
   const [glCodes, setGlCodes] = useState([]) // Array of { code, description }
+
+  // Compiled GL Codes (Saved + History)
+  const compiledGlCodes = useMemo(() => {
+    const map = new Map()
+    // 1. Add saved codes
+    glCodes.forEach(item => map.set(item.code, item))
+    // 2. Add from history
+    checkHistory.forEach(c => {
+      if (c.glCode && !map.has(c.glCode)) {
+        map.set(c.glCode, {
+          code: c.glCode,
+          description: c.glDescription || c.description || c.desc || ''
+        })
+      }
+    })
+    return Array.from(map.values()).sort((a, b) => a.code.localeCompare(b.code))
+  }, [glCodes, checkHistory])
 
   // Import queue
   const [importQueue, setImportQueue] = useState([])
@@ -3239,6 +3272,27 @@ export default function App() {
     }
   }
 
+  // Helper to find address from history
+  const getAddressFromHistory = (payee) => {
+    if (!payee) return ''
+    const match = checkHistory.find(c =>
+      c.payee && c.payee.toLowerCase() === payee.toLowerCase() &&
+      c.address && c.address.trim() !== '' &&
+      c.address.trim().toLowerCase() !== c.payee.trim().toLowerCase()
+    )
+    return match ? match.address : ''
+  }
+
+  // Helper to find GL details from history
+  const getGlDetailsFromHistory = (payee) => {
+    if (!payee) return { code: '', description: '' }
+    const match = checkHistory.find(c =>
+      c.payee && c.payee.toLowerCase() === payee.toLowerCase() &&
+      c.glCode && c.glCode.trim() !== ''
+    )
+    return match ? { code: match.glCode, description: match.glDescription || '' } : { code: '', description: '' }
+  }
+
   const processAllQueue = async () => {
     if (importQueue.length === 0) return
 
@@ -3300,6 +3354,7 @@ export default function App() {
           id: generateId(),
           date: item.date || getLocalDateString(),
           payee: item.payee,
+          address: item.address || getAddressFromHistory(item.payee) || item.payee, // Smart address lookup
           amount: amount,
           memo: item.memo || '',
           external_memo: item.external_memo || '',
@@ -3318,8 +3373,8 @@ export default function App() {
           timestamp: Date.now(),
           balanceAfter: newBalance,
           checkNumber: item.checkNumber || '',
-          glCode: item.glCode || '',
-          glDescription: item.glDescription || ''
+          glCode: item.glCode || getGlDetailsFromHistory(item.payee).code || '',
+          glDescription: item.glDescription || getGlDetailsFromHistory(item.payee).description || ''
         })
 
         // Update local balance tracker
@@ -3503,7 +3558,7 @@ export default function App() {
       setData({
         date: normalizedDate,
         payee: item.payee,
-        address: item.address || item.payee, // Auto-populate address if missing
+        address: item.address || getAddressFromHistory(item.payee) || item.payee, // Smart address lookup
         amount: item.amount,
         amountWords: numberToWords(item.amount),
         memo: item.memo || '',
@@ -3513,7 +3568,8 @@ export default function App() {
         line_items_text: item.line_items_text || '',
         ledger_snapshot: ledgerSnapshotForDisplay,
         checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
-        glCode: item.glCode || ''
+        glCode: item.glCode || getGlDetailsFromHistory(item.payee).code || '',
+        glDescription: item.glDescription || getGlDetailsFromHistory(item.payee).description || ''
       })
 
       // Wait a brief moment for the UI to update with the new data
@@ -3584,7 +3640,7 @@ export default function App() {
         type: 'check',
         date: item.date || getLocalDateString(),
         payee: item.payee,
-        address: item.address || item.payee, // Ensure address is recorded
+        address: item.address || getAddressFromHistory(item.payee) || item.payee, // Smart address lookup
         amount: amount,
         memo: item.memo || '',
         external_memo: item.external_memo || '',
@@ -3603,7 +3659,8 @@ export default function App() {
         timestamp: Date.now(),
         balanceAfter: newBalanceForCheck,
         checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
-        glCode: item.glCode || ''
+        glCode: item.glCode || getGlDetailsFromHistory(item.payee).code || '',
+        glDescription: item.glDescription || getGlDetailsFromHistory(item.payee).description || ''
       })
       processed++
 
@@ -3766,7 +3823,7 @@ export default function App() {
         newSheetData[slot] = {
           date: normalizedDate,
           payee: item.payee,
-          address: item.address || item.payee, // Auto-populate address if missing
+          address: item.address || getAddressFromHistory(item.payee) || item.payee, // Smart address lookup
           amount: item.amount,
           amountWords: numberToWords(item.amount),
           memo: item.memo || '',
@@ -3776,7 +3833,8 @@ export default function App() {
           line_items_text: item.line_items_text || '',
           ledger_snapshot: ledgerSnapshotForDisplay,
           checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
-          glCode: item.glCode || ''
+          glCode: item.glCode || getGlDetailsFromHistory(item.payee).code || '',
+          glDescription: item.glDescription || getGlDetailsFromHistory(item.payee).description || ''
         }
 
         // Deduct from balance NOW so next check in this batch gets the updated balance
@@ -3791,7 +3849,8 @@ export default function App() {
           previousBalance: previousBalance,
           newBalance: ledgerBalances[targetLedgerId],
           checkNumber: batchAutoNumber ? String(currentCheckNumber) : (item.checkNumber || ''),
-          glCode: item.glCode || ''
+          glCode: item.glCode || getGlDetailsFromHistory(item.payee).code || '',
+          glDescription: item.glDescription || getGlDetailsFromHistory(item.payee).description || ''
         })
 
         // Increment check number if auto-numbering
@@ -3883,13 +3942,13 @@ export default function App() {
 
       // Record all filled slots to history (balances already calculated and deducted)
       const timestamp = Date.now()
-      for (const { slot, item, targetLedgerId, amount, previousBalance, newBalance, checkNumber, glCode } of slotMetadata) {
+      for (const { slot, item, targetLedgerId, amount, previousBalance, newBalance, checkNumber, glCode, glDescription } of slotMetadata) {
         newHistory.unshift({
           id: generateId(),
           type: 'check',
           date: item.date || getLocalDateString(),
           payee: item.payee,
-          address: item.address || item.payee, // Ensure address is recorded
+          address: item.address || getAddressFromHistory(item.payee) || item.payee, // Smart address lookup
           amount: amount,
           memo: item.memo || '',
           external_memo: item.external_memo || '',
@@ -3909,7 +3968,8 @@ export default function App() {
           balanceAfter: newBalance,
           sheetSlot: slot,
           checkNumber: checkNumber,
-          glCode: glCode || ''
+          glCode: glCode || '',
+          glDescription: glDescription || ''
         })
         processed++
       }
@@ -5705,7 +5765,7 @@ export default function App() {
               )}
 
               <h2>Check Details</h2>
-              <div className="card card-main">
+              <div className="card card-main" style={{ overflow: 'visible' }}>
                 <div className="field">
                   <label>Date</label>
                   <input
@@ -5746,18 +5806,11 @@ export default function App() {
                     <span>Address</span>
                     <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'normal' }}>Window Envelope</span>
                   </label>
-                  <textarea
-                    rows={3}
+                  <AddressInput
                     value={getCurrentCheckData().address || ''}
-                    onChange={(e) => updateCurrentCheckData({ address: e.target.value })}
+                    onChange={(val) => updateCurrentCheckData({ address: val })}
+                    history={checkHistory}
                     placeholder="Recipient Address"
-                    style={{
-                      width: '100%',
-                      resize: 'vertical',
-                      minHeight: '60px',
-                      fontFamily: 'monospace',
-                      lineHeight: '1.4'
-                    }}
                   />
                 </div>
                 <div className="field">
@@ -5767,22 +5820,53 @@ export default function App() {
                       <GlCodeInput
                         value={getCurrentCheckData().glCode || ''}
                         onChange={(val) => {
-                          if (typeof val === 'object') {
+                          console.log('DEBUG: GlCodeInput onChange', val)
+                          if (val && typeof val === 'object') {
+                            // Object selection from dropdown
                             updateCurrentCheckData({
-                              glCode: val.code,
-                              glDescription: val.description
+                              glCode: val.code || '',
+                              glDescription: val.description || val.desc || val.glDescription || ''
                             })
                           } else {
-                            updateCurrentCheckData({ glCode: val })
+                            // String input (typing)
+                            const newCode = val || ''
+                            const updates = { glCode: newCode }
+
+                            // Rule: If GL Code is cleared, clear description
+                            if (!newCode) {
+                              updates.glDescription = ''
+                            }
+                            // Optional: Could attempt lookup here if we wanted auto-fill on type
+
+                            updateCurrentCheckData(updates)
                           }
                         }}
-                        glCodes={glCodes}
+                        glCodes={compiledGlCodes}
                         placeholder="Code"
+                        onClick={() => { }} // Dummy click handler to ensure click works if needed, handled by component now
                         style={{
                           borderTopRightRadius: 0,
                           borderBottomRightRadius: 0,
                           borderRight: 'none',
-                          width: '100%' // Ensure input takes full width of container
+                          width: '100%',
+                          padding: '6px 10px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          color: '#f1f5f9',
+                          fontSize: '13px',
+                          outline: 'none',
+                          transition: 'all 0.2s'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+                          e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
+                          // We need to maintain boundary with adjacent input
+                          e.target.style.borderRight = 'none'
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
+                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                          e.target.style.borderRight = 'none'
                         }}
                       />
                     </div>
@@ -5795,7 +5879,25 @@ export default function App() {
                         style={{
                           borderTopLeftRadius: 0,
                           borderBottomLeftRadius: 0,
-                          width: '100%' // Ensure input takes full width
+                          width: '100%',
+                          padding: '6px 10px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          color: '#f1f5f9',
+                          fontSize: '13px',
+                          outline: 'none',
+                          transition: 'all 0.2s',
+                          borderLeft: 'none'
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+                          e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
+                          e.target.style.borderLeft = 'none'
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
+                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                          e.target.style.borderLeft = 'none'
                         }}
                       />
                     </div>
@@ -5927,11 +6029,24 @@ export default function App() {
                                 placeholder="Description / Invoice #"
                                 style={{
                                   padding: '6px 10px',
-                                  backgroundColor: '#1e293b',
-                                  border: '1px solid #475569',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
                                   borderRadius: '4px',
                                   color: '#f1f5f9',
-                                  fontSize: '13px'
+                                  fontSize: '13px',
+                                  width: '100%',
+                                  outline: 'none',
+                                  transition: 'all 0.2s'
+                                }}
+                                onFocus={(e) => {
+                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+                                  e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
+                                  e.target.style.boxShadow = '0 0 0 2px rgba(56, 189, 248, 0.2)'
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
+                                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                                  e.target.style.boxShadow = 'none'
                                 }}
                               />
                               <input
@@ -5947,12 +6062,25 @@ export default function App() {
                                 placeholder="Amount"
                                 style={{
                                   padding: '6px 10px',
-                                  backgroundColor: '#1e293b',
-                                  border: '1px solid #475569',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
                                   borderRadius: '4px',
                                   color: '#f1f5f9',
                                   fontSize: '13px',
-                                  textAlign: 'right'
+                                  textAlign: 'right',
+                                  width: '100%',
+                                  outline: 'none',
+                                  transition: 'all 0.2s'
+                                }}
+                                onFocus={(e) => {
+                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+                                  e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
+                                  e.target.style.boxShadow = '0 0 0 2px rgba(56, 189, 248, 0.2)'
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
+                                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                                  e.target.style.boxShadow = 'none'
                                 }}
                               />
                               <button
