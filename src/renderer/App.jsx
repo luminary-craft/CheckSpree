@@ -365,7 +365,8 @@ function parseCSV(content, delimiter = ',') {
     external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
     internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
     ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name'],
-    glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code']
+    glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code'],
+    glDescription: ['gl description', 'gldescription', 'gl desc', 'account description', 'code description']
   }
 
   // Find column indices
@@ -405,7 +406,9 @@ function parseCSV(content, delimiter = ',') {
       memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
       external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
       internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : '',
-      ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : ''
+      ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : '',
+      glCode: columnIndices.glCode !== undefined ? values[columnIndices.glCode] || '' : '',
+      glDescription: columnIndices.glDescription !== undefined ? values[columnIndices.glDescription] || '' : ''
     }
 
     // Only include if we have at least payee or amount
@@ -460,7 +463,8 @@ function parseExcel(base64Content) {
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
       internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
       ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name'],
-      glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code']
+      glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code'],
+      glDescription: ['gl description', 'gldescription', 'gl desc', 'account description', 'code description']
     }
 
     // Process each row
@@ -644,7 +648,9 @@ function parseCSVWithMapping(content, delimiter, mapping) {
       memo: columnIndices.memo !== undefined ? values[columnIndices.memo] || '' : '',
       external_memo: columnIndices.external_memo !== undefined ? values[columnIndices.external_memo] || '' : '',
       internal_memo: columnIndices.internal_memo !== undefined ? values[columnIndices.internal_memo] || '' : '',
-      ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : ''
+      ledger: columnIndices.ledger !== undefined ? values[columnIndices.ledger] || '' : '',
+      glCode: columnIndices.glCode !== undefined ? values[columnIndices.glCode] || '' : '',
+      glDescription: columnIndices.glDescription !== undefined ? values[columnIndices.glDescription] || '' : ''
     }
 
     // Only include if we have at least payee or amount
@@ -1289,6 +1295,7 @@ export default function App() {
   const [historyViewMode, setHistoryViewMode] = useState('all') // 'all' or 'current'
   const [historySearchTerm, setHistorySearchTerm] = useState('')
   const [historySortOrder, setHistorySortOrder] = useState('date-desc')
+  const [historyGlCodeFilter, setHistoryGlCodeFilter] = useState('all') // 'all' or specific GL Code
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
 
   // GL Codes state
@@ -1315,7 +1322,8 @@ export default function App() {
     external_memo: '',
     internal_memo: '',
     ledger: '',
-    glCode: ''
+    glCode: '',
+    glDescription: ''
   })
   const [rawFileData, setRawFileData] = useState(null)
   const [fileExtension, setFileExtension] = useState('')
@@ -2715,7 +2723,9 @@ export default function App() {
       memo: ['memo', 'description', 'desc', 'note', 'notes', 'for', 'purpose'],
       external_memo: ['external memo', 'external_memo', 'public memo', 'public_memo', 'payee memo'],
       internal_memo: ['internal memo', 'internal_memo', 'private memo', 'private_memo', 'bookkeeper memo', 'admin memo'],
-      ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name']
+      ledger: ['ledger', 'account', 'fund', 'ledger name', 'account name', 'fund name'],
+      glCode: ['gl code', 'glcode', 'gl', 'general ledger', 'accounting code', 'account code'],
+      glDescription: ['gl description', 'gldescription', 'gl desc', 'account description', 'code description']
     }
 
     const mapping = {
@@ -2725,7 +2735,9 @@ export default function App() {
       memo: '',
       external_memo: '',
       internal_memo: '',
-      ledger: ''
+      ledger: '',
+      glCode: '',
+      glDescription: ''
     }
 
     const normalizedHeaders = headers.map(h => h.trim().toLowerCase())
@@ -2897,8 +2909,34 @@ export default function App() {
 
     // Close mapping modal and show import queue
     setShowColumnMapping(false)
-    setImportQueue(parsed.map((item, idx) => ({ ...item, id: generateId(), index: idx })))
+    const enrichedQueue = parsed.map((item, idx) => ({ ...item, id: generateId(), index: idx }))
+    setImportQueue(enrichedQueue)
     setShowImportQueue(true)
+
+    // Auto-load first item in standard mode
+    if (activeProfile?.layoutMode !== 'three_up' && enrichedQueue.length > 0) {
+      const firstItem = enrichedQueue[0]
+      const normalizedDate = firstItem.date && !/^\d{4}-\d{2}-\d{2}$/.test(firstItem.date)
+        ? new Date(firstItem.date).toISOString().slice(0, 10)
+        : firstItem.date || new Date().toISOString().slice(0, 10)
+
+      setData({
+        date: normalizedDate,
+        payee: firstItem.payee || '',
+        amount: firstItem.amount || '',
+        amountWords: firstItem.amount ? numberToWords(firstItem.amount) : '',
+        memo: firstItem.memo || '',
+        external_memo: firstItem.external_memo || '',
+        internal_memo: firstItem.internal_memo || '',
+        line_items: firstItem.line_items || [],
+        line_items_text: firstItem.line_items_text || '',
+        ledger_snapshot: null,
+        checkNumber: firstItem.checkNumber || '',
+        glCode: firstItem.glCode || '',
+        glDescription: firstItem.glDescription || ''
+      })
+      setSelectedQueueItems([firstItem])
+    }
   }
 
   const handleExport = () => {
@@ -3048,7 +3086,9 @@ export default function App() {
             line_items: [],
             line_items_text: '',
             ledger_snapshot: null,
-            checkNumber: ''
+            checkNumber: '',
+            glCode: '',
+            glDescription: ''
           })
           return []
         } else {
@@ -3073,7 +3113,9 @@ export default function App() {
             line_items: queueItem.line_items || [],
             line_items_text: queueItem.line_items_text || '',
             ledger_snapshot: null,
-            checkNumber: queueItem.checkNumber || ''
+            checkNumber: queueItem.checkNumber || '',
+            glCode: queueItem.glCode || '',
+            glDescription: queueItem.glDescription || ''
           })
           return [queueItem]
         }
@@ -4664,7 +4706,7 @@ export default function App() {
     : 0
 
   const downloadTemplate = () => {
-    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'External Memo', 'Internal Memo', 'Ledger', 'Check Number']
+    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'External Memo', 'Internal Memo', 'Ledger', 'Check Number']
     const csvContent = headers.join(',') + '\n'
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -8409,6 +8451,44 @@ export default function App() {
                       ))}
                     </select>
                   </div>
+
+                  {/* GL Code Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>GL Code:</label>
+                    <select
+                      value={columnMapping.glCode}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, glCode: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* GL Description Field */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', alignItems: 'center' }}>
+                    <label style={{ fontWeight: '600' }}>GL Description:</label>
+                    <select
+                      value={columnMapping.glDescription}
+                      onChange={(e) => {
+                        const newMapping = { ...columnMapping, glDescription: e.target.value }
+                        setColumnMapping(newMapping)
+                        setPreviewRow(getPreviewRow(rawFileData, fileExtension, newMapping))
+                      }}
+                      style={{ padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                    >
+                      <option value="">(Skip this field)</option>
+                      {fileHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '12px' }}>
@@ -8446,6 +8526,12 @@ export default function App() {
                       )}
                       {previewRow.ledger && (
                         <div><strong>Ledger:</strong> {previewRow.ledger}</div>
+                      )}
+                      {previewRow.glCode && (
+                        <div><strong>GL Code:</strong> {previewRow.glCode}</div>
+                      )}
+                      {previewRow.glDescription && (
+                        <div><strong>GL Description:</strong> {previewRow.glDescription}</div>
                       )}
                     </div>
                   </div>
@@ -8599,6 +8685,22 @@ export default function App() {
                       autoFocus
                     />
                   </div>
+                  <div className="field" style={{ width: '175px', marginBottom: 0 }}>
+                    <select
+                      value={historyGlCodeFilter}
+                      onChange={(e) => setHistoryGlCodeFilter(e.target.value)}
+                      style={{ width: '100%' }}
+                      title="Filter by GL Code"
+                    >
+                      <option value="all">All GL Codes</option>
+                      {(() => {
+                        const uniqueGlCodes = [...new Set((historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId)).map(c => c.glCode).filter(Boolean))].sort()
+                        return uniqueGlCodes.map(code => (
+                          <option key={code} value={code}>{code}</option>
+                        ))
+                      })()}
+                    </select>
+                  </div>
                   <div className="field" style={{ width: '200px', marginBottom: 0 }}>
                     <select
                       value={historySortOrder}
@@ -8628,13 +8730,19 @@ export default function App() {
                   <div className="history-list-column">
                     {(historyViewMode === 'all' ? checkHistory : checkHistory.filter(c => c.ledgerId === activeLedgerId))
                       .filter(entry => {
+                        // GL Code filter
+                        if (historyGlCodeFilter !== 'all' && entry.glCode !== historyGlCodeFilter) return false
+
+                        // Search term filter
                         if (!historySearchTerm) return true
                         const term = historySearchTerm.toLowerCase()
                         return (
                           (entry.payee && entry.payee.toLowerCase().includes(term)) ||
                           (entry.memo && entry.memo.toLowerCase().includes(term)) ||
                           (entry.amount && entry.amount.toString().includes(term)) ||
-                          (entry.checkNumber && entry.checkNumber.toString().includes(term))
+                          (entry.checkNumber && entry.checkNumber.toString().includes(term)) ||
+                          (entry.glCode && entry.glCode.toLowerCase().includes(term)) ||
+                          (entry.glDescription && entry.glDescription.toLowerCase().includes(term))
                         )
                       })
                       .sort((a, b) => {
@@ -8664,7 +8772,7 @@ export default function App() {
                             </div>
                             <div className="history-card-meta">
                               <span>{formatDate(entry.date)}</span>
-                              {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}</span>}
+                              {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}{entry.glDescription ? ` - ${entry.glDescription}` : ''}</span>}
                               {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
                             </div>
                             <div className="history-card-tags">
@@ -8740,7 +8848,7 @@ export default function App() {
                             <label>GL Code</label>
                             <div className="detail-value">
                               {selectedHistoryItem.glCode}
-                              {(() => {
+                              {selectedHistoryItem.glDescription ? ` - ${selectedHistoryItem.glDescription}` : (() => {
                                 const match = glCodes.find(g => g.code === selectedHistoryItem.glCode)
                                 return match && match.description ? ` - ${match.description}` : ''
                               })()}

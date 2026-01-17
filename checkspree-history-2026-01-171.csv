@@ -1,0 +1,28 @@
+=== EXPORT SUMMARY ===
+Export Date,2026-01-17T05:18:02.959Z
+Total Checks,10
+Total Amount Spent,$12681.28
+Combined Ledger Balance,$37318.72
+
+=== LEDGER BREAKDOWN ===
+
+Ledger: Primary Ledger
+Current Balance,$37318.72
+Total Spent,$12681.28
+Check Count,10
+
+Profile Breakdown:
+  Standard Check,Checks: 10,Amount: $12681.28
+
+=== CHECK DETAILS ===
+Date,Payee,Amount,Memo,GL Code,GL Description,Ledger,Profile,Recorded At,Balance After
+2026-01-21,"State Revenue Department",850,"Quarterly sales tax payment",7100,"",Primary Ledger,Standard Check,2026-01-17T05:14:35.818Z,37318.72
+2026-01-20,"Office Depot",234.99,"Printer paper and toner cartridges",5100,"",Primary Ledger,Standard Check,2026-01-17T05:14:31.060Z,38168.72
+2026-01-19,"QuickShip Logistics",567.8,"Shipping and delivery fees",5500,"",Primary Ledger,Standard Check,2026-01-17T05:14:28.665Z,38403.71
+2026-01-18,"TechPro Solutions",4750.25,"Network infrastructure upgrade",5200,"",Primary Ledger,Standard Check,2026-01-17T05:14:23.904Z,38971.51
+2026-01-18,"First National Bank",1200,"January office rent payment",6500,"",Primary Ledger,Standard Check,2026-01-17T05:14:21.514Z,43721.76
+2026-01-17,"Acme Web Hosting",89.99,"Annual domain and hosting renewal",5200,"",Primary Ledger,Standard Check,2026-01-17T05:14:16.750Z,44921.76
+2026-01-16,"Metro Insurance Group",895,"Business liability insurance premium",6400,"",Primary Ledger,Standard Check,2026-01-17T05:14:14.368Z,45011.75
+2026-01-16,"Johnson Consulting LLC",2500,"Q1 2026 consulting services",5300,"",Primary Ledger,Standard Check,2026-01-17T05:14:11.984Z,45906.75
+2026-01-15,"Citywide Utilities",342.75,"Monthly electric bill",6200,"",Primary Ledger,Standard Check,2026-01-17T05:14:09.593Z,48406.75
+2026-01-15,"ABC Supply Company",1250.5,"Office supplies and equipment",5100,"",Primary Ledger,Standard Check,2026-01-17T05:14:07.209Z,48749.5

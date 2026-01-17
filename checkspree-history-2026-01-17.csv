@@ -1,0 +1,49 @@
+=== EXPORT SUMMARY ===
+Export Date,2026-01-17T05:16:27.116Z
+Total Checks,15
+Total Amount Spent,$19587.71
+Combined Ledger Balance,$30412.29
+
+=== LEDGER BREAKDOWN ===
+
+Ledger: Primary Ledger
+Current Balance,$37318.72
+Total Spent,$12681.28
+Check Count,10
+
+Profile Breakdown:
+  Standard Check,Checks: 10,Amount: $12681.28
+
+Ledger: Goofy Goober fund
+Current Balance,$-4875.00
+Total Spent,$4875.00
+Check Count,3
+
+Profile Breakdown:
+  Standard Check,Checks: 3,Amount: $4875.00
+
+Ledger: Sebastian
+Current Balance,$-2031.43
+Total Spent,$2031.43
+Check Count,2
+
+Profile Breakdown:
+  Standard Check,Checks: 2,Amount: $2031.43
+
+=== CHECK DETAILS ===
+Date,Payee,Amount,Memo,GL Code,GL Description,Ledger,Profile,Recorded At,Balance After
+2026-01-22,"Regional Telecom",156.43,"Business phone and internet",6200,"",Sebastian,Standard Check,2026-01-17T05:14:40.560Z,-2031.43
+2026-01-21,"Peak Performance Training",1875,"Employee development workshop",5600,"",Sebastian,Standard Check,2026-01-17T05:14:38.195Z,-1875
+2026-01-21,"State Revenue Department",850,"Quarterly sales tax payment",7100,"",Primary Ledger,Standard Check,2026-01-17T05:14:35.818Z,37318.72
+2026-01-20,"Jane Smith",1500,"Freelance graphic design work",5300,"",Goofy Goober fund,Standard Check,2026-01-17T05:14:33.445Z,-4875
+2026-01-20,"Office Depot",234.99,"Printer paper and toner cartridges",5100,"",Primary Ledger,Standard Check,2026-01-17T05:14:31.060Z,38168.72
+2026-01-19,"QuickShip Logistics",567.8,"Shipping and delivery fees",5500,"",Primary Ledger,Standard Check,2026-01-17T05:14:28.665Z,38403.71
+2026-01-19,"Blue Sky Marketing",3200,"Social media advertising campaign",5400,"",Goofy Goober fund,Standard Check,2026-01-17T05:14:26.285Z,-3375
+2026-01-18,"TechPro Solutions",4750.25,"Network infrastructure upgrade",5200,"",Primary Ledger,Standard Check,2026-01-17T05:14:23.904Z,38971.51
+2026-01-18,"First National Bank",1200,"January office rent payment",6500,"",Primary Ledger,Standard Check,2026-01-17T05:14:21.514Z,43721.76
+2026-01-17,"Green Clean Services",175,"Weekly janitorial services",6100,"",Goofy Goober fund,Standard Check,2026-01-17T05:14:19.133Z,-175
+2026-01-17,"Acme Web Hosting",89.99,"Annual domain and hosting renewal",5200,"",Primary Ledger,Standard Check,2026-01-17T05:14:16.750Z,44921.76
+2026-01-16,"Metro Insurance Group",895,"Business liability insurance premium",6400,"",Primary Ledger,Standard Check,2026-01-17T05:14:14.368Z,45011.75
+2026-01-16,"Johnson Consulting LLC",2500,"Q1 2026 consulting services",5300,"",Primary Ledger,Standard Check,2026-01-17T05:14:11.984Z,45906.75
+2026-01-15,"Citywide Utilities",342.75,"Monthly electric bill",6200,"",Primary Ledger,Standard Check,2026-01-17T05:14:09.593Z,48406.75
+2026-01-15,"ABC Supply Company",1250.5,"Office supplies and equipment",5100,"",Primary Ledger,Standard Check,2026-01-17T05:14:07.209Z,48749.5

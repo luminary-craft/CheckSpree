@@ -499,12 +499,14 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
 
     // Add check details
     csvContent += '=== CHECK DETAILS ===\n'
-    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
+    const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
     const rows = checks.map(entry => [
       entry.date || '',
       `"${(entry.payee || '').replace(/"/g, '""')}"`,
       entry.amount || 0,
       `"${(entry.memo || '').replace(/"/g, '""')}"`,
+      entry.glCode || '',
+      `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
       entry.ledgerName || '',
       entry.profileName || '',
       entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
