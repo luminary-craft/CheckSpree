@@ -47,7 +47,8 @@ const DEFAULT_FIELDS = {
   memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' },
   checkNumber: { x: 7.8, y: 0.15, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' },
   glCode: { x: 0.75, y: 2.85, w: 2.0, h: 0.30, fontIn: 0.26, label: 'GL Code' },
-  glDescription: { x: 0.75, y: 3.15, w: 3.8, h: 0.30, fontIn: 0.26, label: 'GL Description' }
+  glDescription: { x: 0.75, y: 3.15, w: 3.8, h: 0.30, fontIn: 0.26, label: 'GL Description' },
+  address: { x: 0.75, y: 1.85, w: 3.0, h: 0.90, fontIn: 0.22, label: 'Address' }
 }
 
 const DEFAULT_PROFILE = {
@@ -103,7 +104,11 @@ const DEFAULT_PREFERENCES = {
   batchPrinterDeviceName: null,
   batchPrinterFriendlyName: null,
   batchPdfExportPath: null,
-  allowUserLedgerManagement: false
+  allowUserLedgerManagement: false,
+  // Address/envelope visibility per section
+  showAddressOnCheck: true,
+  showAddressOnStub1: false,
+  showAddressOnStub2: false
 }
 
 const DEFAULT_MODEL = {
@@ -1410,7 +1415,8 @@ export default function App() {
     ledger_snapshot: null,
     checkNumber: '', // For optional check numbering
     glCode: '',
-    glDescription: ''
+    glDescription: '',
+    address: '' // For window envelope - auto-populated with payee name
   })
 
   // Three-up sheet editor state
