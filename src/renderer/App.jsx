@@ -31,13 +31,15 @@ const AVAILABLE_FONTS = [
 const DEFAULT_LAYOUT = {
   widthIn: 8.5,
   checkHeightIn: 3.0,
-  stub1Enabled: false,
+  stub1Enabled: true,
   stub1HeightIn: 3.0,
-  stub2Enabled: false,
+  stub2Enabled: true,
   stub2HeightIn: 3.0,
   // Three-up cut line positions (relative to placement offset)
   cutLine1In: 3.66,
-  cutLine2In: 7.33
+  cutLine2In: 7.33,
+  // Order of sections: 'check', 'stub1', 'stub2'
+  sectionOrder: ['check', 'stub1', 'stub2']
 }
 
 const DEFAULT_FIELDS = {
@@ -134,6 +136,25 @@ function clamp(n, min, max) {
 function roundTo(n, step) {
   const s = step || 1
   return Math.round(n / s) * s
+}
+
+// Helper to get the starting Y position for placing fields in a section
+// Respects section order and only counts enabled sections
+function calculateBaseYForSection(sectionName, layout) {
+  const order = layout.sectionOrder || ['check', 'stub1', 'stub2']
+  let y = 0
+  for (const s of order) {
+    if (s === sectionName) return y
+    // Always add check height, but only add stub heights if enabled
+    if (s === 'check') {
+      y += layout.checkHeightIn
+    } else if (s === 'stub1' && layout.stub1Enabled) {
+      y += layout.stub1HeightIn
+    } else if (s === 'stub2' && layout.stub2Enabled) {
+      y += layout.stub2HeightIn
+    }
+  }
+  return y
 }
 
 
@@ -319,10 +340,11 @@ function normalizeModel(maybeModel) {
       ? {
         widthIn: m.check.widthIn ?? DEFAULT_LAYOUT.widthIn,
         checkHeightIn: m.check.heightIn ?? DEFAULT_LAYOUT.checkHeightIn,
-        stub1Enabled: false,
+        stub1Enabled: true,
         stub1HeightIn: DEFAULT_LAYOUT.stub1HeightIn,
-        stub2Enabled: false,
-        stub2HeightIn: DEFAULT_LAYOUT.stub2HeightIn
+        stub2Enabled: true,
+        stub2HeightIn: DEFAULT_LAYOUT.stub2HeightIn,
+        sectionOrder: ['check', 'stub1', 'stub2']
       }
       : DEFAULT_LAYOUT)
 
@@ -337,18 +359,47 @@ function normalizeModel(maybeModel) {
     ...(m.fields || {})
   }
 
-  // FORCE MIGRATION: Ensure stub address fields exist if stubs are enabled
+  // FORCE MIGRATION: Ensure ALL stub fields exist if stubs are enabled
   // Stub 1 (Payee Copy)
-  if (layout.stub1Enabled && !fields.stub1_address) {
-    const baseY = layout.checkHeightIn
-    fields.stub1_address = { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
+  if (layout.stub1Enabled) {
+    const baseY = calculateBaseYForSection('stub1', layout)
+    const prefix = 'stub1_'
+    const stub1Defaults = {
+      [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+      [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+      [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
+      [`${prefix}amount`]: { x: layout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+      [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+      [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: layout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
+      [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.25, w: layout.widthIn - 1.10, h: 1.10, fontIn: 0.16, label: 'Line Items' },
+      [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+      [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+      [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+    }
+    for (const [k, v] of Object.entries(stub1Defaults)) {
+      if (!fields[k]) fields[k] = v
+    }
   }
 
   // Stub 2 (Bookkeeper Copy)
-  if (layout.stub2Enabled && !fields.stub2_address) {
-    const stub1Offset = layout.stub1Enabled ? layout.stub1HeightIn : 0
-    const baseY = layout.checkHeightIn + stub1Offset
-    fields.stub2_address = { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' }
+  if (layout.stub2Enabled) {
+    const baseY = calculateBaseYForSection('stub2', layout)
+    const prefix = 'stub2_'
+    const stub2Defaults = {
+      [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+      [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+      [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
+      [`${prefix}amount`]: { x: layout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+      [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+      [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: layout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
+      [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+      [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+      [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
+      [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
+    }
+    for (const [k, v] of Object.entries(stub2Defaults)) {
+      if (!fields[k]) fields[k] = v
+    }
   }
 
   // Ensure 3-Up slotFields have address and glCode
@@ -2158,13 +2209,23 @@ export default function App() {
   }, [checkMode, lineItems])
 
   const createNewProfile = () => {
-    const newProfile = {
-      id: generateId(),
-      name: `Check Profile ${profiles.length + 1}`,
+    // Use normalizeModel to ensure all stub fields are created with correct positions
+    const normalizedModel = normalizeModel({
       layout: { ...DEFAULT_LAYOUT },
       fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
       template: { path: null, opacity: 0.9, fit: 'cover' },
-      placement: { offsetXIn: 0, offsetYIn: 0 },
+      placement: { offsetXIn: 0, offsetYIn: 0 }
+    })
+
+    const newProfile = {
+      id: generateId(),
+      name: `Check Profile ${profiles.length + 1}`,
+      layoutMode: 'standard', // New profiles default to standard mode
+      layout: normalizedModel.layout,
+      fields: normalizedModel.fields,
+      slotFields: normalizedModel.slotFields, // Include slotFields for potential 3-up mode switch
+      template: normalizedModel.template,
+      placement: normalizedModel.placement,
       dateFormat: {
         dateSlot1: 'MM',
         dateSlot2: 'DD',
@@ -2176,14 +2237,8 @@ export default function App() {
     setProfiles([...profiles, newProfile])
     setActiveProfileId(newProfile.id)
 
-    // Load the clean profile immediately
-    setModel(m => ({
-      ...m,
-      layout: { ...DEFAULT_LAYOUT },
-      fields: JSON.parse(JSON.stringify(DEFAULT_FIELDS)),
-      template: { path: null, opacity: 0.9, fit: 'cover' },
-      placement: { offsetXIn: 0, offsetYIn: 0 }
-    }))
+    // Load the normalized model immediately
+    setModel(normalizedModel)
 
     // Reset date format to defaults
     setPreferences(p => ({
@@ -2206,6 +2261,7 @@ export default function App() {
           ...p,
           layout: { ...model.layout },
           fields: JSON.parse(JSON.stringify(model.fields)),
+          slotFields: JSON.parse(JSON.stringify(model.slotFields)),
           template: { ...model.template },
           placement: { ...model.placement },
           dateFormat: {
@@ -2233,6 +2289,7 @@ export default function App() {
       ...m,
       layout: { ...profile.layout },
       fields: JSON.parse(JSON.stringify(profile.fields)),
+      slotFields: profile.slotFields ? JSON.parse(JSON.stringify(profile.slotFields)) : m.slotFields,
       template: { ...profile.template },
       placement: { ...profile.placement }
     }))
@@ -3227,6 +3284,7 @@ export default function App() {
           setData({
             date: new Date().toISOString().slice(0, 10),
             payee: '',
+            address: '',
             amount: '',
             amountWords: '',
             memo: '',
@@ -3254,6 +3312,7 @@ export default function App() {
           setData({
             date: normalizedDate,
             payee: queueItem.payee || '',
+            address: queueItem.address || '',
             amount: queueItem.amount || '',
             amountWords: queueItem.amount ? numberToWords(queueItem.amount) : '',
             memo: queueItem.memo || '',
@@ -4073,6 +4132,79 @@ export default function App() {
   const snapStepIn = preferences.enableSnapping ? 0.125 : 0.01
   const dragRef = useRef(null)
 
+  // Helper to get height of a specific section
+  const getSectionHeight = (s, l) => {
+    if (s === 'check') return l.checkHeightIn
+    if (s === 'stub1') return l.stub1HeightIn // Always return height (preserving space)
+    if (s === 'stub2') return l.stub2HeightIn
+    return 0
+  }
+
+  // Helper to calculate Y position of a section based on current order
+  const getSectionY = (targetSection, layout) => {
+    const order = layout.sectionOrder || ['check', 'stub1', 'stub2']
+    let y = 0
+    for (const s of order) {
+      if (s === targetSection) return y
+      y += getSectionHeight(s, layout)
+    }
+    return y
+  }
+
+  // Helper to get the starting Y position for placing fields in a section
+  // This respects section order and only counts enabled sections
+  const getBaseYForSection = (sectionName, layout) => calculateBaseYForSection(sectionName, layout)
+
+  const reorderSections = (newOrder) => {
+    setModel(m => {
+      const layout = m.layout
+      const oldOrder = layout.sectionOrder || ['check', 'stub1', 'stub2']
+
+      // Calculate OLD positions
+      const oldYs = {}
+      let y = 0
+      oldOrder.forEach(s => {
+        oldYs[s] = y
+        y += getSectionHeight(s, layout)
+      })
+
+      // Calculate NEW positions
+      const newYs = {}
+      y = 0
+      newOrder.forEach(s => {
+        newYs[s] = y
+        y += getSectionHeight(s, layout)
+      })
+
+      // Calculate Deltas
+      const deltas = {
+        check: newYs.check - oldYs.check,
+        stub1: newYs.stub1 - oldYs.stub1,
+        stub2: newYs.stub2 - oldYs.stub2
+      }
+
+      // Migrate Fields
+      const newFields = { ...m.fields }
+      Object.keys(newFields).forEach(k => {
+        // Identify section
+        let section = 'check'
+        if (k.startsWith('stub1_')) section = 'stub1'
+        if (k.startsWith('stub2_')) section = 'stub2'
+
+        const delta = deltas[section]
+        if (delta && delta !== 0) {
+          newFields[k] = { ...newFields[k], y: parseFloat((newFields[k].y + delta).toFixed(3)) }
+        }
+      })
+
+      return {
+        ...m,
+        layout: { ...layout, sectionOrder: newOrder },
+        fields: newFields
+      }
+    })
+  }
+
   const setField = (key, patch) => {
     // In three-up mode, update slot-specific fields instead of shared fields
     if (activeProfile?.layoutMode === 'three_up') {
@@ -4104,59 +4236,57 @@ export default function App() {
             ? { ...l, stub2Enabled: enabled }
             : l
 
-      if (!enabled) return { ...m, layout: nextLayout }
+      // If enabling, create/update fields for this stub with correct positions
+      if (enabled) {
+        const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
+        // Calculate base Y position respecting section order
+        // Use nextLayout so we account for the stub we're enabling
+        const baseY = getBaseYForSection(which, nextLayout)
 
-      const checkY = nextLayout.checkHeightIn
-      const stub1Y = checkY
-      const stub2Y = checkY + (nextLayout.stub1Enabled ? nextLayout.stub1HeightIn : 0)
-      const baseY = which === 'stub1' ? stub1Y : stub2Y
-      const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
+        const isPayeeCopy = which === 'stub1'
+        const defaults = isPayeeCopy
+          ? {
+            [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+            [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+            [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
+            [`${prefix}amount`]: { x: l.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+            [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+            [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: l.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
+            [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.25, w: l.widthIn - 1.10, h: 1.10, fontIn: 0.16, label: 'Line Items' },
+            [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+            [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+            [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+          }
+          : {
+            [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
+            [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
+            [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
+            [`${prefix}amount`]: { x: l.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
+            [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
+            [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: l.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
+            [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
+            [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
+            [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
+            [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
+          }
 
-      // Stub 1 (Payee Copy) - External memo and line items
-      // Stub 2 (Bookkeeper Copy) - Internal memo, ledger snapshot, and admin fields
-      const isPayeeCopy = which === 'stub1'
-      const defaults = isPayeeCopy
-        ? {
-          // PAYEE COPY (Stub 1) - External Memo, Line Items & Admin Fields
-          [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
-          [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
-          [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
-          [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
-          [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
-          [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Memo' },
-          [`${prefix}line_items`]: { x: 0.55, y: baseY + 1.25, w: nextLayout.widthIn - 1.10, h: 1.10, fontIn: 0.16, label: 'Line Items' },
-          [`${prefix}ledger`]: { x: 0.55, y: baseY + 2.45, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
-          [`${prefix}approved`]: { x: 4.25, y: baseY + 2.45, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-          [`${prefix}glcode`]: { x: 4.25, y: baseY + 2.95, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' }
+        // Always update field positions when enabling to ensure correct placement
+        const nextFields = { ...m.fields }
+        for (const [k, v] of Object.entries(defaults)) {
+          // Merge: keep existing non-position properties but update positions
+          nextFields[k] = { ...(nextFields[k] || {}), ...v }
         }
-        : {
-          // BOOKKEEPER COPY (Stub 2) - Internal Memo, Ledger Snapshot, Admin
-          [`${prefix}date`]: { x: 0.55, y: baseY + 0.25, w: 1.3, h: 0.30, fontIn: 0.20, label: 'Date' },
-          [`${prefix}payee`]: { x: 2.0, y: baseY + 0.25, w: 3.5, h: 0.30, fontIn: 0.20, label: 'Pay To' },
-          [`${prefix}address`]: { x: 2.0, y: baseY + 0.55, w: 3.5, h: 0.60, fontIn: 0.18, label: 'Address' },
-          [`${prefix}amount`]: { x: nextLayout.widthIn - 1.75, y: baseY + 0.25, w: 1.20, h: 0.30, fontIn: 0.20, label: 'Amount' },
-          [`${prefix}checkNumber`]: { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' },
-          [`${prefix}memo`]: { x: 0.55, y: baseY + 0.70, w: nextLayout.widthIn - 1.10, h: 0.30, fontIn: 0.18, label: 'Internal Memo' },
-          [`${prefix}ledger`]: { x: 0.55, y: baseY + 1.15, w: 3.5, h: 0.85, fontIn: 0.16, label: 'Ledger Snapshot' },
-          [`${prefix}approved`]: { x: 4.25, y: baseY + 1.15, w: 1.85, h: 0.35, fontIn: 0.16, label: 'Approved By' },
-          [`${prefix}glcode`]: { x: 4.25, y: baseY + 1.65, w: 1.85, h: 0.35, fontIn: 0.16, label: 'GL Code' },
-          [`${prefix}line_items`]: { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
-        }
 
-      const nextFields = { ...m.fields }
-      for (const [k, v] of Object.entries(defaults)) {
-        if (!nextFields[k]) nextFields[k] = v
+        return { ...m, layout: nextLayout, fields: nextFields }
       }
 
-      return { ...m, layout: nextLayout, fields: nextFields }
+      return { ...m, layout: nextLayout }
     })
 
+    // Sync data fields when enabling
     if (enabled) {
       const prefix = which === 'stub1' ? 'stub1_' : 'stub2_'
       setData((d) => {
-        // Parent-to-child flow: When stub is enabled, sync from parent check fields
-        // Stub 1 (Payee Copy) gets external_memo by default
-        // Stub 2 (Bookkeeper Copy) gets internal_memo by default
         const defaultMemo = which === 'stub1'
           ? (d.external_memo || d.memo || '')
           : (d.internal_memo || d.memo || '')
@@ -4415,6 +4545,52 @@ export default function App() {
           [d.fieldName]: clamp(newY, minY, maxY)
         }
       }))
+    } else if (d.mode === 'resize-section') {
+      const dyIn = (e.clientY - d.startY) / (PX_PER_IN * model.view.zoom)
+      // Min height 0.5" to prevent collapse
+      const newHeight = Math.max(0.5, d.startHeight + dyIn)
+      const delta = newHeight - d.startHeight
+
+      // Identify sections to shift (those AFTER the dragged section)
+      const order = model.layout.sectionOrder || ['check', 'stub1', 'stub2']
+      const draggedIdx = order.indexOf(d.sectionName)
+      const sectionsToShift = order.slice(draggedIdx + 1)
+      const cutoffY = d.startSectionY + d.startHeight // Original cut line Y
+
+      setModel(m => {
+        // 1. Update Layout Height
+        const nextLayout = { ...m.layout, [`${d.sectionName}HeightIn`]: newHeight }
+
+        // 2. Shift Fields (Using INITIAL fields to prevent drift/compounding errors)
+        const nextFields = { ...d.initialFields }
+
+        Object.keys(nextFields).forEach(key => {
+          let shouldShift = false
+
+          // Determine which section this field belongs to
+          let fieldSection = 'check'
+          if (key.startsWith('stub1_')) fieldSection = 'stub1'
+          else if (key.startsWith('stub2_')) fieldSection = 'stub2'
+
+          // Shift fields that belong to sections AFTER the resized section
+          if (sectionsToShift.includes(fieldSection)) {
+            shouldShift = true
+          }
+
+          // Also shift any generic fields below the cut line
+          if (fieldSection === 'check' && !key.startsWith('stub1_') && !key.startsWith('stub2_')) {
+            if (nextFields[key].y >= cutoffY - 0.01) { // -0.01 tolerance
+              shouldShift = true
+            }
+          }
+
+          if (shouldShift) {
+            nextFields[key] = { ...nextFields[key], y: parseFloat((nextFields[key].y + delta).toFixed(3)) }
+          }
+        })
+
+        return { ...m, layout: nextLayout, fields: nextFields }
+      })
     }
   }
 
@@ -5599,6 +5775,109 @@ export default function App() {
                       <option value="standard" style={{ backgroundColor: '#1e293b', color: '#f1f5f9' }}>Standard (Check + 2 Stubs)</option>
                       <option value="three_up" style={{ backgroundColor: '#1e293b', color: '#f1f5f9' }}>3-Up (3 Checks per Page)</option>
                     </select>
+                  </div>
+                )}
+
+                {/* Section Order - Standard Mode Only */}
+                {!preferences.adminLocked && activeProfile?.layoutMode !== 'three_up' && (
+                  <div className="field" style={{ marginTop: '12px' }}>
+                    <label>Section Order</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {(model.layout.sectionOrder || ['check', 'stub1', 'stub2']).map((section, index, arr) => (
+                        <div key={section} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '6px 10px',
+                          background: 'rgba(0,0,0,0.2)',
+                          borderRadius: '4px',
+                          fontSize: '13px'
+                        }}>
+                          <span style={{ flex: 1, color: 'var(--text-secondary)' }}>
+                            {section === 'check' ? 'Check' : (section === 'stub1' ? 'Stub (Payee)' : 'Stub (Bookkeeper)')}
+                          </span>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            {/* Visibility Toggle */}
+                            {section !== 'check' && (() => {
+                              const isStub1 = section === 'stub1'
+                              const enabled = isStub1 ? model.layout.stub1Enabled : model.layout.stub2Enabled
+                              return (
+                                <button
+                                  className="btn-icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    ensureStub(section, !enabled)
+                                  }}
+                                  title={enabled ? "Hide Section" : "Show Section"}
+                                  style={{
+                                    color: enabled ? 'var(--text)' : 'var(--text-secondary)',
+                                    opacity: enabled ? 1 : 0.5
+                                  }}
+                                >
+                                  {/* Eye / Eye-Off Icon */}
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    {enabled ? (
+                                      <>
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                        <line x1="1" y1="1" x2="23" y2="23" />
+                                      </>
+                                    )}
+                                  </svg>
+                                </button>
+                              )
+                            })()}
+                            {/* Divider */}
+                            <div style={{ width: '1px', height: '12px', background: 'var(--border)', margin: '0 2px' }} />
+                            {/* UP Button */}
+                            <button
+                              className="btn-icon"
+                              disabled={index === 0}
+                              style={{ opacity: index === 0 ? 0.3 : 1, cursor: index === 0 ? 'default' : 'pointer', padding: '2px' }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (index === 0) return
+                                const newOrder = [...arr]
+                                // Swap
+                                const temp = newOrder[index]
+                                newOrder[index] = newOrder[index - 1]
+                                newOrder[index - 1] = temp
+                                reorderSections(newOrder)
+                              }}
+                              title="Move Up"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 19V5M5 12l7-7 7 7" />
+                              </svg>
+                            </button>
+                            {/* DOWN Button */}
+                            <button
+                              className="btn-icon"
+                              disabled={index === arr.length - 1}
+                              style={{ opacity: index === arr.length - 1 ? 0.3 : 1, cursor: index === arr.length - 1 ? 'default' : 'pointer', padding: '2px' }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (index === arr.length - 1) return
+                                const newOrder = [...arr]
+                                // Swap
+                                const temp = newOrder[index]
+                                newOrder[index] = newOrder[index + 1]
+                                newOrder[index + 1] = temp
+                                reorderSections(newOrder)
+                              }}
+                              title="Move Down"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 5v14M5 12l7 7 7-7" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -7142,6 +7421,86 @@ export default function App() {
                     zIndex: 9999
                   }} />
                 )}
+                {/* Standard Fold Lines (Always Render regardless of enabled status) */}
+                {activeProfile?.layoutMode !== 'three_up' && editMode && (() => {
+                  const order = model.layout.sectionOrder || ['check', 'stub1', 'stub2']
+                  let currentY = 0
+                  return order.slice(0, -1).map((sectionName, idx) => {
+                    currentY += getSectionHeight(sectionName, model.layout)
+                    return (
+                      <div
+                        key={`fold-line-${sectionName}`}
+                        className="fold-line no-print"
+                        style={{
+                          position: 'absolute',
+                          top: `${currentY}in`,
+                          left: 0,
+                          right: 0,
+                          borderBottom: '1px dashed #ccc',
+                          pointerEvents: 'none',
+                          zIndex: 5
+                        }}
+                      />
+                    )
+                  })
+                })()}
+
+                {/* Standard Fold Lines (Draggable in Edit Mode) */}
+                {activeProfile?.layoutMode !== 'three_up' && (() => {
+                  const order = model.layout.sectionOrder || ['check', 'stub1', 'stub2']
+                  let currentY = 0
+                  return order.slice(0, -1).map((sectionName, idx) => {
+                    const sectionHeight = getSectionHeight(sectionName, model.layout)
+                    const thisSectionY = currentY
+                    currentY += sectionHeight
+
+                    return (
+                      <div
+                        key={`fold-line-${sectionName}`}
+                        className="fold-line no-print"
+                        onPointerDown={(e) => {
+                          if (!editMode) return
+                          e.preventDefault()
+                          e.stopPropagation()
+
+                          // Initialize Drag
+                          dragRef.current = {
+                            mode: 'resize-section',
+                            sectionName: sectionName,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            startHeight: sectionHeight,
+                            startSectionY: thisSectionY,
+                            initialFields: JSON.parse(JSON.stringify(model.fields)) // Deep copy for stable delta calculation
+                          }
+                          e.currentTarget.setPointerCapture?.(e.pointerId)
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: `${currentY}in`,
+                          left: 0,
+                          right: 0,
+                          height: '10px', // Hit area
+                          marginTop: '-5px', // Center hit area
+                          cursor: editMode ? 'ns-resize' : 'default',
+                          zIndex: 50, // High z-index for interaction
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {/* Visible Line */}
+                        <div style={{
+                          width: '100%',
+                          height: '1px',
+                          borderBottom: '1px dashed #ccc',
+                          pointerEvents: 'none'
+                        }} />
+                      </div>
+                    )
+                  })
+                })()}
+
                 {/* Three-up visual cut lines (perforation marks) - FIXED position */}
                 {activeProfile?.layoutMode === 'three_up' && (
                   <>
@@ -7273,107 +7632,133 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* Draggable Fold Lines (no-print) */}
-                      {editMode && model.layout.stub1Enabled && activeProfile?.layoutMode !== 'three_up' && (
-                        <div
-                          className="fold-line no-print"
-                          style={{
-                            position: 'absolute',
-                            left: 0,
-                            right: 0,
-                            top: `${model.layout.checkHeightIn}in`,
-                            height: '2px',
-                            borderTop: '2px dashed var(--accent)',
-                            cursor: 'ns-resize',
-                            zIndex: 1000
-                          }}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.effectAllowed = 'move'
-                            e.dataTransfer.setData('text/plain', 'fold-line-1')
-                          }}
-                          onDrag={(e) => {
-                            if (e.clientY === 0) return // Ignore invalid drag events
-                            const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
-                            const relativeY = e.clientY - paperRect.top
-                            const yInInches = relativeY / (96 * model.view.zoom)
+                      {/* Section Labels (Edit Mode Only) */}
+                      {editMode && activeProfile?.layoutMode !== 'three_up' && (() => {
+                        const order = model.layout.sectionOrder || ['check', 'stub1', 'stub2']
+                        const visibleSections = order.filter(s => {
+                          if (s === 'check') return true
+                          if (s === 'stub1') return model.layout.stub1Enabled
+                          if (s === 'stub2') return model.layout.stub2Enabled
+                          return false
+                        })
 
-                            // Constrain between 2.5 and 4.0 inches
-                            const newHeight = Math.max(2.5, Math.min(4.0, yInInches))
-                            setModel(m => ({
-                              ...m,
-                              layout: { ...m.layout, checkHeightIn: newHeight }
-                            }))
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute',
-                            left: '50%',
-                            top: '-8px',
-                            transform: 'translateX(-50%)',
-                            background: 'var(--accent)',
-                            color: 'white',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: '600',
-                            pointerEvents: 'none'
-                          }}>
-                            Check/Stub1 Fold
-                          </div>
-                        </div>
-                      )}
+                        return visibleSections.map((sectionName) => {
+                          const topY = getSectionY(sectionName, model.layout)
+                          const sectionLabel = sectionName === 'check' ? 'Check' :
+                            sectionName === 'stub1' ? 'Stub 1 (Payee Copy)' : 'Stub 2 (Bookkeeper Copy)'
 
-                      {editMode && model.layout.stub2Enabled && activeProfile?.layoutMode !== 'three_up' && (
-                        <div
-                          className="fold-line no-print"
-                          style={{
-                            position: 'absolute',
-                            left: 0,
-                            right: 0,
-                            top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
-                            height: '2px',
-                            borderTop: '2px dashed var(--accent)',
-                            cursor: 'ns-resize',
-                            zIndex: 1000
-                          }}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.effectAllowed = 'move'
-                            e.dataTransfer.setData('text/plain', 'fold-line-2')
-                          }}
-                          onDrag={(e) => {
-                            if (e.clientY === 0) return // Ignore invalid drag events
-                            const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
-                            const relativeY = e.clientY - paperRect.top
-                            const yInInches = relativeY / (96 * model.view.zoom)
-                            const checkHeight = model.layout.checkHeightIn
+                          return (
+                            <div
+                              key={`section-label-${sectionName}`}
+                              className="no-print"
+                              style={{
+                                position: 'absolute',
+                                top: `calc(${topY}in + 4px)`,
+                                right: '8px',
+                                background: 'rgba(56, 189, 248, 0.15)',
+                                color: 'var(--accent)',
+                                padding: '2px 6px',
+                                borderRadius: '3px',
+                                fontSize: '9px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                pointerEvents: 'none',
+                                zIndex: 50,
+                                border: '1px solid rgba(56, 189, 248, 0.2)'
+                              }}
+                            >
+                              {sectionLabel}
+                            </div>
+                          )
+                        })
+                      })()}
 
-                            // Calculate stub1 height (total Y minus check height)
-                            const newStub1Height = Math.max(2.5, Math.min(4.0, yInInches - checkHeight))
-                            setModel(m => ({
-                              ...m,
-                              layout: { ...m.layout, stub1HeightIn: newStub1Height }
-                            }))
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute',
-                            left: '50%',
-                            top: '-8px',
-                            transform: 'translateX(-50%)',
-                            background: 'var(--accent)',
-                            color: 'white',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '10px',
-                            fontWeight: '600',
-                            pointerEvents: 'none'
-                          }}>
-                            Stub1/Stub2 Fold
-                          </div>
-                        </div>
-                      )}
+                      {/* Draggable Fold Lines (Dynamic based on Section Order) */}
+                      {editMode && activeProfile?.layoutMode !== 'three_up' && (() => {
+                        const order = model.layout.sectionOrder || ['check', 'stub1', 'stub2']
+                        // Filter to visible sections only
+                        const visibleSections = order.filter(s => {
+                          if (s === 'check') return true
+                          if (s === 'stub1') return model.layout.stub1Enabled
+                          if (s === 'stub2') return model.layout.stub2Enabled
+                          return false
+                        })
+
+                        return visibleSections.slice(0, visibleSections.length - 1).map((sectionName, index) => {
+                          // Fold line is at the bottom of the current section
+                          const topY = getSectionY(sectionName, model.layout)
+                          const height = getSectionHeight(sectionName, model.layout)
+                          const foldY = topY + height
+
+                          const nextSection = visibleSections[index + 1]
+                          const label = `${sectionName}/${nextSection} Fold`
+                            .replace('check', 'Check')
+                            .replace('stub1', 'Stub 1')
+                            .replace('stub2', 'Stub 2')
+
+                          return (
+                            <div
+                              key={`fold-${index}`}
+                              className="fold-line no-print"
+                              style={{
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                top: `${foldY}in`,
+                                height: '2px',
+                                borderTop: '2px dashed var(--accent)',
+                                cursor: 'ns-resize',
+                                zIndex: 1000
+                              }}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = 'move'
+                                e.dataTransfer.setData('text/plain', `fold-${sectionName}`)
+                              }}
+                              onDrag={(e) => {
+                                if (e.clientY === 0) return
+                                const paperRect = e.currentTarget.closest('.paper').getBoundingClientRect()
+                                const relativeY = e.clientY - paperRect.top
+                                const yInInches = relativeY / (96 * model.view.zoom)
+
+                                // Height = MouseY - TopOfThisSection
+                                // We calculate Top safely using the helper
+                                const currentTopY = getSectionY(sectionName, model.layout)
+
+                                // Constrain height (min 1.5, max 6.0)
+                                const newHeight = Math.max(1.5, Math.min(6.0, yInInches - currentTopY))
+
+                                const propName = sectionName === 'check'
+                                  ? 'checkHeightIn'
+                                  : (sectionName === 'stub1' ? 'stub1HeightIn' : 'stub2HeightIn')
+
+                                setModel(m => ({
+                                  ...m,
+                                  layout: { ...m.layout, [propName]: newHeight }
+                                }))
+                              }}
+                            >
+                              <div style={{
+                                position: 'absolute',
+                                left: '50%',
+                                top: '-8px',
+                                transform: 'translateX(-50%)',
+                                background: 'var(--accent)',
+                                color: 'white',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: '600',
+                                pointerEvents: 'none',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {label}
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
 
                       {/* Use slot-specific fields in three-up mode, shared fields in standard mode */}
                       {Object.entries(slot ? model.slotFields[slot] : model.fields)
@@ -7391,9 +7776,12 @@ export default function App() {
                           // Hiding date on check face
                           if (key === 'date' && !preferences.showDate) return false
 
+                          // Address visibility (Check face ONLY - stub addresses handled in map section)
+                          if (key === 'address' && !isStub1 && !isStub2 && !preferences.showAddressOnCheck && !editMode) return false
+
                           // GL Code visibility (Check face ONLY)
                           // Stub fields should NOT be affected by 'showGlOnCheck'
-                          if ((key === 'glCode' || key === 'glDescription') && !isStub1 && !isStub2 && (!preferences.showGlOnCheck && !editMode)) return false
+                          if ((key === 'glCode' || key === 'glDescription') && !isStub1 && !isStub2 && !preferences.showGlOnCheck && !editMode) return false
 
                           return true
                         })
@@ -7414,6 +7802,7 @@ export default function App() {
                             if (key.includes('_line_items') && !preferences.stub1ShowLineItems) return null
                             if (key.includes('_checkNumber') && !preferences.stub1ShowCheckNumber) return null
                             if (key.includes('_date') && !preferences.stub1ShowDate) return null
+                            if (key.includes('_address') && !preferences.showAddressOnStub1 && !editMode) return null
                           }
                           if (isStub2Field) {
                             if (key.includes('_ledger') && !preferences.stub2ShowLedger) return null
@@ -7422,6 +7811,7 @@ export default function App() {
                             if (key.includes('_line_items') && !preferences.stub2ShowLineItems) return null
                             if (key.includes('_checkNumber') && !preferences.stub2ShowCheckNumber) return null
                             if (key.includes('_date') && !preferences.stub2ShowDate) return null
+                            if (key.includes('_address') && !preferences.showAddressOnStub2 && !editMode) return null
                           }
                           // Smart field value handling
                           let value = checkData[key] ?? ''
@@ -7430,9 +7820,6 @@ export default function App() {
 
                           // Force Hide MICR (legacy data cleanup)
                           if (key === 'micr') return null
-
-                          // Clean up potential duplicate Stub 2 GL key (legacy)
-                          if (key === 'stub2_glcode') return null
 
                           // Special Handling: Unified GL Field on Check Face
                           if (key === 'glCode' && !isStub1Field && !isStub2Field) {
@@ -7488,17 +7875,35 @@ export default function App() {
                             isReadOnly = true
                           }
 
+                          // Sync stub payee from check data
+                          if ((key === 'stub1_payee' || key === 'stub2_payee')) {
+                            value = checkData.payee || ''
+                            isReadOnly = true
+                          }
+
+                          // Sync stub amount from check data
+                          if ((key === 'stub1_amount' || key === 'stub2_amount')) {
+                            value = checkData.amount || ''
+                            isReadOnly = true
+                          }
+
+                          // Sync stub memo from check data (with fallback)
+                          if (key === 'stub1_memo') {
+                            value = checkData.external_memo || checkData.memo || ''
+                            isReadOnly = true
+                          }
+                          if (key === 'stub2_memo') {
+                            value = checkData.internal_memo || checkData.memo || ''
+                            isReadOnly = true
+                          }
+
                           // Address Field Logic (Check & Stubs)
+                          // Visibility is handled in filter/preferences sections above
                           if (key === 'address' && !isStub1Field && !isStub2Field) {
-                            if (!preferences.showAddressOnCheck && !editMode) return null
                             value = checkData.address || ''
                             isTextarea = true
                           }
                           if ((key === 'stub1_address' || key === 'stub2_address')) {
-                            const isStub1 = key === 'stub1_address'
-                            const show = isStub1 ? preferences.showAddressOnStub1 : preferences.showAddressOnStub2
-                            if (!show && !editMode) return null
-
                             // Sync from main address
                             value = checkData.address || ''
                             isReadOnly = true
@@ -7552,23 +7957,9 @@ export default function App() {
                             (isStub2Field && showStub2Labels && key !== 'stub2_approved' && key !== 'stub2_glcode')
                           )
 
-                          // Calculate actual Y position for stub fields (they should stay pinned to their stub section)
-                          // When stubs are created, fields get Y positions like checkHeight + 0.25
-                          // We need to extract the relative offset and re-apply it to the current stub position
-                          let actualY = f.y
-                          if (isStub1Field) {
-                            // Stub1 starts at checkHeightIn
-                            // Find what the stub1 start was when this field was created (use 3.0 as default check height)
-                            const originalStub1Start = 3.0
-                            const relativeY = f.y - originalStub1Start
-                            actualY = model.layout.checkHeightIn + relativeY
-                          } else if (isStub2Field) {
-                            // Stub2 starts at checkHeightIn + stub1HeightIn
-                            // Find what the stub2 start was when this field was created
-                            const originalStub2Start = 3.0 + 3.0 // default check + default stub1
-                            const relativeY = f.y - originalStub2Start
-                            actualY = model.layout.checkHeightIn + model.layout.stub1HeightIn + relativeY
-                          }
+                          // Use direct field position - fields are stored at absolute Y coordinates
+                          // No adjustment needed since normalizeModel creates fields at correct positions
+                          const actualY = f.y
 
                           return (
                             <div
@@ -7827,94 +8218,7 @@ export default function App() {
                   )
                 })}
 
-                {/* Stub Add/Remove Buttons - positioned at specific heights within the paper */}
-                {!editMode && activeProfile?.layoutMode !== 'three_up' && (
-                  <>
-                    {/* After check section */}
-                    <div
-                      className="stub-control-row"
-                      style={{
-                        position: 'absolute',
-                        top: `${model.layout.checkHeightIn}in`,
-                        left: 0,
-                        right: 0,
-                        zIndex: 10
-                      }}
-                    >
-                      {model.layout.stub1Enabled ? (
-                        <div className="stub-divider-with-remove">
-                          <div className="stub-divider-line" />
-                          <button
-                            className="stub-remove-button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              ensureStub('stub1', false)
-                            }}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            title="Remove Payee Copy Stub"
-                          >
-                            <span>−</span> Remove Stub 1
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          className="stub-add-button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            ensureStub('stub1', true)
-                          }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                        >
-                          <span className="stub-add-icon">+</span>
-                          Add Payee Copy Stub
-                        </button>
-                      )}
-                    </div>
-
-                    {/* After stub 1 section */}
-                    {model.layout.stub1Enabled && (
-                      <div
-                        className="stub-control-row"
-                        style={{
-                          position: 'absolute',
-                          top: `${model.layout.checkHeightIn + model.layout.stub1HeightIn}in`,
-                          left: 0,
-                          right: 0,
-                          zIndex: 10
-                        }}
-                      >
-                        {model.layout.stub2Enabled ? (
-                          <div className="stub-divider-with-remove">
-                            <div className="stub-divider-line" />
-                            <button
-                              className="stub-remove-button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                ensureStub('stub2', false)
-                              }}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              title="Remove Bookkeeper Copy Stub"
-                            >
-                              <span>−</span> Remove Stub 2
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            className="stub-add-button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              ensureStub('stub2', true)
-                            }}
-                            onPointerDown={(e) => e.stopPropagation()}
-                          >
-                            <span className="stub-add-icon">+</span>
-                            Add Bookkeeper Copy Stub
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                {/* Stub Buttons moved to Sidebar */}
               </div>
             </div>
           )}
