@@ -1751,6 +1751,100 @@ export default function App() {
     }
   }, [preferences.adminLocked, editMode])
 
+  // Handle Delete key to toggle field visibility in preferences
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle Delete/Backspace when in edit mode with selected fields
+      if (!editMode || selected.length === 0) return
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+
+      // Don't handle if we're in an input field
+      const activeEl = document.activeElement
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT')) {
+        return
+      }
+
+      e.preventDefault()
+
+      // Helper to find preference key for a field
+      // Only map fields that have actual visibility toggles in the UI
+      const getPreferenceKey = (fieldKey) => {
+        // Check face fields (these have visibility toggles)
+        if (fieldKey === 'checkNumber') return 'showCheckNumber'
+        if (fieldKey === 'date') return 'showDate'
+        if (fieldKey === 'address') return 'showAddressOnCheck'
+        if (fieldKey === 'glCode' || fieldKey === 'glDescription') return 'showGlOnCheck'
+
+        // Stub 1 fields (only those with actual visibility preferences)
+        if (fieldKey.startsWith('stub1_')) {
+          if (fieldKey.includes('address')) return 'showAddressOnStub1'
+          if (fieldKey.includes('glcode') || fieldKey.includes('glCode') || fieldKey.includes('glDescription')) return 'stub1ShowGLCode'
+          if (fieldKey.includes('approved')) return 'stub1ShowApproved'
+          if (fieldKey.includes('ledger')) return 'stub1ShowLedger'
+          if (fieldKey.includes('line_items')) return 'stub1ShowLineItems'
+          if (fieldKey.includes('checkNumber')) return 'stub1ShowCheckNumber'
+          if (fieldKey.includes('date')) return 'stub1ShowDate'
+          // Note: payee, amount, memo have no visibility toggle - they're always shown on stubs
+        }
+
+        // Stub 2 fields (only those with actual visibility preferences)
+        if (fieldKey.startsWith('stub2_')) {
+          if (fieldKey.includes('address')) return 'showAddressOnStub2'
+          if (fieldKey.includes('glcode') || fieldKey.includes('glCode') || fieldKey.includes('glDescription')) return 'stub2ShowGLCode'
+          if (fieldKey.includes('approved')) return 'stub2ShowApproved'
+          if (fieldKey.includes('ledger')) return 'stub2ShowLedger'
+          if (fieldKey.includes('line_items')) return 'stub2ShowLineItems'
+          if (fieldKey.includes('checkNumber')) return 'stub2ShowCheckNumber'
+          if (fieldKey.includes('date')) return 'stub2ShowDate'
+          // Note: payee, amount, memo have no visibility toggle - they're always shown on stubs
+        }
+
+        return null
+      }
+
+      // Collect unique preferences to toggle off
+      const prefsToToggle = new Set()
+      const fieldNames = []
+      const noToggleFields = []
+      for (const fieldKey of selected) {
+        const prefKey = getPreferenceKey(fieldKey)
+        if (prefKey) {
+          prefsToToggle.add(prefKey)
+          fieldNames.push(fieldKey)
+        } else {
+          noToggleFields.push(fieldKey)
+        }
+      }
+
+      // If any preferences found, toggle them off
+      if (prefsToToggle.size > 0) {
+        setPreferences(p => {
+          const updates = {}
+          for (const prefKey of prefsToToggle) {
+            updates[prefKey] = false
+          }
+          return { ...p, ...updates }
+        })
+        // Clear selection since fields are now hidden
+        setSelected([])
+        // Show feedback
+        const message = fieldNames.length === 1
+          ? `Hidden: ${fieldNames[0]}`
+          : `Hidden ${fieldNames.length} fields`
+        setToast({ message, type: 'success' })
+        setTimeout(() => setToast(null), 2000)
+      } else if (noToggleFields.length > 0) {
+        // No mapped preference - show info message
+        const fieldName = noToggleFields[0]
+        setToast({ message: `"${fieldName}" has no visibility toggle (always visible)`, type: 'info' })
+        setTimeout(() => setToast(null), 3000)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [editMode, selected])
+
   // Handle pending actions after GL Code save
   // Dependency on glCodes ensures we run after the update
 
@@ -1901,7 +1995,7 @@ export default function App() {
           updates.stub2_address = currentParent.address // Sync address
           updates.stub2_amount = currentParent.amount
           updates.stub2_memo = currentParent.internal_memo || currentParent.memo || ''
-          updates.stub2_glCode = currentParent.glCode
+          updates.stub2_glcode = currentParent.glCode // lowercase to match ensureStub field name
           updates.stub2_glDescription = currentParent.glDescription
         }
 
@@ -2031,6 +2125,8 @@ export default function App() {
     }
 
     // Add missing stub2 fields if stub2 is enabled
+    // Note: stub2 fields are primarily managed by ensureStub() which uses lowercase 'glcode'
+    // Only add checkNumber here as other fields come from ensureStub
     if (model.layout.stub2Enabled) {
       const checkY = model.layout.checkHeightIn
       const stub2Y = checkY + (model.layout.stub1Enabled ? model.layout.stub1HeightIn : 0)
@@ -2040,16 +2136,9 @@ export default function App() {
         nextFields.stub2_checkNumber = { x: 6.35, y: baseY + 0.25, w: 0.85, h: 0.30, fontIn: 0.18, label: 'Check #' }
         hasChanges = true
       }
-      if (!nextFields.stub2_line_items) {
-        nextFields.stub2_line_items = { x: 6.35, y: baseY + 1.15, w: 1.60, h: 0.85, fontIn: 0.16, label: 'Line Items' }
-        hasChanges = true
-      }
-      if (!nextFields.stub2_glCode) {
-        nextFields.stub2_glCode = { x: 6.35, y: baseY + 2.10, w: 0.75, h: 0.35, fontIn: 0.16, label: 'GL Code' }
-        hasChanges = true
-      }
-      if (!nextFields.stub2_glDescription) {
-        nextFields.stub2_glDescription = { x: 7.20, y: baseY + 2.10, w: 1.2, h: 0.35, fontIn: 0.16, label: 'GL Description' }
+      // Remove duplicate camelCase glCode field if it exists (ensureStub uses lowercase glcode)
+      if (nextFields.stub2_glCode) {
+        delete nextFields.stub2_glCode
         hasChanges = true
       }
     }
@@ -4411,6 +4500,9 @@ export default function App() {
   }
 
   const onPointerDownCutLine = (e, lineNumber) => {
+    // Lock behind admin control - only allow when admin unlocked
+    if (preferences.adminLocked) return
+
     e.stopPropagation()
     const fieldName = lineNumber === 1 ? 'cutLine1In' : 'cutLine2In'
     const startValue = model.layout[fieldName]
@@ -7680,7 +7772,7 @@ export default function App() {
                 {/* Three-up visual cut lines (perforation marks) - FIXED position */}
                 {activeProfile?.layoutMode === 'three_up' && (
                   <>
-                    {/* Cut Line 1 - Draggable */}
+                    {/* Cut Line 1 - Draggable when admin unlocked */}
                     <div
                       className="three-up-cut-line no-print"
                       onPointerDown={(e) => onPointerDownCutLine(e, 1)}
@@ -7691,9 +7783,9 @@ export default function App() {
                         top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In}in)`,
                         height: '20px',
                         marginTop: '-10px',
-                        borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
+                        borderTop: `2px dashed ${preferences.adminLocked ? 'rgba(128, 128, 128, 0.3)' : 'rgba(128, 128, 128, 0.5)'}`,
                         zIndex: 100,
-                        cursor: 'ns-resize',
+                        cursor: preferences.adminLocked ? 'default' : 'ns-resize',
                         pointerEvents: 'auto'
                       }}
                     >
@@ -7714,7 +7806,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Cut Line 2 - Draggable */}
+                    {/* Cut Line 2 - Draggable when admin unlocked */}
                     <div
                       className="three-up-cut-line no-print"
                       onPointerDown={(e) => onPointerDownCutLine(e, 2)}
@@ -7725,9 +7817,9 @@ export default function App() {
                         top: `calc(${model.placement.offsetYIn}in + ${model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In}in)`,
                         height: '20px',
                         marginTop: '-10px',
-                        borderTop: '2px dashed rgba(128, 128, 128, 0.5)',
+                        borderTop: `2px dashed ${preferences.adminLocked ? 'rgba(128, 128, 128, 0.3)' : 'rgba(128, 128, 128, 0.5)'}`,
                         zIndex: 100,
-                        cursor: 'ns-resize',
+                        cursor: preferences.adminLocked ? 'default' : 'ns-resize',
                         pointerEvents: 'auto'
                       }}
                     >
@@ -7953,11 +8045,11 @@ export default function App() {
                           if (key === 'date' && !preferences.showDate) return false
 
                           // Address visibility (Check face ONLY - stub addresses handled in map section)
-                          if (key === 'address' && !isStub1 && !isStub2 && !preferences.showAddressOnCheck && !editMode) return false
+                          if (key === 'address' && !isStub1 && !isStub2 && !preferences.showAddressOnCheck) return false
 
                           // GL Code visibility (Check face ONLY)
                           // Stub fields should NOT be affected by 'showGlOnCheck'
-                          if ((key === 'glCode' || key === 'glDescription') && !isStub1 && !isStub2 && !preferences.showGlOnCheck && !editMode) return false
+                          if ((key === 'glCode' || key === 'glDescription') && !isStub1 && !isStub2 && !preferences.showGlOnCheck) return false
 
                           return true
                         })
@@ -7978,7 +8070,7 @@ export default function App() {
                             if (key.includes('_line_items') && !preferences.stub1ShowLineItems) return null
                             if (key.includes('_checkNumber') && !preferences.stub1ShowCheckNumber) return null
                             if (key.includes('_date') && !preferences.stub1ShowDate) return null
-                            if (key.includes('_address') && !preferences.showAddressOnStub1 && !editMode) return null
+                            if (key.includes('_address') && !preferences.showAddressOnStub1) return null
                           }
                           if (isStub2Field) {
                             if (key.includes('_ledger') && !preferences.stub2ShowLedger) return null
@@ -7987,7 +8079,7 @@ export default function App() {
                             if (key.includes('_line_items') && !preferences.stub2ShowLineItems) return null
                             if (key.includes('_checkNumber') && !preferences.stub2ShowCheckNumber) return null
                             if (key.includes('_date') && !preferences.stub2ShowDate) return null
-                            if (key.includes('_address') && !preferences.showAddressOnStub2 && !editMode) return null
+                            if (key.includes('_address') && !preferences.showAddressOnStub2) return null
                           }
                           // Smart field value handling
                           let value = checkData[key] ?? ''
