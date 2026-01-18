@@ -5034,6 +5034,84 @@ export default function App() {
     }
   }
 
+  // Record Only - handles both standard and 3-up modes
+  const handleRecordOnly = () => {
+    if (activeProfile?.layoutMode === 'three_up') {
+      // 3-up mode: record all filled slots
+      const slots = ['top', 'middle', 'bottom']
+      const filledSlots = slots.filter(slot => {
+        const slotData = sheetData[slot]
+        return slotData?.payee?.trim() && sanitizeCurrencyInput(slotData?.amount) > 0
+      })
+
+      if (filledSlots.length === 0) {
+        showToast('No valid checks to record. Please fill in payee and amount.', 'error')
+        return
+      }
+
+      // Record each filled slot
+      let recordedCount = 0
+      filledSlots.forEach((slot, index) => {
+        const slotData = sheetData[slot]
+        const checkDataForSlot = {
+          ...slotData,
+          checkNumber: slotData.checkNumber || String((activeProfile.nextCheckNumber || 1001) + index)
+        }
+        if (recordCheck(checkDataForSlot)) {
+          recordedCount++
+        }
+      })
+
+      if (recordedCount > 0) {
+        // Increment check number
+        setProfiles(prev => prev.map(p =>
+          p.id === activeProfileId
+            ? { ...p, nextCheckNumber: (p.nextCheckNumber || 1001) + recordedCount }
+            : p
+        ))
+
+        // Clear all slots
+        setSheetData({
+          top: getEmptySlotData(),
+          middle: getEmptySlotData(),
+          bottom: getEmptySlotData()
+        })
+        setActiveSlot('top')
+        setLineItems([])
+        setCheckMode('simple')
+
+        showToast(`${recordedCount} check${recordedCount > 1 ? 's' : ''} recorded to ledger!`, 'success')
+      }
+    } else {
+      // Standard mode: record single check
+      if (!data.payee?.trim()) {
+        showToast('Please enter a payee name', 'error')
+        return
+      }
+      const amount = sanitizeCurrencyInput(data.amount)
+      if (amount <= 0) {
+        showToast('Please enter a valid amount', 'error')
+        return
+      }
+
+      if (recordCheck(data)) {
+        // Increment check number
+        setProfiles(prev => prev.map(p =>
+          p.id === activeProfileId
+            ? { ...p, nextCheckNumber: (p.nextCheckNumber || 1001) + 1 }
+            : p
+        ))
+
+        // Clear the form
+        setData(getEmptySlotData())
+        setLineItems([])
+        setCheckMode('simple')
+
+        showToast('Check recorded to ledger!', 'success')
+      }
+    }
+  }
+
   const resetModel = () => {
     showConfirm(
       'Reset All Settings?',
@@ -5170,30 +5248,77 @@ export default function App() {
 
 
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
-          <button className="btn" onClick={() => {
-            if (!data.payee?.trim()) {
-              alert('Please enter a payee name')
-              return
-            }
-            const amount = sanitizeCurrencyInput(data.amount)
-            if (amount <= 0) {
-              alert('Please enter a valid amount')
-              return
-            }
-            recordCheck(data)
-            clearForm()
-            showToast('Check recorded to ledger!', 'success')
-          }} title="Record without printing">
-            <CheckIcon /> Record Only
-          </button>
-          <button className="btn primary" onClick={handlePrintAndRecord}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Print & Record
-          </button>
+          {/* Print & Record dropdown button */}
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div style={{ display: 'flex', alignItems: 'stretch' }}>
+              <button
+                className="btn primary"
+                onClick={handlePrintAndRecord}
+                style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: '1px solid rgba(255,255,255,0.2)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 6V1H12V6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <rect x="2" y="6" width="12" height="6" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M4 12V15H12V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Print & Record
+              </button>
+              <button
+                className="btn primary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const dropdown = e.currentTarget.nextElementSibling
+                  dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block'
+                }}
+                style={{
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  padding: '8px 6px',
+                  minWidth: 'auto'
+                }}
+                title="More options"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M3 5L6 8L9 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <div
+                style={{
+                  display: 'none',
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '4px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  zIndex: 1000,
+                  minWidth: '160px',
+                  overflow: 'hidden'
+                }}
+                onMouseLeave={(e) => e.currentTarget.style.display = 'none'}
+              >
+                <button
+                  className="btn"
+                  onClick={(e) => {
+                    e.currentTarget.parentElement.style.display = 'none'
+                    handleRecordOnly()
+                  }}
+                  style={{
+                    width: '100%',
+                    justifyContent: 'flex-start',
+                    borderRadius: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: '10px 14px'
+                  }}
+                >
+                  <CheckIcon /> Record Only
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -9534,14 +9659,33 @@ export default function App() {
                         )
                       })
                       .sort((a, b) => {
+                        // Primary sort by selected criteria
+                        let result = 0
                         switch (historySortOrder) {
-                          case 'date-asc': return new Date(a.date) - new Date(b.date)
-                          case 'date-desc': return new Date(b.date) - new Date(a.date)
-                          case 'amount-asc': return parseFloat(a.amount) - parseFloat(b.amount)
-                          case 'amount-desc': return parseFloat(b.amount) - parseFloat(a.amount)
-                          case 'payee-asc': return (a.payee || '').localeCompare(b.payee || '')
-                          default: return 0
+                          case 'date-asc':
+                            result = new Date(a.date) - new Date(b.date)
+                            // Secondary sort by timestamp (oldest recorded first) when dates are equal
+                            if (result === 0) result = (a.timestamp || 0) - (b.timestamp || 0)
+                            break
+                          case 'date-desc':
+                            result = new Date(b.date) - new Date(a.date)
+                            // Secondary sort by timestamp (most recently recorded first) when dates are equal
+                            if (result === 0) result = (b.timestamp || 0) - (a.timestamp || 0)
+                            break
+                          case 'amount-asc':
+                            result = parseFloat(a.amount) - parseFloat(b.amount)
+                            break
+                          case 'amount-desc':
+                            result = parseFloat(b.amount) - parseFloat(a.amount)
+                            break
+                          case 'payee-asc':
+                            result = (a.payee || '').localeCompare(b.payee || '')
+                            break
+                          default:
+                            // Default to most recently recorded first
+                            result = (b.timestamp || 0) - (a.timestamp || 0)
                         }
+                        return result
                       })
                       .map(entry => {
                         const ledger = ledgers.find(l => l.id === entry.ledgerId)
@@ -9560,6 +9704,11 @@ export default function App() {
                             </div>
                             <div className="history-card-meta">
                               <span>{formatDate(entry.date)}</span>
+                              {entry.timestamp && (
+                                <span style={{ color: '#9ca3af', fontSize: '11px' }}>
+                                  • {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
                               {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}{entry.glDescription ? ` - ${entry.glDescription}` : (() => {
                                 const match = glCodes.find(g => g.code === entry.glCode)
                                 return match && match.description ? ` - ${match.description}` : ''

@@ -486,51 +486,52 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
 
 // Generate CSV export
 async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
-  // Build CSV content
+  // Build CSV content with improved formatting
   let csvContent = ''
 
   // Add summary section if available
   if (grandTotal && ledgerTotals) {
-    csvContent += '=== EXPORT SUMMARY ===\n'
-    csvContent += `Export Date,${new Date().toISOString()}\n`
+    csvContent += '=== CHECKSPREE EXPORT SUMMARY ===\n'
+    csvContent += `Export Date,${new Date().toLocaleString()}\n`
     csvContent += `Total Checks,${grandTotal.totalChecks}\n`
-    csvContent += `Total Amount Spent,$${grandTotal.totalSpent.toFixed(2)}\n`
-    csvContent += `Combined Ledger Balance,$${grandTotal.totalBalance.toFixed(2)}\n`
+    csvContent += `Total Amount Spent,"$${grandTotal.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
+    csvContent += `Combined Ledger Balance,"$${grandTotal.totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
     csvContent += '\n'
 
     // Ledger breakdowns
     csvContent += '=== LEDGER BREAKDOWN ===\n'
     Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
       csvContent += `\nLedger: ${ledger.name}\n`
-      csvContent += `Current Balance,$${ledger.balance.toFixed(2)}\n`
-      csvContent += `Total Spent,$${ledger.totalSpent.toFixed(2)}\n`
+      csvContent += `Current Balance,"$${ledger.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
+      csvContent += `Total Spent,"$${ledger.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
       csvContent += `Check Count,${ledger.checkCount}\n`
 
       if (Object.keys(ledger.profileBreakdown).length > 0) {
         csvContent += '\nProfile Breakdown:\n'
         Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
-          csvContent += `  ${profile.name},Checks: ${profile.checkCount},Amount: $${profile.totalSpent.toFixed(2)}\n`
+          csvContent += `"  ${profile.name}",Checks: ${profile.checkCount},"Amount: $${profile.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
         })
       }
     })
     csvContent += '\n'
   }
 
-  // Add check details
+  // Add check details with improved headers
   csvContent += '=== CHECK DETAILS ===\n'
-  const headers = ['Date', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Address', 'Ledger', 'Profile', 'Recorded At', 'Balance After']
+  const headers = ['Check #', 'Date', 'Time Recorded', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Address', 'Ledger', 'Profile', 'Balance After']
   const rows = checks.map(entry => [
+    entry.checkNumber || '',
     entry.date || '',
+    entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '',
     `"${(entry.payee || '').replace(/"/g, '""')}"`,
-    entry.amount || 0,
+    `"$${(entry.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`,
     `"${(entry.memo || '').replace(/"/g, '""')}"`,
     entry.glCode || '',
     `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
-    `"${(entry.address || '').replace(/"/g, '""')}"`,
+    `"${(entry.address || '').replace(/\n/g, ', ').replace(/"/g, '""')}"`,
     entry.ledgerName || '',
     entry.profileName || '',
-    entry.timestamp ? new Date(entry.timestamp).toISOString() : '',
-    entry.balanceAfter ?? ''
+    entry.balanceAfter != null ? `"$${parseFloat(entry.balanceAfter).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"` : ''
   ])
 
   csvContent += [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
@@ -545,40 +546,189 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
 
 // Generate PDF export
 async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
-  // Create HTML content for PDF
+  // Create HTML content for PDF with professional styling
   let html = `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
       <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; border-bottom: 2px solid #4a5568; padding-bottom: 10px; }
-        h2 { color: #4a5568; margin-top: 20px; border-bottom: 1px solid #cbd5e0; padding-bottom: 5px; }
-        .summary { background: #f7fafc; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .summary-item { margin: 5px 0; }
-        .ledger-section { margin: 15px 0; padding: 10px; background: #edf2f7; border-radius: 5px; }
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        th { background: #4a5568; color: white; padding: 10px; text-align: left; font-size: 11px; }
-        td { padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
-        tr:hover { background: #f7fafc; }
-        .amount { text-align: right; font-weight: 600; }
-        .gl-code { color: #2b6cb0; font-weight: 500; }
+        * { box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', Arial, sans-serif;
+          margin: 0;
+          padding: 30px;
+          color: #1a202c;
+          line-height: 1.5;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 3px solid #3182ce;
+        }
+        .header h1 {
+          margin: 0;
+          color: #2d3748;
+          font-size: 28px;
+          font-weight: 700;
+        }
+        .header .date {
+          color: #718096;
+          font-size: 12px;
+          text-align: right;
+        }
+        h2 {
+          color: #2d3748;
+          margin-top: 25px;
+          margin-bottom: 15px;
+          font-size: 18px;
+          font-weight: 600;
+          border-left: 4px solid #3182ce;
+          padding-left: 12px;
+        }
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+        .summary-card {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          padding: 20px;
+          border-radius: 10px;
+          color: white;
+        }
+        .summary-card.green {
+          background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+        }
+        .summary-card.blue {
+          background: linear-gradient(135deg, #3182ce 0%, #2b6cb0 100%);
+        }
+        .summary-card.orange {
+          background: linear-gradient(135deg, #dd6b20 0%, #c05621 100%);
+        }
+        .summary-card .label {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          opacity: 0.9;
+          margin-bottom: 5px;
+        }
+        .summary-card .value {
+          font-size: 24px;
+          font-weight: 700;
+        }
+        .ledger-section {
+          margin: 15px 0;
+          padding: 15px 20px;
+          background: #f7fafc;
+          border-radius: 8px;
+          border-left: 4px solid #4299e1;
+        }
+        .ledger-section strong {
+          color: #2d3748;
+          font-size: 14px;
+        }
+        .ledger-section .stats {
+          display: flex;
+          gap: 20px;
+          margin-top: 8px;
+          color: #4a5568;
+          font-size: 12px;
+        }
+        .profile-breakdown {
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px dashed #cbd5e0;
+          font-size: 11px;
+          color: #718096;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+          font-size: 10px;
+        }
+        th {
+          background: #2d3748;
+          color: white;
+          padding: 12px 8px;
+          text-align: left;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          font-size: 9px;
+        }
+        td {
+          padding: 10px 8px;
+          border-bottom: 1px solid #e2e8f0;
+          vertical-align: top;
+        }
+        tr:nth-child(even) { background: #f7fafc; }
+        .amount {
+          text-align: right;
+          font-weight: 600;
+          font-family: 'Consolas', monospace;
+          white-space: nowrap;
+        }
+        .check-num {
+          font-family: 'Consolas', monospace;
+          color: #4a5568;
+        }
+        .gl-code {
+          color: #3182ce;
+          font-weight: 500;
+        }
+        .balance {
+          text-align: right;
+          color: #718096;
+          font-family: 'Consolas', monospace;
+        }
+        .timestamp {
+          font-size: 9px;
+          color: #a0aec0;
+        }
+        .footer {
+          margin-top: 30px;
+          padding-top: 15px;
+          border-top: 1px solid #e2e8f0;
+          text-align: center;
+          color: #a0aec0;
+          font-size: 10px;
+        }
       </style>
     </head>
     <body>
-      <h1>CheckSpree History Export</h1>
+      <div class="header">
+        <h1>CheckSpree History Export</h1>
+        <div class="date">Generated: ${new Date().toLocaleString()}</div>
+      </div>
   `
 
   // Add summary section if available
   if (grandTotal && ledgerTotals) {
     html += `
-      <div class="summary">
-        <h2>Export Summary</h2>
-        <div class="summary-item"><strong>Export Date:</strong> ${new Date().toLocaleString()}</div>
-        <div class="summary-item"><strong>Total Checks:</strong> ${grandTotal.totalChecks}</div>
-        <div class="summary-item"><strong>Total Amount Spent:</strong> $${grandTotal.totalSpent.toFixed(2)}</div>
-        <div class="summary-item"><strong>Combined Ledger Balance:</strong> $${grandTotal.totalBalance.toFixed(2)}</div>
+      <h2>Summary Overview</h2>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="label">Total Checks</div>
+          <div class="value">${grandTotal.totalChecks}</div>
+        </div>
+        <div class="summary-card green">
+          <div class="label">Total Amount Spent</div>
+          <div class="value">$${grandTotal.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        </div>
+        <div class="summary-card blue">
+          <div class="label">Combined Balance</div>
+          <div class="value">$${grandTotal.totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        </div>
+        <div class="summary-card orange">
+          <div class="label">Ledgers</div>
+          <div class="value">${Object.keys(ledgerTotals).length}</div>
+        </div>
       </div>
       <h2>Ledger Breakdown</h2>
     `
@@ -586,17 +736,22 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
     Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
       html += `
         <div class="ledger-section">
-          <strong>${ledger.name}</strong><br>
-          Current Balance: $${ledger.balance.toFixed(2)} | 
-          Total Spent: $${ledger.totalSpent.toFixed(2)} | 
-          Check Count: ${ledger.checkCount}
+          <strong>${ledger.name}</strong>
+          <div class="stats">
+            <span>Balance: $${ledger.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Spent: $${ledger.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Checks: ${ledger.checkCount}</span>
+          </div>
       `
 
       if (Object.keys(ledger.profileBreakdown).length > 0) {
-        html += '<br><br><em>Profile Breakdown:</em><br>'
-        Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
-          html += `&nbsp;&nbsp;${profile.name}: ${profile.checkCount} checks, $${profile.totalSpent.toFixed(2)}<br>`
+        html += '<div class="profile-breakdown"><em>Profile Breakdown:</em> '
+        const profileEntries = Object.entries(ledger.profileBreakdown)
+        profileEntries.forEach(([profileId, profile], idx) => {
+          html += `${profile.name} (${profile.checkCount} checks, $${profile.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+          if (idx < profileEntries.length - 1) html += ' • '
         })
+        html += '</div>'
       }
 
       html += '</div>'
@@ -605,34 +760,37 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
 
   // Add check details table
   html += `
-    <h2>Check Details</h2>
+    <h2>Check Details (${checks.length} records)</h2>
     <table>
       <thead>
         <tr>
+          <th>Check #</th>
           <th>Date</th>
           <th>Payee</th>
           <th>Amount</th>
-          <th>Memo</th>
           <th>GL Code</th>
-          <th>GL Desc</th>
-          <th>Address</th>
+          <th>Memo</th>
           <th>Ledger</th>
+          <th>Balance</th>
         </tr>
       </thead>
       <tbody>
   `
 
   checks.forEach(entry => {
+    const glDisplay = entry.glCode
+      ? (entry.glDescription ? `${entry.glCode} - ${entry.glDescription}` : entry.glCode)
+      : ''
     html += `
       <tr>
-        <td>${entry.date || ''}</td>
-        <td>${entry.payee || ''}</td>
-        <td class="amount">$${(entry.amount || 0).toFixed(2)}</td>
+        <td class="check-num">${entry.checkNumber || '-'}</td>
+        <td>${entry.date || ''}${entry.timestamp ? `<br><span class="timestamp">${new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}</td>
+        <td><strong>${entry.payee || ''}</strong>${entry.address ? `<br><span class="timestamp">${entry.address.replace(/\n/g, ', ')}</span>` : ''}</td>
+        <td class="amount">$${(entry.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td class="gl-code">${glDisplay}</td>
         <td>${entry.memo || ''}</td>
-        <td class="gl-code">${entry.glCode || ''}</td>
-        <td>${entry.glDescription || ''}</td>
-        <td>${entry.address || ''}</td>
         <td>${entry.ledgerName || ''}</td>
+        <td class="balance">${entry.balanceAfter != null ? '$' + parseFloat(entry.balanceAfter).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td>
       </tr>
     `
   })
@@ -640,6 +798,9 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
   html += `
       </tbody>
     </table>
+    <div class="footer">
+      Generated by CheckSpree • ${new Date().toLocaleDateString()}
+    </div>
     </body>
     </html>
   `
