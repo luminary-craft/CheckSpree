@@ -6,6 +6,24 @@ const { autoUpdater } = require('electron-updater')
 const log = require('electron-log')
 const crypto = require('crypto')
 
+// Helper function to get local date/time string in file-safe format (YYYY-MM-DD_HH-MM-SS)
+function getLocalTimestampString() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  const seconds = String(now.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
+}
+
+// Helper function to get local date/time for display
+function getLocalDateTimeDisplay() {
+  const now = new Date()
+  return now.toLocaleString()
+}
+
 /** @type {BrowserWindow | null} */
 let mainWindow = null
 
@@ -237,13 +255,8 @@ function triggerAutoBackup() {
       const settings = readSettings()
       const json = JSON.stringify(settings, null, 2)
 
-      // Generate filename with seconds precision
-      const now = new Date()
-      const timestamp = now.toISOString()
-        .replace(/:/g, '-')
-        .replace(/\..+/, '')
-        .replace('T', '_')
-      const filename = `backup_${timestamp}.json`
+      // Generate filename with seconds precision using LOCAL time
+      const filename = `backup_${getLocalTimestampString()}.json`
 
       const backupDir = getBackupDirectory()
       const backupPath = path.join(backupDir, filename)
@@ -459,7 +472,10 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
 
   // Determine file extension and filters based on format
   const fileExt = format === 'pdf' ? 'pdf' : 'csv'
-  const fileName = `checkspree-history-${new Date().toISOString().slice(0, 10)}.${fileExt}`
+  // Use local date for filename
+  const now = new Date()
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const fileName = `checkspree-history-${localDate}.${fileExt}`
   const filters = format === 'pdf'
     ? [{ name: 'PDF Files', extensions: ['pdf'] }, { name: 'All Files', extensions: ['*'] }]
     : [{ name: 'CSV Files', extensions: ['csv'] }, { name: 'All Files', extensions: ['*'] }]
@@ -955,11 +971,12 @@ ipcMain.handle('print:selectPdfFolder', async () => {
 ipcMain.handle('backup:save', async (_evt, password = null) => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5) // Format: 2026-01-12T14-30-45
+  // Use local date for filename
+  const now = new Date()
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
   const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: `CheckSpree_Backup_${today}${password ? '_Encrypted' : ''}.json`,
+    defaultPath: `CheckSpree_Backup_${localDate}${password ? '_Encrypted' : ''}.json`,
     filters: [
       { name: 'JSON Files', extensions: ['json'] },
       { name: 'All Files', extensions: ['*'] }

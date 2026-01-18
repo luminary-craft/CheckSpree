@@ -630,7 +630,7 @@ function convertExcelDate(value) {
   }
 
   // Fallback to current date if parsing fails
-  return new Date().toISOString().slice(0, 10)
+  return getLocalDateString()
 }
 
 // Parse Excel with custom column mapping
@@ -1402,6 +1402,7 @@ export default function App() {
   const [exportEndDate, setExportEndDate] = useState('')
   const [exportFormat, setExportFormat] = useState('csv') // 'csv' or 'pdf'
   const [exportGlCodeFilter, setExportGlCodeFilter] = useState('') // '' means all GL codes
+  const [exportSortOrder, setExportSortOrder] = useState('date-desc') // Sort order for export
   const [showHistory, setShowHistory] = useState(false)
   const [historyViewMode, setHistoryViewMode] = useState('all') // 'all' or 'current'
   const [historySearchTerm, setHistorySearchTerm] = useState('')
@@ -1617,7 +1618,8 @@ export default function App() {
   const [depositData, setDepositData] = useState({
     date: getLocalDateString(),
     description: '',
-    amount: ''
+    amount: '',
+    reason: '' // Reason/note for the adjustment
   })
 
   // Check Builder mode state
@@ -2133,7 +2135,7 @@ export default function App() {
         const slot = slots[i]
 
         // Normalize date to YYYY-MM-DD format
-        let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
+        let normalizedDate = item.date || getLocalDateString()
         if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
           // Date is not in YYYY-MM-DD format, convert it
           const parsedDate = new Date(item.date)
@@ -2432,7 +2434,7 @@ export default function App() {
   const fillFromHistoryEntry = (entry) => {
     if (!entry || entry.type === 'deposit') return // Don't fill from deposits
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = getLocalDateString()
 
     updateCurrentCheckData({
       date: today, // Use today's date, not historical
@@ -2531,6 +2533,7 @@ export default function App() {
       payee: depositInfo.description, // Using payee field for deposit description
       amount: amount,
       memo: depositInfo.description || '',
+      reason: depositInfo.reason || '', // Reason/note for the adjustment
       external_memo: '',
       internal_memo: '',
       line_items: [],
@@ -2770,8 +2773,8 @@ export default function App() {
   }
 
   const handleBackupData = async () => {
-    // Set default filename
-    const today = new Date().toISOString().slice(0, 10)
+    // Set default filename using local date
+    const today = getLocalDateString()
     setBackupFilename(`CheckSpree_Backup_${today}`)
     setShowManualBackupModal(true)
   }
@@ -3112,7 +3115,7 @@ export default function App() {
       const firstItem = enrichedQueue[0]
       const normalizedDate = firstItem.date && !/^\d{4}-\d{2}-\d{2}$/.test(firstItem.date)
         ? new Date(firstItem.date).toISOString().slice(0, 10)
-        : firstItem.date || new Date().toISOString().slice(0, 10)
+        : firstItem.date || getLocalDateString()
 
       setData({
         date: normalizedDate,
@@ -3177,6 +3180,36 @@ export default function App() {
     if (exportGlCodeFilter) {
       selectedChecks = selectedChecks.filter(check => check.glCode === exportGlCodeFilter)
     }
+
+    // Apply sort order
+    selectedChecks = selectedChecks.sort((a, b) => {
+      let result = 0
+      switch (exportSortOrder) {
+        case 'date-asc':
+          result = new Date(a.date) - new Date(b.date)
+          if (result === 0) result = (a.timestamp || 0) - (b.timestamp || 0)
+          break
+        case 'date-desc':
+          result = new Date(b.date) - new Date(a.date)
+          if (result === 0) result = (b.timestamp || 0) - (a.timestamp || 0)
+          break
+        case 'amount-asc':
+          result = parseFloat(a.amount) - parseFloat(b.amount)
+          break
+        case 'amount-desc':
+          result = parseFloat(b.amount) - parseFloat(a.amount)
+          break
+        case 'payee-asc':
+          result = (a.payee || '').localeCompare(b.payee || '')
+          break
+        case 'payee-desc':
+          result = (b.payee || '').localeCompare(a.payee || '')
+          break
+        default:
+          result = (b.timestamp || 0) - (a.timestamp || 0)
+      }
+      return result
+    })
 
     if (selectedChecks.length === 0) {
       alert('No checks found matching the selected filters')
@@ -3282,7 +3315,7 @@ export default function App() {
         if (isSelected) {
           // Unselect: clear the form and remove from selection
           setData({
-            date: new Date().toISOString().slice(0, 10),
+            date: getLocalDateString(),
             payee: '',
             address: '',
             amount: '',
@@ -3301,7 +3334,7 @@ export default function App() {
         } else {
           // Select: Load into single check form
           // Normalize date to YYYY-MM-DD format
-          let normalizedDate = queueItem.date || new Date().toISOString().slice(0, 10)
+          let normalizedDate = queueItem.date || getLocalDateString()
           if (queueItem.date && !/^\d{4}-\d{2}-\d{2}$/.test(queueItem.date)) {
             const parsedDate = new Date(queueItem.date)
             if (!isNaN(parsedDate.getTime())) {
@@ -3598,7 +3631,7 @@ export default function App() {
       }
 
       // Normalize the date to YYYY-MM-DD format
-      let normalizedDate = item.date || new Date().toISOString().slice(0, 10)
+      let normalizedDate = item.date || getLocalDateString()
       if (item.date && !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
         // Date is not in YYYY-MM-DD format, try to parse it
         normalizedDate = convertExcelDate(item.date)
@@ -5640,7 +5673,8 @@ export default function App() {
                             setDepositData({
                               date: getLocalDateString(),
                               description: '',
-                              amount: ''
+                              amount: '',
+                              reason: ''
                             })
                             setShowDepositModal(true)
                           }}
@@ -8559,12 +8593,27 @@ export default function App() {
                       setDepositData({ ...depositData, amount: val })
                     }}
                     placeholder="0.00"
+                  />
+                </div>
+                <div className="field">
+                  <label>Reason / Notes <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
+                  <textarea
+                    value={depositData.reason}
+                    onChange={(e) => setDepositData({ ...depositData, reason: e.target.value })}
+                    placeholder="Why was this adjustment made? e.g., Monthly deposit, correction, etc."
+                    rows={3}
+                    style={{
+                      width: '100%',
+                      resize: 'vertical',
+                      minHeight: '60px'
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && depositData.amount && depositData.description) {
+                      if (e.key === 'Enter' && !e.shiftKey && depositData.amount && depositData.description) {
+                        e.preventDefault()
                         const success = recordDeposit(depositData)
                         if (success) {
                           setShowDepositModal(false)
-                          setToast({ message: 'Deposit recorded successfully!', type: 'success' })
+                          setToast({ message: 'Adjustment recorded successfully!', type: 'success' })
                           setTimeout(() => setToast(null), 3000)
                         }
                       }
@@ -8580,7 +8629,7 @@ export default function App() {
                     const success = recordDeposit(depositData)
                     if (success) {
                       setShowDepositModal(false)
-                      setToast({ message: 'Deposit recorded successfully!', type: 'success' })
+                      setToast({ message: 'Adjustment recorded successfully!', type: 'success' })
                       setTimeout(() => setToast(null), 3000)
                     } else {
                       setToast({ message: 'Please enter a valid amount and description.', type: 'error' })
@@ -8589,7 +8638,7 @@ export default function App() {
                   }}
                   disabled={!depositData.amount || !depositData.description}
                 >
-                  Record Deposit
+                  Record Adjustment
                 </button>
               </div>
             </div>
@@ -9476,7 +9525,7 @@ export default function App() {
                       onChange={(e) => setExportGlCodeFilter(e.target.value)}
                       style={{
                         width: '100%',
-                        background: 'var(--surface)',
+                        background: '#1e293b',
                         color: 'var(--text)',
                         border: '1px solid var(--border)',
                         padding: '10px 12px',
@@ -9504,7 +9553,7 @@ export default function App() {
                       onChange={(e) => setExportDateRange(e.target.value)}
                       style={{
                         width: '100%',
-                        background: 'var(--surface)',
+                        background: '#1e293b',
                         color: 'var(--text)',
                         border: '1px solid var(--border)',
                         padding: '10px 12px',
@@ -9545,6 +9594,34 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Sort Order */}
+                <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text)' }}>Sort Order</h3>
+                  <div className="field">
+                    <select
+                      value={exportSortOrder}
+                      onChange={(e) => setExportSortOrder(e.target.value)}
+                      style={{
+                        width: '100%',
+                        background: '#1e293b',
+                        color: 'var(--text)',
+                        border: '1px solid var(--border)',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="date-desc">Date (Newest First)</option>
+                      <option value="date-asc">Date (Oldest First)</option>
+                      <option value="amount-desc">Amount (High to Low)</option>
+                      <option value="amount-asc">Amount (Low to High)</option>
+                      <option value="payee-asc">Payee (A-Z)</option>
+                      <option value="payee-desc">Payee (Z-A)</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Export Format */}
@@ -9625,7 +9702,7 @@ export default function App() {
                       onChange={(e) => setHistoryGlCodeFilter(e.target.value)}
                       style={{
                         width: '100%',
-                        background: 'var(--surface)',
+                        background: '#1e293b',
                         color: 'var(--text)',
                         border: '1px solid var(--border)',
                         borderRadius: '6px',
@@ -9650,7 +9727,7 @@ export default function App() {
                       onChange={(e) => setHistorySortOrder(e.target.value)}
                       style={{
                         width: '100%',
-                        background: 'var(--surface)',
+                        background: '#1e293b',
                         color: 'var(--text)',
                         border: '1px solid var(--border)',
                         borderRadius: '6px',
@@ -9753,6 +9830,7 @@ export default function App() {
                                 return match && match.description ? ` - ${match.description}` : ''
                               })()}</span>}
                               {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
+                              {entry.reason && <span className="history-card-memo" style={{ color: '#a78bfa' }}>• {entry.reason}</span>}
                             </div>
                             <div className="history-card-tags">
                               <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>
@@ -9812,6 +9890,13 @@ export default function App() {
                           <div className="detail-card full-width">
                             <label>Memo</label>
                             <div className="detail-value">{selectedHistoryItem.memo}</div>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.reason && (
+                          <div className="detail-card full-width">
+                            <label>Reason / Notes</label>
+                            <div className="detail-value" style={{ whiteSpace: 'pre-wrap' }}>{selectedHistoryItem.reason}</div>
                           </div>
                         )}
 
