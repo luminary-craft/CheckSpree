@@ -5070,6 +5070,14 @@ export default function App() {
             : p
         ))
 
+        // Remove recorded items from import queue
+        if (selectedQueueItems.length > 0) {
+          setImportQueue(prev => prev.filter(item =>
+            !selectedQueueItems.some(selected => selected.id === item.id)
+          ))
+          setSelectedQueueItems([])
+        }
+
         // Clear all slots
         setSheetData({
           top: getEmptySlotData(),
@@ -5101,6 +5109,12 @@ export default function App() {
             ? { ...p, nextCheckNumber: (p.nextCheckNumber || 1001) + 1 }
             : p
         ))
+
+        // Remove recorded item from import queue (standard mode uses first selected item)
+        if (selectedQueueItems.length > 0) {
+          setImportQueue(prev => prev.filter(item => item.id !== selectedQueueItems[0].id))
+          setSelectedQueueItems([])
+        }
 
         // Clear the form
         setData(getEmptySlotData())
@@ -5289,10 +5303,10 @@ export default function App() {
                   top: '100%',
                   right: 0,
                   marginTop: '4px',
-                  background: 'var(--surface)',
+                  background: '#1e293b',
                   border: '1px solid var(--border)',
                   borderRadius: '6px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
                   zIndex: 1000,
                   minWidth: '160px',
                   overflow: 'hidden'
@@ -5305,12 +5319,15 @@ export default function App() {
                     e.currentTarget.parentElement.style.display = 'none'
                     handleRecordOnly()
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#1e293b'}
                   style={{
                     width: '100%',
                     justifyContent: 'flex-start',
                     borderRadius: 0,
                     border: 'none',
-                    background: 'transparent',
+                    background: '#1e293b',
+                    color: 'var(--text)',
                     padding: '10px 14px'
                   }}
                 >
@@ -9452,18 +9469,20 @@ export default function App() {
 
                 {/* GL Code Filter */}
                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>GL Code</h3>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text)' }}>GL Code</h3>
                   <div className="field">
                     <select
                       value={exportGlCodeFilter}
                       onChange={(e) => setExportGlCodeFilter(e.target.value)}
                       style={{
                         width: '100%',
-                        backgroundColor: '#1e293b',
-                        color: '#f1f5f9',
-                        border: '1px solid #475569',
-                        padding: '8px',
-                        borderRadius: '6px'
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        border: '1px solid var(--border)',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        cursor: 'pointer'
                       }}
                     >
                       <option value="">All GL Codes</option>
@@ -9478,18 +9497,20 @@ export default function App() {
 
                 {/* Date Range Filter */}
                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Date Range</h3>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text)' }}>Date Range</h3>
                   <div className="field">
                     <select
                       value={exportDateRange}
                       onChange={(e) => setExportDateRange(e.target.value)}
                       style={{
                         width: '100%',
-                        backgroundColor: '#1e293b',
-                        color: '#f1f5f9',
-                        border: '1px solid #475569',
-                        padding: '8px',
-                        borderRadius: '6px'
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        border: '1px solid var(--border)',
+                        padding: '10px 12px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        cursor: 'pointer'
                       }}
                     >
                       <option value="all">All Time</option>
@@ -9602,7 +9623,16 @@ export default function App() {
                     <select
                       value={historyGlCodeFilter}
                       onChange={(e) => setHistoryGlCodeFilter(e.target.value)}
-                      style={{ width: '100%' }}
+                      style={{
+                        width: '100%',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
                       title="Filter by GL Code"
                     >
                       <option value="all">All GL Codes</option>
@@ -9618,7 +9648,16 @@ export default function App() {
                     <select
                       value={historySortOrder}
                       onChange={(e) => setHistorySortOrder(e.target.value)}
-                      style={{ width: '100%' }}
+                      style={{
+                        width: '100%',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
                     >
                       <option value="date-desc">Date (Newest First)</option>
                       <option value="date-asc">Date (Oldest First)</option>
