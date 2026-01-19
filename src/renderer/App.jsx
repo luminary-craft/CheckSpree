@@ -9976,11 +9976,38 @@ export default function App() {
                       }}
                     >
                       <option value="">All GL Codes</option>
-                      {[...new Set(checkHistory.filter(c => c.glCode).map(c => c.glCode))].sort().map(code => (
-                        <option key={code} value={code}>
-                          {code} {glCodes.find(g => g.code === code)?.description ? `- ${glCodes.find(g => g.code === code).description}` : ''}
-                        </option>
-                      ))}
+                      {(() => {
+                        // Filter history by selected ledgers first, exclude notes
+                        const filteredHistory = checkHistory.filter(c =>
+                          c.glCode &&
+                          c.type !== 'note' &&
+                          selectedLedgersForExport.includes(c.ledgerId)
+                        )
+                        // Group by GL code, count, and capture description from entries
+                        const glCodeData = {}
+                        filteredHistory.forEach(c => {
+                          if (!glCodeData[c.glCode]) {
+                            glCodeData[c.glCode] = { count: 0, description: '' }
+                          }
+                          glCodeData[c.glCode].count++
+                          // Capture description from entry if not already set
+                          if (!glCodeData[c.glCode].description && c.glDescription) {
+                            glCodeData[c.glCode].description = c.glDescription
+                          }
+                        })
+                        // Sort by code and render
+                        return Object.keys(glCodeData).sort().map(code => {
+                          // Try to get description from: 1) glCodes state, 2) history entry's glDescription
+                          const glEntry = glCodes.find(g => g.code === code)
+                          const description = glEntry?.description || glCodeData[code].description || ''
+                          const count = glCodeData[code].count
+                          return (
+                            <option key={code} value={code}>
+                              {code}{description ? ` - ${description}` : ''} ({count} {count === 1 ? 'entry' : 'entries'})
+                            </option>
+                          )
+                        })
+                      })()}
                     </select>
                   </div>
                 </div>
