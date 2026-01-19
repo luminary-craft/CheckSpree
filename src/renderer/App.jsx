@@ -1393,6 +1393,8 @@ export default function App() {
   const [showLedger, setShowLedger] = useState(false)
   const [editingBalance, setEditingBalance] = useState(false)
   const [tempBalance, setTempBalance] = useState('')
+  const [showBalanceAdjustmentModal, setShowBalanceAdjustmentModal] = useState(false)
+  const [balanceAdjustmentReason, setBalanceAdjustmentReason] = useState('')
   const [showLedgerManager, setShowLedgerManager] = useState(false)
   const [editingLedgerName, setEditingLedgerName] = useState(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
@@ -2704,12 +2706,68 @@ export default function App() {
     }
 
     const newBal = parseFloat(tempBalance) || 0
-    // Update startingBalance instead of balance for hybrid ledger
-    setLedgers(ledgers.map(l =>
-      l.id === activeLedgerId ? { ...l, startingBalance: newBal } : l
-    ))
+    const currentBalance = hybridBalance
+    const adjustmentAmount = newBal - currentBalance
+
+    // If there's no change, just close the editor
+    if (adjustmentAmount === 0) {
+      setEditingBalance(false)
+      setTempBalance('')
+      return
+    }
+
+    // Show the reason modal
+    setBalanceAdjustmentReason('')
+    setShowBalanceAdjustmentModal(true)
+  }
+
+  const confirmBalanceAdjustment = () => {
+    const newBalance = parseFloat(tempBalance) || 0
+    const adjustmentAmount = newBalance - hybridBalance
+
+    // Record the adjustment as a history entry
+    const adjustmentEntry = {
+      id: generateId(),
+      type: adjustmentAmount >= 0 ? 'deposit' : 'check', // deposit for increase, check for decrease
+      date: getLocalDateString(),
+      payee: adjustmentAmount >= 0 ? 'Balance Adjustment (Increase)' : 'Balance Adjustment (Decrease)',
+      amount: Math.abs(adjustmentAmount),
+      memo: 'Manual ledger balance adjustment',
+      reason: balanceAdjustmentReason || 'No reason provided',
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledgerId: activeLedgerId,
+      profileId: activeProfileId,
+      ledger_snapshot: {
+        previous_balance: hybridBalance,
+        transaction_amount: adjustmentAmount,
+        new_balance: newBalance
+      },
+      timestamp: Date.now(),
+      balanceAfter: newBalance,
+      isManualAdjustment: true
+    }
+
+    setCheckHistory(prev => [adjustmentEntry, ...prev])
+
+    // The balance will be updated automatically through the history entry
+    // No need to modify startingBalance since the adjustment is recorded as a deposit/check
+
+    // Trigger auto-backup
+    window.cs2.backupTriggerAuto().catch(err => {
+      console.error('Auto-backup trigger failed:', err)
+    })
+
+    // Close modals and reset
+    setShowBalanceAdjustmentModal(false)
     setEditingBalance(false)
     setTempBalance('')
+    setBalanceAdjustmentReason('')
+
+    setToast({ message: 'Balance adjustment recorded', type: 'success' })
+    setTimeout(() => setToast(null), 3000)
   }
 
   // Admin PIN authentication
@@ -3311,9 +3369,11 @@ export default function App() {
 
     selectedLedgersForExport.forEach(ledgerId => {
       const ledger = ledgers.find(l => l.id === ledgerId)
+      // Use hybrid balance calculation (startingBalance + deposits - checks)
+      const ledgerBalance = calculateHybridBalance(ledgerId)
       ledgerTotals[ledgerId] = {
         name: ledger?.name || 'Unknown',
-        balance: ledger?.balance || 0,
+        balance: ledgerBalance,
         totalSpent: 0,
         checkCount: 0,
         profileBreakdown: {}
@@ -3324,8 +3384,11 @@ export default function App() {
       const ledgerId = check.ledgerId || 'default'
       const profileId = check.profileId || 'default'
 
+      // Skip 'note' type entries for totals calculation (they have amount 0 anyway)
+      if (check.type === 'note') return
+
       if (ledgerTotals[ledgerId]) {
-        ledgerTotals[ledgerId].totalSpent += check.amount
+        ledgerTotals[ledgerId].totalSpent += parseFloat(check.amount) || 0
         ledgerTotals[ledgerId].checkCount++
 
         if (!ledgerTotals[ledgerId].profileBreakdown[profileId]) {
@@ -3336,7 +3399,7 @@ export default function App() {
             checkCount: 0
           }
         }
-        ledgerTotals[ledgerId].profileBreakdown[profileId].totalSpent += check.amount
+        ledgerTotals[ledgerId].profileBreakdown[profileId].totalSpent += parseFloat(check.amount) || 0
         ledgerTotals[ledgerId].profileBreakdown[profileId].checkCount++
       }
     })
@@ -3344,26 +3407,27 @@ export default function App() {
     // Calculate grand total
     const grandTotal = {
       totalBalance: selectedLedgersForExport.reduce((sum, id) => {
-        const ledger = ledgers.find(l => l.id === id)
-        return sum + (ledger?.balance || 0)
+        return sum + calculateHybridBalance(id)
       }, 0),
       totalSpent: Object.values(ledgerTotals).reduce((sum, l) => sum + l.totalSpent, 0),
-      totalChecks: selectedChecks.length
+      totalChecks: selectedChecks.filter(c => c.type !== 'note').length // Don't count notes as transactions
     }
 
-    // Enrich checks with ledger and profile names
-    const enrichedChecks = selectedChecks.map(check => {
-      const ledger = ledgers.find(l => l.id === check.ledgerId)
-      const profile = profiles.find(p => p.id === check.profileId)
-      // Fallback description lookup if not stored in entry
-      const glDescription = check.glDescription || (check.glCode ? (glCodes.find(g => g.code === check.glCode)?.description || '') : '')
-      return {
-        ...check,
-        ledgerName: ledger?.name || 'Unknown',
-        profileName: profile?.name || 'Unknown',
-        glDescription: glDescription
-      }
-    })
+    // Enrich checks with ledger and profile names (exclude note entries from export)
+    const enrichedChecks = selectedChecks
+      .filter(check => check.type !== 'note') // Exclude informational notes from export
+      .map(check => {
+        const ledger = ledgers.find(l => l.id === check.ledgerId)
+        const profile = profiles.find(p => p.id === check.profileId)
+        // Fallback description lookup if not stored in entry
+        const glDescription = check.glDescription || (check.glCode ? (glCodes.find(g => g.code === check.glCode)?.description || '') : '')
+        return {
+          ...check,
+          ledgerName: ledger?.name || 'Unknown',
+          profileName: profile?.name || 'Unknown',
+          glDescription: glDescription
+        }
+      })
 
     const res = await window.cs2.exportHistory({
       checks: enrichedChecks,
@@ -5590,7 +5654,7 @@ export default function App() {
                                   />
                                 </div>
 
-                                {/* Initial Balance - ATM-style input */}
+                                {/* Initial Balance - ATM-style input (direct update, no history entry) */}
                                 <div style={{ marginBottom: '12px' }} onClick={(e) => e.stopPropagation()}>
                                   <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Initial Balance</label>
                                   <div className="input-prefix">
@@ -5601,7 +5665,12 @@ export default function App() {
                                       inputMode="numeric"
                                       defaultValue={l.startingBalance ? (l.startingBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                                       placeholder="0.00"
-                                      onFocus={(e) => e.target.select()}
+                                      data-original-balance={l.startingBalance || 0}
+                                      onFocus={(e) => {
+                                        // Store original value when focus begins
+                                        e.target.dataset.originalBalance = l.startingBalance || 0
+                                        e.target.select()
+                                      }}
                                       onKeyDown={(e) => {
                                         // Check if entire text is selected
                                         const isAllSelected = e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length
@@ -5641,17 +5710,56 @@ export default function App() {
                                           return // Let navigation keys through
                                         }
 
-                                        // Update display and state
+                                        // Update display only (state updated on blur)
                                         const newVal = cents / 100
                                         e.target.value = newVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                        setLedgers(ledgers.map(ledger =>
-                                          ledger.id === l.id ? { ...ledger, startingBalance: newVal } : ledger
-                                        ))
                                       }}
                                       onBlur={(e) => {
-                                        // Ensure properly formatted on blur
-                                        const val = parseFloat(e.target.value.replace(/,/g, '')) || 0
-                                        e.target.value = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                        // Get the new value and original value
+                                        const newVal = parseFloat(e.target.value.replace(/,/g, '')) || 0
+                                        const originalVal = parseFloat(e.target.dataset.originalBalance) || 0
+                                        const ledgerId = l.id // Capture ledger ID
+
+                                        // Format display
+                                        e.target.value = newVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+                                        // If value changed, update state and add history note
+                                        if (Math.abs(newVal - originalVal) > 0.001) {
+                                          // Update ledger using functional update to avoid stale closure
+                                          setLedgers(prev => prev.map(ledger =>
+                                            ledger.id === ledgerId ? { ...ledger, startingBalance: newVal } : ledger
+                                          ))
+
+                                          // Add a note to history about the initial balance change
+                                          const noteEntry = {
+                                            id: generateId(),
+                                            type: 'note',
+                                            date: getLocalDateString(),
+                                            payee: 'Initial Balance Changed',
+                                            amount: 0,
+                                            memo: `Initial balance changed from ${formatCurrency(originalVal)} to ${formatCurrency(newVal)}`,
+                                            reason: '',
+                                            external_memo: '',
+                                            internal_memo: '',
+                                            line_items: [],
+                                            line_items_text: '',
+                                            ledgerId: ledgerId,
+                                            profileId: activeProfileId,
+                                            ledger_snapshot: {
+                                              previous_balance: originalVal,
+                                              transaction_amount: newVal - originalVal,
+                                              new_balance: newVal
+                                            },
+                                            timestamp: Date.now(),
+                                            isInitialBalanceChange: true
+                                          }
+                                          setCheckHistory(prev => [noteEntry, ...prev])
+
+                                          // Trigger auto-backup
+                                          window.cs2.backupTriggerAuto().catch(err => {
+                                            console.error('Auto-backup trigger failed:', err)
+                                          })
+                                        }
                                       }}
                                       style={{
                                         width: '100%',
@@ -5863,9 +5971,15 @@ export default function App() {
                               {formatDate(entry.date)}
                             </div>
                           </div>
-                          <div style={{ fontWeight: '600', color: entry.type === 'deposit' ? '#10b981' : '#f87171', whiteSpace: 'nowrap' }}>
-                            {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(entry.amount)}
-                          </div>
+                          {entry.type === 'note' ? (
+                            <div style={{ fontWeight: '500', color: '#60a5fa', whiteSpace: 'nowrap', fontSize: '11px' }}>
+                              Note
+                            </div>
+                          ) : (
+                            <div style={{ fontWeight: '600', color: entry.type === 'deposit' ? '#10b981' : '#f87171', whiteSpace: 'nowrap' }}>
+                              {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(entry.amount)}
+                            </div>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteHistoryEntry(entry.id) }}
                             title="Delete and restore amount"
@@ -6318,6 +6432,25 @@ export default function App() {
                     title="Clear all three slots"
                   >
                     Clear All
+                  </button>
+                </div>
+              )}
+
+              {/* Clear Check Fields Button (standard mode only) */}
+              {activeProfile?.layoutMode !== 'three_up' && (
+                <div style={{ marginBottom: '16px' }}>
+                  <button
+                    className="btn btn-sm"
+                    onClick={clearCurrentSlot}
+                    style={{
+                      width: '100%',
+                      background: 'var(--surface-hover)',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)'
+                    }}
+                    title="Clear all check fields"
+                  >
+                    Clear Check Fields
                   </button>
                 </div>
               )}
@@ -8216,8 +8349,10 @@ export default function App() {
                           }
 
                           const isSelected = editMode && selected.includes(key)
-                          // Use stub font size for stub fields, check font size for others
-                          const fontSizePt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
+                          // Use field's customFontIn if explicitly set by user, otherwise use global preference
+                          // customFontIn is in inches, convert to points (1 inch = 72 points)
+                          const globalFontPt = (isStub1Field || isStub2Field) ? preferences.stubFontSizePt : preferences.checkFontSizePt
+                          const fontSizePt = f.customFontIn ? (f.customFontIn * 72) : globalFontPt
 
                           // Don't show labels for stub2 approved/glcode fields since they already have labels in the value
                           const showFriendlyLabel = !editMode && (
@@ -8314,17 +8449,20 @@ export default function App() {
                                 />
                               )}
                               {/* Floating Formatting Toolbar */}
-                              {editMode && selected.includes(key) && selected.length === 1 && (
+                              {/* Formatting toolbar - show for selected field (works with single or multi-select, shows on first selected) */}
+                              {/* Position using field's defined width (f.w), not rendered width, so it stays stable */}
+                              {editMode && selected.length > 0 && selected[0] === key && (
                                 <div
-                                  className="formatting-toolbar"
+                                  className="formatting-toolbar no-print"
                                   onPointerDown={(e) => e.stopPropagation()}
                                   style={{
                                     position: 'absolute',
-                                    bottom: '-40px',
-                                    left: '50%',
+                                    top: `${f.h}in`,
+                                    left: `${f.w / 2}in`,
                                     transform: 'translateX(-50%)',
+                                    marginTop: '8px',
                                     display: 'flex',
-                                    gap: '8px',
+                                    gap: '4px',
                                     backgroundColor: '#1e293b',
                                     padding: '4px 8px',
                                     borderRadius: '6px',
@@ -8333,10 +8471,19 @@ export default function App() {
                                     zIndex: 1000
                                   }}
                                 >
+                                  {/* Bold button */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      setField(key, { bold: !f.bold })
+                                      // Check if ALL selected fields are bold (for toggle logic)
+                                      const allBold = selected.every(k => {
+                                        const field = activeProfile?.layoutMode === 'three_up'
+                                          ? model.slotFields?.[activeSlot]?.[k]
+                                          : model.fields[k]
+                                        return field?.bold
+                                      })
+                                      // Apply to all selected fields
+                                      selected.forEach(k => setField(k, { bold: !allBold }))
                                     }}
                                     style={{
                                       background: f.bold ? '#3b82f6' : 'transparent',
@@ -8353,14 +8500,23 @@ export default function App() {
                                       fontWeight: 'bold',
                                       fontSize: '14px'
                                     }}
-                                    title="Bold"
+                                    title={selected.length > 1 ? `Bold (${selected.length} fields)` : 'Bold'}
                                   >
                                     B
                                   </button>
+                                  {/* Italic button */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      setField(key, { italic: !f.italic })
+                                      // Check if ALL selected fields are italic
+                                      const allItalic = selected.every(k => {
+                                        const field = activeProfile?.layoutMode === 'three_up'
+                                          ? model.slotFields?.[activeSlot]?.[k]
+                                          : model.fields[k]
+                                        return field?.italic
+                                      })
+                                      // Apply to all selected fields
+                                      selected.forEach(k => setField(k, { italic: !allItalic }))
                                     }}
                                     style={{
                                       background: f.italic ? '#3b82f6' : 'transparent',
@@ -8378,10 +8534,118 @@ export default function App() {
                                       fontFamily: 'serif',
                                       fontSize: '14px'
                                     }}
-                                    title="Italic"
+                                    title={selected.length > 1 ? `Italic (${selected.length} fields)` : 'Italic'}
                                   >
                                     I
                                   </button>
+                                  {/* Separator */}
+                                  <div style={{ width: '1px', background: '#475569', margin: '2px 2px' }} />
+                                  {/* Decrease font size button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const isStub = key.startsWith('stub1_') || key.startsWith('stub2_')
+                                      const globalPt = isStub ? preferences.stubFontSizePt : preferences.checkFontSizePt
+                                      selected.forEach(k => {
+                                        const field = activeProfile?.layoutMode === 'three_up'
+                                          ? model.slotFields?.[activeSlot]?.[k]
+                                          : model.fields[k]
+                                        // Use customFontIn if set, otherwise convert global pt to inches
+                                        const currentSize = field?.customFontIn || (globalPt / 72)
+                                        const newSize = Math.max(0.08, currentSize - 0.02) // Min 0.08in
+                                        setField(k, { customFontIn: newSize })
+                                      })
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      color: '#94a3b8',
+                                      border: '1px solid #475569',
+                                      borderRadius: '4px',
+                                      width: '24px',
+                                      height: '24px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      fontSize: '16px',
+                                      fontWeight: 'bold'
+                                    }}
+                                    title={selected.length > 1 ? `Decrease font size (${selected.length} fields)` : 'Decrease font size'}
+                                  >
+                                    −
+                                  </button>
+                                  {/* Font size indicator - show current effective size */}
+                                  <div
+                                    title={f.customFontIn ? 'Custom font size (click to reset)' : 'Using global font size'}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      // Reset to global by removing customFontIn
+                                      if (f.customFontIn) {
+                                        selected.forEach(k => setField(k, { customFontIn: undefined }))
+                                      }
+                                    }}
+                                    style={{
+                                      color: f.customFontIn ? '#60a5fa' : '#94a3b8',
+                                      fontSize: '11px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      padding: '0 2px',
+                                      minWidth: '28px',
+                                      justifyContent: 'center',
+                                      cursor: f.customFontIn ? 'pointer' : 'default'
+                                    }}
+                                  >
+                                    {fontSizePt.toFixed(0)}pt{f.customFontIn ? '*' : ''}
+                                  </div>
+                                  {/* Increase font size button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const isStub = key.startsWith('stub1_') || key.startsWith('stub2_')
+                                      const globalPt = isStub ? preferences.stubFontSizePt : preferences.checkFontSizePt
+                                      selected.forEach(k => {
+                                        const field = activeProfile?.layoutMode === 'three_up'
+                                          ? model.slotFields?.[activeSlot]?.[k]
+                                          : model.fields[k]
+                                        // Use customFontIn if set, otherwise convert global pt to inches
+                                        const currentSize = field?.customFontIn || (globalPt / 72)
+                                        const newSize = Math.min(0.5, currentSize + 0.02) // Max 0.5in
+                                        setField(k, { customFontIn: newSize })
+                                      })
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      color: '#94a3b8',
+                                      border: '1px solid #475569',
+                                      borderRadius: '4px',
+                                      width: '24px',
+                                      height: '24px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      fontSize: '16px',
+                                      fontWeight: 'bold'
+                                    }}
+                                    title={selected.length > 1 ? `Increase font size (${selected.length} fields)` : 'Increase font size'}
+                                  >
+                                    +
+                                  </button>
+                                  {/* Show selection count if multiple */}
+                                  {selected.length > 1 && (
+                                    <div
+                                      style={{
+                                        color: '#60a5fa',
+                                        fontSize: '10px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '0 4px',
+                                        marginLeft: '2px'
+                                      }}
+                                    >
+                                      ×{selected.length}
+                                    </div>
+                                  )}
                                 </div>
                               )}
 
@@ -8688,16 +8952,22 @@ export default function App() {
                   />
                 </div>
                 <div className="field">
-                  <label>Reason / Notes <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
+                  <label>Additional Details <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
                   <textarea
                     value={depositData.reason}
                     onChange={(e) => setDepositData({ ...depositData, reason: e.target.value })}
-                    placeholder="Why was this adjustment made? e.g., Monthly deposit, correction, etc."
+                    placeholder="Add any extra details about this transaction, e.g., reference number, source, etc."
                     rows={3}
                     style={{
                       width: '100%',
                       resize: 'vertical',
-                      minHeight: '60px'
+                      minHeight: '60px',
+                      background: '#1e293b',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      padding: '10px 12px',
+                      fontSize: '14px'
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey && depositData.amount && depositData.description) {
@@ -8705,7 +8975,7 @@ export default function App() {
                         const success = recordDeposit(depositData)
                         if (success) {
                           setShowDepositModal(false)
-                          setToast({ message: 'Adjustment recorded successfully!', type: 'success' })
+                          setToast({ message: 'Funds added successfully!', type: 'success' })
                           setTimeout(() => setToast(null), 3000)
                         }
                       }
@@ -8721,7 +8991,7 @@ export default function App() {
                     const success = recordDeposit(depositData)
                     if (success) {
                       setShowDepositModal(false)
-                      setToast({ message: 'Adjustment recorded successfully!', type: 'success' })
+                      setToast({ message: 'Funds added successfully!', type: 'success' })
                       setTimeout(() => setToast(null), 3000)
                     } else {
                       setToast({ message: 'Please enter a valid amount and description.', type: 'error' })
@@ -8730,7 +9000,86 @@ export default function App() {
                   }}
                   disabled={!depositData.amount || !depositData.description}
                 >
-                  Record Adjustment
+                  Add Funds
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Balance Adjustment Reason Modal */}
+      {
+        showBalanceAdjustmentModal && (
+          <div className="modal-overlay no-print" onClick={() => setShowBalanceAdjustmentModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <h2>Balance Adjustment</h2>
+                <button className="btn-icon" onClick={() => setShowBalanceAdjustmentModal(false)}>×</button>
+              </div>
+              <div className="modal-body">
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#1e293b',
+                  borderRadius: '8px',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#9ca3af' }}>Current Balance:</span>
+                    <span style={{ fontWeight: 600 }}>{formatCurrency(hybridBalance)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#9ca3af' }}>New Balance:</span>
+                    <span style={{ fontWeight: 600 }}>{formatCurrency(parseFloat(tempBalance) || 0)}</span>
+                  </div>
+                  <div style={{ borderTop: '1px solid #334155', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#9ca3af' }}>Adjustment:</span>
+                    <span style={{
+                      fontWeight: 600,
+                      color: (parseFloat(tempBalance) || 0) - hybridBalance >= 0 ? '#10b981' : '#ef4444'
+                    }}>
+                      {(parseFloat(tempBalance) || 0) - hybridBalance >= 0 ? '+' : ''}
+                      {formatCurrency((parseFloat(tempBalance) || 0) - hybridBalance)}
+                    </span>
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Reason for Adjustment <span style={{ color: '#ef4444' }}>*</span></label>
+                  <textarea
+                    value={balanceAdjustmentReason}
+                    onChange={(e) => setBalanceAdjustmentReason(e.target.value)}
+                    placeholder="Please explain why you are adjusting the ledger balance..."
+                    rows={3}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      resize: 'vertical',
+                      minHeight: '80px',
+                      background: '#1e293b',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      padding: '10px 12px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+                  This adjustment will be recorded in the transaction history for audit purposes.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn ghost" onClick={() => {
+                  setShowBalanceAdjustmentModal(false)
+                  setEditingBalance(false)
+                  setTempBalance('')
+                }}>Cancel</button>
+                <button
+                  className="btn primary"
+                  onClick={confirmBalanceAdjustment}
+                  disabled={!balanceAdjustmentReason.trim()}
+                >
+                  Confirm Adjustment
                 </button>
               </div>
             </div>
@@ -9906,9 +10255,15 @@ export default function App() {
                           >
                             <div className="history-card-main">
                               <div className="history-card-payee">{entry.payee}</div>
-                              <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
-                                {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
-                              </div>
+                              {entry.type === 'note' ? (
+                                <div className="history-card-amount" style={{ color: '#60a5fa', fontSize: '12px' }}>
+                                  Note
+                                </div>
+                              ) : (
+                                <div className={`history-card-amount ${entry.type === 'deposit' ? 'income' : ''}`}>
+                                  {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(entry.amount)))}
+                                </div>
+                              )}
                             </div>
                             <div className="history-card-meta">
                               <span>{formatDate(entry.date)}</span>
@@ -10044,9 +10399,16 @@ export default function App() {
                                 </span>
                               </div>
                               <div className="snapshot-item">
-                                <span className="snapshot-label">Transaction</span>
-                                <span className={`snapshot-value ${selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative'}`}>
-                                  {selectedHistoryItem.type === 'deposit' ? '+' : '-'}{formatCurrency(Math.abs(parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount)))}
+                                <span className="snapshot-label">{selectedHistoryItem.type === 'note' ? 'Change' : 'Transaction'}</span>
+                                <span className={`snapshot-value ${
+                                  selectedHistoryItem.type === 'note'
+                                    ? (parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount) >= 0 ? 'positive' : 'negative')
+                                    : (selectedHistoryItem.type === 'deposit' ? 'positive' : 'negative')
+                                }`}>
+                                  {selectedHistoryItem.type === 'note'
+                                    ? (parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount) >= 0 ? '+' : '') + formatCurrency(selectedHistoryItem.ledger_snapshot.transaction_amount)
+                                    : (selectedHistoryItem.type === 'deposit' ? '+' : '-') + formatCurrency(Math.abs(parseFloat(selectedHistoryItem.ledger_snapshot.transaction_amount)))
+                                  }
                                 </span>
                               </div>
                               <div className="snapshot-item balance-row">

@@ -534,21 +534,30 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
 
   // Add check details with improved headers
   csvContent += '=== CHECK DETAILS ===\n'
-  const headers = ['Check #', 'Date', 'Time Recorded', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Address', 'Ledger', 'Profile', 'Balance After']
-  const rows = checks.map(entry => [
-    entry.checkNumber || '',
-    entry.date || '',
-    entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '',
-    `"${(entry.payee || '').replace(/"/g, '""')}"`,
-    `"$${(entry.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`,
-    `"${(entry.memo || '').replace(/"/g, '""')}"`,
-    entry.glCode || '',
-    `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
-    `"${(entry.address || '').replace(/\n/g, ', ').replace(/"/g, '""')}"`,
-    entry.ledgerName || '',
-    entry.profileName || '',
-    entry.balanceAfter != null ? `"$${parseFloat(entry.balanceAfter).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"` : ''
-  ])
+  const headers = ['Type', 'Check #', 'Date', 'Time Recorded', 'Payee', 'Amount', 'Memo', 'GL Code', 'GL Description', 'Address', 'Ledger', 'Profile', 'Balance After']
+  const rows = checks.map(entry => {
+    const amount = parseFloat(entry.amount) || 0
+    const entryType = entry.type === 'note' ? 'Note' : (entry.type === 'deposit' ? 'Deposit' : 'Check')
+    const amountDisplay = entry.type === 'note'
+      ? '"N/A"'
+      : `"${entry.type === 'deposit' ? '+' : '-'}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`
+
+    return [
+      entryType,
+      entry.checkNumber || '',
+      entry.date || '',
+      entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '',
+      `"${(entry.payee || '').replace(/"/g, '""')}"`,
+      amountDisplay,
+      `"${(entry.memo || '').replace(/"/g, '""')}"`,
+      entry.glCode || '',
+      `"${(entry.glDescription || '').replace(/"/g, '""')}"`,
+      `"${(entry.address || '').replace(/\n/g, ', ').replace(/"/g, '""')}"`,
+      entry.ledgerName || '',
+      entry.profileName || '',
+      entry.balanceAfter != null ? `"$${parseFloat(entry.balanceAfter).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"` : ''
+    ]
+  })
 
   csvContent += [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
 
@@ -776,13 +785,14 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
 
   // Add check details table
   html += `
-    <h2>Check Details (${checks.length} records)</h2>
+    <h2>Transaction Details (${checks.length} records)</h2>
     <table>
       <thead>
         <tr>
+          <th>Type</th>
           <th>Check #</th>
           <th>Date</th>
-          <th>Payee</th>
+          <th>Payee/Description</th>
           <th>Amount</th>
           <th>GL Code</th>
           <th>Memo</th>
@@ -797,12 +807,20 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
     const glDisplay = entry.glCode
       ? (entry.glDescription ? `${entry.glCode} - ${entry.glDescription}` : entry.glCode)
       : ''
+    const amount = parseFloat(entry.amount) || 0
+    const entryType = entry.type === 'note' ? 'Note' : (entry.type === 'deposit' ? 'Deposit' : 'Check')
+    const amountDisplay = entry.type === 'note'
+      ? 'N/A'
+      : `${entry.type === 'deposit' ? '+' : '-'}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const amountClass = entry.type === 'note' ? '' : (entry.type === 'deposit' ? 'style="color: #38a169;"' : '')
+
     html += `
       <tr>
+        <td>${entryType}</td>
         <td class="check-num">${entry.checkNumber || '-'}</td>
         <td>${entry.date || ''}${entry.timestamp ? `<br><span class="timestamp">${new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>` : ''}</td>
         <td><strong>${entry.payee || ''}</strong>${entry.address ? `<br><span class="timestamp">${entry.address.replace(/\n/g, ', ')}</span>` : ''}</td>
-        <td class="amount">$${(entry.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+        <td class="amount" ${amountClass}>${amountDisplay}</td>
         <td class="gl-code">${glDisplay}</td>
         <td>${entry.memo || ''}</td>
         <td>${entry.ledgerName || ''}</td>

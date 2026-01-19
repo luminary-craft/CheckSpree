@@ -3,7 +3,9 @@
     "allow": [
       "Bash(dir /S /B c:CodeCheckSpreesrc*.tsx c:CodeCheckSpreesrc*.ts)",
       "Bash(npm install:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npx eslint:*)",
+      "Bash(node --check:*)"
     ]
   }
 }
