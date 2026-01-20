@@ -1986,9 +1986,13 @@ export default function App() {
         const updates = {}
 
         if (model.layout.stub1Enabled) {
+          updates.stub1_date = currentParent.date
+          updates.stub1_payee = currentParent.payee
+          updates.stub1_address = currentParent.address
+          updates.stub1_amount = currentParent.amount
+          updates.stub1_memo = currentParent.external_memo || currentParent.memo || ''
           updates.stub1_glcode = currentParent.glCode
           updates.stub1_glDescription = currentParent.glDescription
-          updates.stub1_address = currentParent.address // Sync address
         }
 
         if (model.layout.stub2Enabled) {
@@ -2936,10 +2940,13 @@ export default function App() {
     setShowBackupPasswordModal(false)
     try {
       const result = await window.cs2.backupSave(backupPassword)
-      if (result.success) {
+      if (result?.success) {
         showToast(`Backup saved successfully!${result.isEncrypted ? ' (Encrypted)' : ''}`, 'success')
+      } else if (result?.error) {
+        showToast(`Backup failed: ${result.error}`, 'error')
       } else {
-        showToast('Backup cancelled or failed', 'error')
+        // User cancelled the save dialog - this is not an error
+        showToast('Backup cancelled', 'info')
       }
     } catch (e) {
       showToast(`Error creating backup: ${e.message}`, 'error')
@@ -5528,6 +5535,111 @@ export default function App() {
         </div>
       </div>
 
+      {/* Quick Check Bar - Fast data entry section */}
+      {activeProfile?.layoutMode !== 'three_up' && !editMode && (
+        <div className="quick-check-bar no-print" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 24px',
+          backgroundColor: '#1e293b',
+          borderBottom: '1px solid #334155',
+          flexWrap: 'wrap'
+        }}>
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: '#64748b',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+            whiteSpace: 'nowrap'
+          }}>
+            Quick Check
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, flexWrap: 'wrap', minWidth: 0 }}>
+            <input
+              type="text"
+              value={data.payee || ''}
+              onChange={(e) => setData(p => ({ ...p, payee: e.target.value }))}
+              placeholder="Payee"
+              style={{
+                flex: '2 1 150px',
+                minWidth: '120px',
+                maxWidth: '250px',
+                padding: '8px 12px',
+                backgroundColor: '#0f172a',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#f1f5f9',
+                fontSize: '14px'
+              }}
+            />
+            <input
+              type="date"
+              value={data.date || getLocalDateString()}
+              onChange={(e) => setData(p => ({ ...p, date: e.target.value }))}
+              style={{
+                flex: '1 1 130px',
+                minWidth: '130px',
+                maxWidth: '150px',
+                padding: '8px 12px',
+                backgroundColor: '#0f172a',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#f1f5f9',
+                fontSize: '14px'
+              }}
+            />
+            <div style={{ position: 'relative', flex: '1 1 100px', minWidth: '100px', maxWidth: '140px' }}>
+              <span style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#64748b',
+                fontSize: '14px',
+                pointerEvents: 'none'
+              }}>$</span>
+              <input
+                type="text"
+                value={data.amount || ''}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9.]/g, '')
+                  setData(p => ({ ...p, amount: val }))
+                }}
+                placeholder="0.00"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 24px',
+                  backgroundColor: '#0f172a',
+                  border: '1px solid #475569',
+                  borderRadius: '6px',
+                  color: '#f1f5f9',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+            <input
+              type="text"
+              value={data.memo || ''}
+              onChange={(e) => setData(p => ({ ...p, memo: e.target.value }))}
+              placeholder="Memo (optional)"
+              style={{
+                flex: '2 1 150px',
+                minWidth: '100px',
+                maxWidth: '200px',
+                padding: '8px 12px',
+                backgroundColor: '#0f172a',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#f1f5f9',
+                fontSize: '14px'
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="layout">
         <div className="side">
           {/* Scrollable Content Area */}
@@ -7163,21 +7275,35 @@ export default function App() {
                             className="readonly"
                             style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer' }}
                             title="Date is synced from the main check"
-                            onClick={() => document.querySelector('input[type="date"]')?.focus()} // Focus main date picker on click
+                            onClick={() => document.querySelector('input[type="date"]')?.focus()}
                           />
                         </div>
                         <div className="field">
-                          <label>Amount</label>
-                          <input value={data.stub1_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub1_amount: e.target.value }))} />
+                          <label>Amount (Synced)</label>
+                          <input
+                            value={data.stub1_amount || data.amount || ''}
+                            readOnly
+                            className="readonly"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8' }}
+                            title="Amount is synced from the main check"
+                          />
                         </div>
                       </div>
                       <div className="field">
                         <label>Payee</label>
-                        <input value={data.stub1_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub1_payee: e.target.value }))} />
+                        <input
+                          value={data.stub1_payee || data.payee || ''}
+                          onChange={(e) => setData((p) => ({ ...p, stub1_payee: e.target.value }))}
+                          placeholder="Synced from check payee"
+                        />
                       </div>
                       <div className="field">
                         <label>Memo (External)</label>
-                        <input value={data.stub1_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub1_memo: e.target.value }))} />
+                        <input
+                          value={data.stub1_memo || data.external_memo || data.memo || ''}
+                          onChange={(e) => setData((p) => ({ ...p, stub1_memo: e.target.value }))}
+                          placeholder="Synced from external memo"
+                        />
                       </div>
                     </div>
 
@@ -7312,21 +7438,35 @@ export default function App() {
                             className="readonly"
                             style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer' }}
                             title="Date is synced from the main check"
-                            onClick={() => document.querySelector('input[type="date"]')?.focus()} // Focus main date picker on click
+                            onClick={() => document.querySelector('input[type="date"]')?.focus()}
                           />
                         </div>
                         <div className="field">
-                          <label>Amount</label>
-                          <input value={data.stub2_amount || ''} onChange={(e) => setData((p) => ({ ...p, stub2_amount: e.target.value }))} />
+                          <label>Amount (Synced)</label>
+                          <input
+                            value={data.stub2_amount || data.amount || ''}
+                            readOnly
+                            className="readonly"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8' }}
+                            title="Amount is synced from the main check"
+                          />
                         </div>
                       </div>
                       <div className="field">
                         <label>Payee</label>
-                        <input value={data.stub2_payee || ''} onChange={(e) => setData((p) => ({ ...p, stub2_payee: e.target.value }))} />
+                        <input
+                          value={data.stub2_payee || data.payee || ''}
+                          onChange={(e) => setData((p) => ({ ...p, stub2_payee: e.target.value }))}
+                          placeholder="Synced from check payee"
+                        />
                       </div>
                       <div className="field">
                         <label>Memo (Internal)</label>
-                        <input value={data.stub2_memo || ''} onChange={(e) => setData((p) => ({ ...p, stub2_memo: e.target.value }))} />
+                        <input
+                          value={data.stub2_memo || data.internal_memo || data.memo || ''}
+                          onChange={(e) => setData((p) => ({ ...p, stub2_memo: e.target.value }))}
+                          placeholder="Synced from internal memo"
+                        />
                       </div>
                     </div>
 
@@ -8004,11 +8144,12 @@ export default function App() {
                         pointerEvents: editMode && !isActiveSlot ? 'none' : 'auto'
                       }}
                     >
-                      {/* Rigid check face container */}
+                      {/* Rigid check face container - moves with section order */}
                       <div
                         className="check-face-container"
                         style={{
-                          '--check-height': `${model.layout.checkHeightIn}in`
+                          '--check-height': `${model.layout.checkHeightIn}in`,
+                          top: `${getSectionY('check', model.layout)}in`
                         }}
                       >
                         {/* Check-only template image (wide images) */}

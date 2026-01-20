@@ -115,6 +115,42 @@ body {
   gap: 8px;
 }
 
+/* ===== Quick Check Bar ===== */
+.quick-check-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+  flex-wrap: wrap;
+}
+
+.quick-check-bar input {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.quick-check-bar input:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.quick-check-bar input::placeholder {
+  color: #64748b;
+}
+
+.quick-check-bar .btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-check-bar .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ===== Ledger & History Tabs ===== */
 .ledger-history-tabs {
   display: flex;
@@ -1430,7 +1466,12 @@ body {
 .fieldBox.editable.selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
-  z-index: 100;
+  z-index: 500;
+}
+
+/* Ensure formatting toolbar in selected field is always on top of other fields */
+.fieldBox.editable.selected .formatting-toolbar {
+  z-index: 1000;
 }
 
 .fieldBox .label {
