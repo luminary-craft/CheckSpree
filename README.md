@@ -26,7 +26,7 @@ A professional check printing application built with Electron that treats printi
 
 ### Multi-Ledger System
 - Create and manage multiple ledgers (checking accounts)
-- Track balance separately for each ledger
+- Track balance separately for each ledger using hybrid balance calculation
 - Switch between ledgers instantly with dropdown selector
 - Delete ledgers with automatic check history cleanup
 - Rename ledgers on-the-fly
@@ -35,6 +35,9 @@ A professional check printing application built with Electron that treats printi
 - **Global Permissions**: Admin can toggle "Allow standard users to manage ledgers"
 - **Auto-Routing**: Imports with a "Ledger" column automatically route transactions to the correct ledger
 - **Auto-Creation**: New ledgers are created automatically during import if they don't exist
+- **Manual Adjustments**: Add deposits or adjustments with reason/notes for audit trail
+- **Total Balance View**: Top bar shows combined balance across all ledgers
+- **Dual History Views**: "All History" shows all ledgers, "Ledger History" filters to current ledger
 
 ### Check Profiles
 - Save and load different check configurations
@@ -53,19 +56,24 @@ A professional check printing application built with Electron that treats printi
 - Line item support with automatic formatting
 - Draggable fold lines to adjust stub heights
 - Stub-specific fields automatically reposition with fold adjustments
+- **Independent Date Display**: Each stub can show/hide date independently
+- **Address Fields**: Full address field support on stubs
 
 ### Check History & Ledger Tracking
 - Every check automatically recorded with:
   - Transaction amount (formatted with thousands separators)
   - Previous balance
   - New balance after check
-  - Timestamp and full metadata
+  - Precise timestamp with time recorded for accurate sorting
   - Associated ledger and profile
-- View complete transaction history per ledger
+  - GL Code and description (if configured)
+- View complete transaction history per ledger or across all ledgers
 - Restore balance by deleting checks from history
 - **Robust Ledger Integrity**: Ledger deduction and history recording only occur AFTER confirmed successful print or PDF save
 - Track spending by profile and ledger
-- Recent activity preview in sidebar (last 2 checks)
+- Recent activity preview in sidebar (last 2 checks from current ledger)
+- **Income/Deposit Support**: Record deposits with green positive indicators
+- **Filter & Search**: Search history by payee, filter by GL Code
 
 ### Import/Export
 - **Import**: CSV/TSV/Excel (.xlsx/.xls) files with automatic column detection
@@ -82,15 +90,19 @@ A professional check printing application built with Electron that treats printi
   - Per-ledger breakdowns (balance, total spent, check count)
   - Per-profile spending within each ledger
   - Complete check details with timestamps and balance after
+  - Check number and time recorded columns
+  - GL Code and description columns
   - Date range filtering (all time, custom range, this week, last month, etc.)
+  - Sort options (date, amount, payee, GL Code)
   - Automatic file location reveal after export
+  - **PDF Export**: Generate PDF reports with GL Code data
 
 ### Advanced Editing
 - Visual field editor with drag-and-drop positioning
 - Resize fields with corner handles
 - Snap-to-grid positioning (toggle on/off, 0.125-inch increments)
 - Font size scaling with global preference (8pt - 24pt)
-- Template opacity control for alignment
+- Template opacity control for alignment (default 90%)
 - Check number auto-increment
 - Admin lock/unlock for settings protection
 - Field type support: text, textarea, date, amount
@@ -98,8 +110,28 @@ A professional check printing application built with Electron that treats printi
 - **Multi-Select**: Hold Ctrl/Shift to select multiple fields
 - **Marquee Selection**: Drag a box on the background to select multiple fields
 - **Group Dragging**: Move multiple selected fields simultaneously
+- **Quick Delete**: Toggle fields off directly from the canvas
+- **Expandable Fields**: Text fields expand to prevent content cutoff
 - **Independent Display Toggles**: Show/Hide Check Number and Date independently in all modes, including 3-Up layout
 - **Batch Print Error Handling**: Pauses on failure with options to Skip & Continue or Stop Batch, ensuring no checks are recorded if they didn't physically print
+
+### GL Code System
+- Assign GL (General Ledger) codes to transactions for accounting categorization
+- GL Code descriptions for human-readable labeling
+- GL Code filtering in history and export views
+- Automatic GL Code propagation across check, stubs, and history
+- Export reports include GL Code data for accounting integration
+- Sort and filter exports by GL Code
+
+### 3-Up Layout Mode
+- Print 3 checks per page for high-volume operations
+- Independent slot management (fill slots 1, 2, or 3)
+- Auto-increment check numbers across all slots
+- Combined Show Check Number & Auto-increment toggle
+- Admin-controlled cut lines for print guidance
+- Import queue integration with multi-select (up to 3 items)
+- Batch printing with progressive ledger deductions
+- Address and GL Code fields supported in all slots
 
 ### Backup & Restore
 - One-click backup of all application data
@@ -527,6 +559,6 @@ For issues or questions:
 
 ---
 
-**Version**: 0.3.0
+**Version**: 1.0.0-beta.1
 **Last Updated**: January 2026
 **Built with**: Electron, React, and attention to detail

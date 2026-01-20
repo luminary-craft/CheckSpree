@@ -1,6 +1,6 @@
 {
   "name": "CheckSpree",
-  "version": "0.3.0",
+  "version": "1.0.0-beta.1",
   "private": true,
   "license": "UNLICENSED",
   "description": "Simple, accurate check printing and financial tracking.",
