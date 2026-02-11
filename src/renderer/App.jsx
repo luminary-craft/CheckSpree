@@ -451,6 +451,21 @@ export default function App() {
     }
   }, [preferences.adminLocked, editMode])
 
+  // Apply theme and accent color to document root
+  useEffect(() => {
+    const root = document.documentElement
+    if (preferences.theme === 'light') {
+      root.setAttribute('data-theme', 'light')
+    } else {
+      root.removeAttribute('data-theme')
+    }
+    if (preferences.accentColor && preferences.accentColor !== 'amber') {
+      root.setAttribute('data-accent', preferences.accentColor)
+    } else {
+      root.removeAttribute('data-accent')
+    }
+  }, [preferences.theme, preferences.accentColor])
+
   // Handle Delete key to toggle field visibility in preferences
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -2161,7 +2176,8 @@ export default function App() {
     recordCheck, calculateHybridBalance, generatePrintFilename, showToast, confirmPrintFailure,
     ledgers, setLedgers, checkHistory, setCheckHistory, setData, setSheetData,
     profiles, setProfiles, activeProfileId, setShowImportQueue,
-    showConfirm, getEmptySlotData, getAddressFromHistory, getGlDetailsFromHistory, updateLedgerBalance
+    showConfirm, getEmptySlotData, getAddressFromHistory, getGlDetailsFromHistory, updateLedgerBalance,
+    setIsPrinting, activeLedgerId
   })
 
   const {

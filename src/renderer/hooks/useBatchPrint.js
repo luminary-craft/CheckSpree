@@ -9,7 +9,8 @@ export function useBatchPrint({
   recordCheck, calculateHybridBalance, generatePrintFilename, showToast, confirmPrintFailure,
   ledgers, setLedgers, checkHistory, setCheckHistory, setData, setSheetData,
   profiles, setProfiles, activeProfileId, setShowImportQueue,
-  showConfirm, getEmptySlotData, getAddressFromHistory, getGlDetailsFromHistory, updateLedgerBalance
+  showConfirm, getEmptySlotData, getAddressFromHistory, getGlDetailsFromHistory, updateLedgerBalance,
+  setIsPrinting, activeLedgerId
 }) {
   const [isBatchPrinting, setIsBatchPrinting] = useState(false)
   const [batchPrintProgress, setBatchPrintProgress] = useState({ current: 0, total: 0 })
@@ -84,6 +85,7 @@ export function useBatchPrint({
     // Initialize batch print state
     setIsBatchPrinting(true)
     setBatchPrintCancelled(false)
+    batchCancelledRef.current = false
     setBatchPrintProgress({ current: 0, total: importQueue.length })
 
     let processed = 0
@@ -123,8 +125,8 @@ export function useBatchPrint({
     let currentCheckNumber = batchAutoNumber ? parseInt(batchStartNumber) || 1001 : null
 
     for (let i = 0; i < queueCopy.length; i++) {
-      // Check if user cancelled
-      if (batchPrintCancelled) {
+      // Check if user cancelled (use ref for immediate detection in async loop)
+      if (batchCancelledRef.current) {
         break
       }
 
@@ -231,6 +233,7 @@ export function useBatchPrint({
         const decision = await confirmPrintFailure(item.payee, printError)
         if (decision === 'abort') {
           // User chose to stop - mark as cancelled and break
+          batchCancelledRef.current = true
           setBatchPrintCancelled(true)
           break
         }
@@ -342,6 +345,7 @@ export function useBatchPrint({
     // Initialize batch print state
     setIsBatchPrinting(true)
     setBatchPrintCancelled(false)
+    batchCancelledRef.current = false
     setBatchPrintProgress({ current: 0, total: importQueue.length })
 
     let processed = 0
@@ -382,8 +386,8 @@ export function useBatchPrint({
 
     // Process in chunks of 3
     for (let chunkStart = 0; chunkStart < queueCopy.length; chunkStart += 3) {
-      // Check if user cancelled
-      if (batchPrintCancelled) {
+      // Check if user cancelled (use ref for immediate detection in async loop)
+      if (batchCancelledRef.current) {
         break
       }
 
@@ -532,6 +536,7 @@ export function useBatchPrint({
         const decision = await confirmPrintFailure(`Sheet (${slotMetadata.length} checks starting with ${firstPayee})`, printError)
         if (decision === 'abort') {
           // User chose to stop - mark as cancelled and break
+          batchCancelledRef.current = true
           setBatchPrintCancelled(true)
           // Revert the ledger changes for this failed sheet
           for (const { targetLedgerId, amount } of slotMetadata) {
@@ -646,6 +651,7 @@ export function useBatchPrint({
       'Cancel Batch Print?',
       'Cancel the batch print operation? Already processed checks will remain recorded.',
       () => {
+        batchCancelledRef.current = true
         setBatchPrintCancelled(true)
       }
     )

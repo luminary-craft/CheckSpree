@@ -102,7 +102,10 @@ export const DEFAULT_PREFERENCES = {
   // Address/envelope visibility per section
   showAddressOnCheck: true,
   showAddressOnStub1: false,
-  showAddressOnStub2: false
+  showAddressOnStub2: false,
+  // Theme
+  theme: 'dark',         // 'dark' | 'light'
+  accentColor: 'amber'   // 'amber' | 'blue' | 'emerald' | 'rose' | 'purple'
 }
 
 export const DEFAULT_MODEL = {
