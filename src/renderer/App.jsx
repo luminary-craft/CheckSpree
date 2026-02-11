@@ -1376,8 +1376,8 @@ export default function App() {
   }
 
   // Generic confirm helper to avoid focus-stealing native confirm()
-  const showConfirm = (title, message, onConfirm, confirmText, cancelText) => {
-    setConfirmConfig({ title, message, onConfirm, confirmText, cancelText })
+  const showConfirm = (title, message, onConfirm, confirmText, cancelText, onAlt, altText) => {
+    setConfirmConfig({ title, message, onConfirm, confirmText, cancelText, onAlt, altText })
     setShowConfirmModal(true)
   }
 
@@ -1390,6 +1390,14 @@ export default function App() {
   }
 
   const handleConfirmModalCancel = () => {
+    setShowConfirmModal(false)
+    setConfirmConfig({ title: '', message: '', onConfirm: null })
+  }
+
+  const handleConfirmModalAlt = () => {
+    if (confirmConfig.onAlt) {
+      confirmConfig.onAlt()
+    }
     setShowConfirmModal(false)
     setConfirmConfig({ title: '', message: '', onConfirm: null })
   }
@@ -2693,7 +2701,9 @@ export default function App() {
         'You have unsaved layout changes. Save to your profile before leaving, or discard them?',
         () => setEditMode(false),
         'Discard & Exit',
-        'Keep Editing'
+        'Keep Editing',
+        () => { saveCurrentProfile(); setEditMode(false) },
+        'Save & Exit'
       )
     } else {
       setEditMode(v => !v)
@@ -2705,9 +2715,12 @@ export default function App() {
     if (editMode && hasUnsavedChanges) {
       showConfirm(
         'Unsaved Layout Changes',
-        'You have unsaved layout changes that won\'t be saved to your profile. Continue with current layout?',
+        'You have unsaved layout changes that won\'t be saved to your profile. Save first, or continue anyway?',
         () => handlePrintAndRecord(),
-        'Print Anyway'
+        'Print Anyway',
+        'Cancel',
+        () => { saveCurrentProfile(); handlePrintAndRecord() },
+        'Save & Print'
       )
     } else {
       handlePrintAndRecord()
@@ -2718,9 +2731,12 @@ export default function App() {
     if (editMode && hasUnsavedChanges) {
       showConfirm(
         'Unsaved Layout Changes',
-        'You have unsaved layout changes that won\'t be saved to your profile. Continue with current layout?',
+        'You have unsaved layout changes that won\'t be saved to your profile. Save first, or continue anyway?',
         () => handleRecordOnly(),
-        'Record Anyway'
+        'Record Anyway',
+        'Cancel',
+        () => { saveCurrentProfile(); handleRecordOnly() },
+        'Save & Record'
       )
     } else {
       handleRecordOnly()
@@ -2731,9 +2747,12 @@ export default function App() {
     if (editMode && hasUnsavedChanges) {
       showConfirm(
         'Unsaved Layout Changes',
-        'You have unsaved layout changes that won\'t be saved to your profile. Preview with current layout?',
+        'You have unsaved layout changes that won\'t be saved to your profile. Save first, or continue anyway?',
         () => handlePreviewPdf(),
-        'Preview Anyway'
+        'Preview Anyway',
+        'Cancel',
+        () => { saveCurrentProfile(); handlePreviewPdf() },
+        'Save & Preview'
       )
     } else {
       handlePreviewPdf()
@@ -2971,6 +2990,11 @@ export default function App() {
               </div>
               <div className="modal-footer">
                 <button className="btn ghost" onClick={handleConfirmModalCancel}>{confirmConfig.cancelText || 'Cancel'}</button>
+                {confirmConfig.onAlt && (
+                  <button className="btn secondary" onClick={handleConfirmModalAlt}>
+                    {confirmConfig.altText || 'Save'}
+                  </button>
+                )}
                 <button className="btn primary" onClick={handleConfirmModalConfirm}>
                   {confirmConfig.confirmText || 'Confirm'}
                 </button>
