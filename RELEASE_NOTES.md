@@ -1,5 +1,48 @@
 # CheckSpree Release Notes
 
+## v1.0.0-beta.2 - The Polish & Personalization Release
+
+This release focuses on code quality, visual refinement, theme customization, and reliability improvements across the entire application.
+
+---
+
+### Architecture Overhaul
+- **Modular codebase**: Refactored App.jsx from a 10,703-line monolith into 68 focused modules (72% reduction), including extracted components, hooks, constants, and utilities
+- **125 automated tests** across 5 test files covering defaults, helpers, date formatting, parsing, and number-to-words conversion
+
+### Theme & Appearance
+- **Dark, Light, and Glassmorphism themes**: Three full theme modes with frosted-glass backdrop effects on glass mode
+- **5 accent colors**: Amber, Blue, Emerald, Rose, and Purple — fully propagated across all UI elements
+- **Floating Theme Picker**: Bottom-right widget with circle toggles for quick theme mode and accent color switching
+- **Warm amber design system**: 150+ hardcoded colors replaced with CSS custom properties for consistent theming throughout the app
+
+### Check Layout
+- **Perfect 1/3 stub split**: Default layout now divides the 11" page into equal thirds (3.67" / 3.67" / 3.66") with properly positioned cut lines and fields
+- **Reset Layout button**: One-click reset in admin edit mode restores all field positions, section heights, and cut lines to defaults (with stub field regeneration)
+- **Unsaved layout change warnings**: Confirmation dialogs with Save, Discard, and Cancel options when exiting edit mode or printing with unsaved changes
+- **3-Up layout compatibility**: Three-up mode Y-offsets now dynamically reference model cut lines instead of hardcoded values
+
+### Batch Printing Fixes
+- **Fixed batch print stalling**: Resolved three bugs where batch printing stuck on the first job — missing `setIsPrinting` prop, missing `activeLedgerId` prop, and stale cancel state
+- **Cancel now works reliably**: Batch cancel uses ref for immediate detection in async loops instead of stale React state
+
+### Input & UX Improvements
+- **ATM-style currency input**: All money fields use right-to-left digit entry (typing "123" shows $1.23) with automatic comma formatting
+- **In-app toast notifications**: Replaced all 22 browser `alert()` calls with styled, non-blocking toast messages
+- **GL Code autocomplete**: Cleaned up dropdown styling with proper CSS classes and wider dropdown for descriptions
+- **Improved stub label toggles**: Pill-shaped SVG eye icon toggle replacing old emoji button
+- **Itemized mode**: Wider amount column with `minmax(120px, 140px)` grid for better visibility
+- **Quick Check bar**: Streamlined top-bar input strip for fast single-check entry in standard mode
+
+### Bug Fixes
+- Reset layout no longer removes stub fields (now normalizes model on reset)
+- Three-up mode auto-adjust removed dead code referencing non-existent property
+- Topbar respects light mode theme (was hardcoded dark)
+- Mode select buttons, recent activity hover, and informational labels all respect accent color theme
+- Calendar icon visibility fixed in light mode
+
+---
+
 ## v1.0.0-beta.1 - The GL Code & 3-Up Pro Release
 
 This major release introduces GL Code accounting integration, full 3-Up layout support, and comprehensive improvements to ledger management, batch printing, and export functionality.
