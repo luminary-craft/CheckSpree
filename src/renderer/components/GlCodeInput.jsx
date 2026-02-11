@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 
 // GL Code Input with Autocomplete
-export function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', ...props }) {
+export function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code' }) {
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const inputRef = useRef(null)
@@ -9,7 +9,7 @@ export function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL C
 
   // Filter suggestions based on current input
   const suggestions = useMemo(() => {
-    if (!value || value.trim() === '') return glCodes.slice(0, 50) // Show top 50 if empty
+    if (!value || value.trim() === '') return glCodes.slice(0, 50)
     const searchTerm = value.toLowerCase().trim()
     return glCodes.filter(item =>
       item.code.toLowerCase().includes(searchTerm) ||
@@ -36,20 +36,11 @@ export function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL C
   }
 
   const handleSelect = (item) => {
-    // Explicitly pass the structure expected by App.jsx
     if (typeof item === 'object') {
-      if (props.onSelect) {
-        props.onSelect(item)
-      } else {
-        onChange({
-          code: item.code,
-          description: item.description
-        })
-      }
+      onChange({ code: item.code, description: item.description })
     } else {
       onChange(item)
     }
-
     setIsOpen(false)
     setHighlightedIndex(-1)
     inputRef.current?.focus()
@@ -112,46 +103,19 @@ export function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL C
         autoComplete="off"
       />
       {showDropdown && (
-        <div
-          ref={dropdownRef}
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            marginTop: '4px',
-            backgroundColor: 'var(--surface-elevated)',
-            border: '1px solid var(--border-medium)',
-            borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-            zIndex: 1000,
-            maxHeight: '200px',
-            overflowY: 'auto'
-          }}
-        >
+        <div ref={dropdownRef} className="autocomplete-dropdown gl-dropdown">
           {suggestions.map((item, index) => (
             <div
               key={item.code}
+              className={`autocomplete-item ${index === highlightedIndex ? 'active' : ''}`}
               onMouseDown={(e) => {
-                e.preventDefault() // Prevent blur
+                e.preventDefault()
                 handleSelect(item)
-              }}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                backgroundColor: index === highlightedIndex ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                color: index === highlightedIndex ? 'var(--accent-hover)' : '#e2e8f0',
-                borderBottom: index < suggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                fontSize: '13px',
-                transition: 'background-color 0.1s',
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: '8px'
               }}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
-              <span style={{ fontWeight: 600 }}>{item.code}</span>
-              <span style={{ opacity: 0.7, fontSize: '0.9em' }}>{item.description}</span>
+              <span className="gl-item-code">{item.code}</span>
+              <span className="gl-item-desc">{item.description}</span>
             </div>
           ))}
         </div>

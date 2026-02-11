@@ -977,94 +977,34 @@ export function Sidebar({
                   />
                 </div>
                 <div className="field">
-                  <label>GL Code & Description</label>
-                  <div style={{ display: 'flex', gap: '0' }}>
-                    <div style={{ flex: '0 0 120px' }}>
-                      <GlCodeInput
-                        value={getCurrentCheckData().glCode || ''}
-                        onChange={(val) => {
-                          console.log('DEBUG: GlCodeInput onChange', val)
-                          if (val && typeof val === 'object') {
-                            // Object selection from dropdown
-                            updateCurrentCheckData({
-                              glCode: val.code || '',
-                              glDescription: val.description || val.desc || val.glDescription || ''
-                            })
-                          } else {
-                            // String input (typing)
-                            const newCode = val || ''
-                            const updates = { glCode: newCode }
-
-                            // Rule: If GL Code is cleared, clear description
-                            if (!newCode) {
-                              updates.glDescription = ''
-                            }
-                            // Optional: Could attempt lookup here if we wanted auto-fill on type
-
-                            updateCurrentCheckData(updates)
-                          }
-                        }}
-                        glCodes={compiledGlCodes}
-                        placeholder="Code"
-                        onClick={() => { }} // Dummy click handler to ensure click works if needed, handled by component now
-                        style={{
-                          borderTopRightRadius: 0,
-                          borderBottomRightRadius: 0,
-                          borderRight: 'none',
-                          width: '100%',
-                          padding: '6px 10px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          color: 'var(--text-bright)',
-                          fontSize: '13px',
-                          outline: 'none',
-                          transition: 'all 0.2s'
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                          e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
-                          // We need to maintain boundary with adjacent input
-                          e.target.style.borderRight = 'none'
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
-                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
-                          e.target.style.borderRight = 'none'
-                        }}
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="text"
-                        value={getCurrentCheckData().glDescription || ''}
-                        onChange={(e) => updateCurrentCheckData({ glDescription: e.target.value })}
-                        placeholder="Description"
-                        style={{
-                          borderTopLeftRadius: 0,
-                          borderBottomLeftRadius: 0,
-                          width: '100%',
-                          padding: '6px 10px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          color: 'var(--text-bright)',
-                          fontSize: '13px',
-                          outline: 'none',
-                          transition: 'all 0.2s',
-                          borderLeft: 'none'
-                        }}
-                        onFocus={(e) => {
-                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                          e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
-                          e.target.style.borderLeft = 'none'
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
-                          e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
-                          e.target.style.borderLeft = 'none'
-                        }}
-                      />
-                    </div>
-                  </div>
+                  <label>GL Code</label>
+                  <GlCodeInput
+                    value={getCurrentCheckData().glCode || ''}
+                    onChange={(val) => {
+                      if (val && typeof val === 'object') {
+                        updateCurrentCheckData({
+                          glCode: val.code || '',
+                          glDescription: val.description || val.desc || val.glDescription || ''
+                        })
+                      } else {
+                        const newCode = val || ''
+                        const updates = { glCode: newCode }
+                        if (!newCode) updates.glDescription = ''
+                        updateCurrentCheckData(updates)
+                      }
+                    }}
+                    glCodes={compiledGlCodes}
+                    placeholder="Search or type GL code..."
+                  />
+                </div>
+                <div className="field">
+                  <label>Description</label>
+                  <input
+                    type="text"
+                    value={getCurrentCheckData().glDescription || ''}
+                    onChange={(e) => updateCurrentCheckData({ glDescription: e.target.value })}
+                    placeholder="Auto-filled from GL Code or type manually"
+                  />
                 </div>
 
                 {/* Check Builder Mode Toggle */}

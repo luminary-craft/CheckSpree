@@ -973,8 +973,9 @@ body {
   cursor: pointer;
 }
 
-.field input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+.field input[type="date"]::-webkit-calendar-picker-indicator,
+.quick-check-bar input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
   cursor: pointer;
 }
 
@@ -1018,6 +1019,7 @@ body {
 
 .input-prefix input {
   flex: 1;
+  min-width: 0;
   padding: 10px 12px;
   background: transparent;
   border: none;
@@ -2475,94 +2477,121 @@ body {
 }
 
 .after\:transition-all::after {
+  transition: all;
+}
 
-  .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #475569;
-    transition: .4s;
-    border-radius: 34px;
-  }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #475569;
+  transition: .4s;
+  border-radius: 34px;
+}
 
-  .slider:before {
-    position: absolute;
-    content: "";
-    height: 14px;
-    width: 14px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
-  }
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
 
-  input:checked+.slider {
-    background-color: var(--accent);
-  }
+input:checked+.slider {
+  background-color: var(--accent);
+}
 
-  input:checked+.slider:before {
-    transform: translateX(14px);
-  }
+input:checked+.slider:before {
+  transform: translateX(14px);
+}
 
-  /* ===== Form Elements ===== */
-  textarea.input-textarea {
-    width: 100%;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    font-family: inherit;
-    font-size: 13px;
-    resize: vertical;
-    outline: none;
-    transition: all 150ms ease;
-    min-height: 80px;
-  }
+/* ===== Form Elements ===== */
+textarea.input-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+  transition: all 150ms ease;
+  min-height: 80px;
+}
 
-  textarea.input-textarea:focus {
-    background: rgba(0, 0, 0, 0.3);
-    border-color: var(--border-focus);
-    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
-  }
+textarea.input-textarea:focus {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
 
-  /* Autocomplete Dropdown */
-  .autocomplete-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: 4px;
-    background: var(--surface-deep);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    max-height: 200px;
-    overflow-y: auto;
-  }
+/* ===== Autocomplete Dropdown ===== */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--surface-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
 
-  .autocomplete-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border);
-    color: var(--text-secondary);
-    transition: all 100ms ease;
-  }
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 100ms ease;
+}
 
-  .autocomplete-item:last-child {
-    border-bottom: none;
-  }
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
 
-  .autocomplete-item:hover,
-  .autocomplete-item.active {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
+.autocomplete-item:hover,
+.autocomplete-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* GL Code Dropdown */
+.gl-dropdown {
+  min-width: 280px;
+}
+
+.autocomplete-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gl-item-code {
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+
+.gl-item-desc {
+  color: var(--text-label);
+  font-size: 0.9em;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== Animations ===== */
@@ -2635,6 +2664,23 @@ body {
 
 .quick-check-input::placeholder {
   color: var(--text-dim);
+}
+
+.quick-check-bar .input-prefix {
+  background-color: var(--surface-deep);
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+}
+
+.quick-check-bar .input-prefix input {
+  color: var(--text-bright);
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+.quick-check-bar .input-prefix:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
 }
 
 /* ===== Dropdown Menu ===== */
