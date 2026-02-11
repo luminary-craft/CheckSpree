@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { formatCurrency, sanitizeCurrencyInput, generateId } from '../utils/helpers'
 import { formatDate, clamp } from '../constants/defaults'
 import { getLocalDateString } from '../utils/date'
@@ -50,6 +50,10 @@ export function Sidebar({
   // Toast
   showToast
 }) {
+  // Track original balance for history entry on blur
+  const originalBalanceRef = useRef(0)
+  const latestBalanceRef = useRef(0)
+
   return (
         <div className="side">
           {/* Scrollable Content Area */}
@@ -176,119 +180,65 @@ export function Sidebar({
                                   />
                                 </div>
 
-                                {/* Initial Balance - ATM-style input (direct update, no history entry) */}
+                                {/* Initial Balance - ATM-style input */}
                                 <div style={{ marginBottom: '12px' }} onClick={(e) => e.stopPropagation()}>
                                   <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-label)', marginBottom: '4px' }}>Initial Balance</label>
-                                  <div className="input-prefix">
-                                    <span>$</span>
-                                    <input
-                                      key={`balance-input-${l.id}`}
-                                      type="text"
-                                      inputMode="numeric"
-                                      defaultValue={l.startingBalance ? (l.startingBalance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                                      placeholder="0.00"
-                                      data-original-balance={l.startingBalance || 0}
-                                      onFocus={(e) => {
-                                        // Store original value when focus begins
-                                        e.target.dataset.originalBalance = l.startingBalance || 0
-                                        e.target.select()
-                                      }}
-                                      onKeyDown={(e) => {
-                                        // Check if entire text is selected
-                                        const isAllSelected = e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length
-
-                                        // ATM-style logic: get current value as cents
-                                        const currentVal = parseFloat(e.target.value.replace(/,/g, '')) || 0
-                                        let cents = Math.round(currentVal * 100)
-
-                                        if (e.key === 'Enter') {
-                                          e.target.blur()
-                                          return
-                                        } else if (e.key === 'Escape') {
-                                          setEditingLedgerName(null)
-                                          return
-                                        } else if (e.key === 'Backspace') {
-                                          e.preventDefault()
-                                          // If all selected, clear to zero
-                                          if (isAllSelected) {
-                                            cents = 0
-                                          } else {
-                                            // Remove rightmost digit
-                                            cents = Math.floor(cents / 10)
-                                          }
-                                        } else if (e.key >= '0' && e.key <= '9') {
-                                          e.preventDefault()
-                                          // If all selected, start fresh with this digit
-                                          if (isAllSelected) {
-                                            cents = parseInt(e.key, 10)
-                                          } else if (cents < 99999999999) { // Max $999,999,999.99
-                                            // Shift left and add new digit
-                                            cents = (cents * 10) + parseInt(e.key, 10)
-                                          }
-                                        } else if (!['Tab', 'ArrowLeft', 'ArrowRight', 'Delete'].includes(e.key)) {
-                                          e.preventDefault()
-                                          return
-                                        } else {
-                                          return // Let navigation keys through
+                                  <AtmCurrencyInput
+                                    value={l.startingBalance ? l.startingBalance.toFixed(2) : ''}
+                                    onFocus={() => {
+                                      originalBalanceRef.current = l.startingBalance || 0
+                                      latestBalanceRef.current = l.startingBalance || 0
+                                    }}
+                                    onChange={(val) => {
+                                      const newVal = parseFloat(val) || 0
+                                      latestBalanceRef.current = newVal
+                                      setLedgers(prev => prev.map(ledger =>
+                                        ledger.id === l.id ? { ...ledger, startingBalance: newVal } : ledger
+                                      ))
+                                    }}
+                                    onInputKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        e.target.blur()
+                                      } else if (e.key === 'Escape') {
+                                        e.preventDefault()
+                                        setEditingLedgerName(null)
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      const newVal = latestBalanceRef.current
+                                      const originalVal = originalBalanceRef.current
+                                      if (Math.abs(newVal - originalVal) > 0.001) {
+                                        const ledgerId = l.id
+                                        const noteEntry = {
+                                          id: generateId(),
+                                          type: 'note',
+                                          date: getLocalDateString(),
+                                          payee: 'Initial Balance Changed',
+                                          amount: 0,
+                                          memo: `Initial balance changed from ${formatCurrency(originalVal)} to ${formatCurrency(newVal)}`,
+                                          reason: '',
+                                          external_memo: '',
+                                          internal_memo: '',
+                                          line_items: [],
+                                          line_items_text: '',
+                                          ledgerId: ledgerId,
+                                          profileId: activeProfileId,
+                                          ledger_snapshot: {
+                                            previous_balance: originalVal,
+                                            transaction_amount: newVal - originalVal,
+                                            new_balance: newVal
+                                          },
+                                          timestamp: Date.now(),
+                                          isInitialBalanceChange: true
                                         }
-
-                                        // Update display only (state updated on blur)
-                                        const newVal = cents / 100
-                                        e.target.value = newVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                      }}
-                                      onBlur={(e) => {
-                                        // Get the new value and original value
-                                        const newVal = parseFloat(e.target.value.replace(/,/g, '')) || 0
-                                        const originalVal = parseFloat(e.target.dataset.originalBalance) || 0
-                                        const ledgerId = l.id // Capture ledger ID
-
-                                        // Format display
-                                        e.target.value = newVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-                                        // If value changed, update state and add history note
-                                        if (Math.abs(newVal - originalVal) > 0.001) {
-                                          // Update ledger using functional update to avoid stale closure
-                                          setLedgers(prev => prev.map(ledger =>
-                                            ledger.id === ledgerId ? { ...ledger, startingBalance: newVal } : ledger
-                                          ))
-
-                                          // Add a note to history about the initial balance change
-                                          const noteEntry = {
-                                            id: generateId(),
-                                            type: 'note',
-                                            date: getLocalDateString(),
-                                            payee: 'Initial Balance Changed',
-                                            amount: 0,
-                                            memo: `Initial balance changed from ${formatCurrency(originalVal)} to ${formatCurrency(newVal)}`,
-                                            reason: '',
-                                            external_memo: '',
-                                            internal_memo: '',
-                                            line_items: [],
-                                            line_items_text: '',
-                                            ledgerId: ledgerId,
-                                            profileId: activeProfileId,
-                                            ledger_snapshot: {
-                                              previous_balance: originalVal,
-                                              transaction_amount: newVal - originalVal,
-                                              new_balance: newVal
-                                            },
-                                            timestamp: Date.now(),
-                                            isInitialBalanceChange: true
-                                          }
-                                          setCheckHistory(prev => [noteEntry, ...prev])
-
-                                          // Trigger auto-backup
-                                          window.cs2.backupTriggerAuto().catch(err => {
-                                            console.error('Auto-backup trigger failed:', err)
-                                          })
-                                        }
-                                      }}
-                                      style={{
-                                        width: '100%',
-                                        textAlign: 'right'
-                                      }}
-                                    />
-                                  </div>
+                                        setCheckHistory(prev => [noteEntry, ...prev])
+                                        window.cs2.backupTriggerAuto().catch(err => {
+                                          console.error('Auto-backup trigger failed:', err)
+                                        })
+                                      }
+                                    }}
+                                  />
                                 </div>
                               </div>
                             )}
@@ -1262,38 +1212,13 @@ export function Sidebar({
                                   e.target.style.boxShadow = 'none'
                                 }}
                               />
-                              <input
-                                type="text"
+                              <AtmCurrencyInput
                                 value={item.amount}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(/[^0-9.]/g, '')
+                                onChange={(val) => {
                                   const updated = lineItems.map(li =>
                                     li.id === item.id ? { ...li, amount: val } : li
                                   )
                                   setLineItems(updated)
-                                }}
-                                placeholder="Amount"
-                                style={{
-                                  padding: '6px 10px',
-                                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                                  borderRadius: '4px',
-                                  color: 'var(--text)',
-                                  fontSize: '13px',
-                                  textAlign: 'right',
-                                  width: '100%',
-                                  outline: 'none',
-                                  transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => {
-                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                                  e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
-                                  e.target.style.boxShadow = '0 0 0 2px rgba(245, 158, 11, 0.2)'
-                                }}
-                                onBlur={(e) => {
-                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
-                                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
-                                  e.target.style.boxShadow = 'none'
                                 }}
                               />
                               <button

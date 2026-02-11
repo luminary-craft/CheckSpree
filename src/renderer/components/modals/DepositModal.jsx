@@ -1,4 +1,5 @@
 import React from 'react'
+import { AtmCurrencyInput } from '../AtmCurrencyInput'
 
 export function DepositModal({
   depositData, setDepositData,
@@ -45,14 +46,9 @@ export function DepositModal({
           </div>
           <div className="field">
             <label>Amount</label>
-            <input
-              type="text"
+            <AtmCurrencyInput
               value={depositData.amount}
-              onChange={(e) => {
-                const val = e.target.value.replace(/[^0-9.]/g, '')
-                setDepositData({ ...depositData, amount: val })
-              }}
-              placeholder="0.00"
+              onChange={(val) => setDepositData({ ...depositData, amount: val })}
             />
           </div>
           <div className="field">

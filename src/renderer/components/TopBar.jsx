@@ -4,6 +4,7 @@ import { getLocalDateString } from '../utils/date'
 import { DownloadIcon, UploadIcon, CheckIcon } from '../constants/icons'
 import logoImg from '../assets/logo.png'
 import { APP_VERSION } from '../constants/defaults'
+import { AtmCurrencyInput } from './AtmCurrencyInput'
 
 export function TopBar({
   ledgers, checkHistory, calculateHybridBalance,
@@ -170,28 +171,11 @@ export function TopBar({
               onChange={(e) => setData(p => ({ ...p, date: e.target.value }))}
               style={{ flex: '1 1 130px', minWidth: '130px', maxWidth: '150px' }}
             />
-            <div style={{ position: 'relative', flex: '1 1 100px', minWidth: '100px', maxWidth: '140px' }}>
-              <span style={{
-                position: 'absolute',
-                left: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-dim)',
-                fontSize: '14px',
-                pointerEvents: 'none'
-              }}>$</span>
-              <input
-                className="quick-check-input"
-                type="text"
-                value={data.amount || ''}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9.]/g, '')
-                  setData(p => ({ ...p, amount: val }))
-                }}
-                placeholder="0.00"
-                style={{ width: '100%', paddingLeft: '24px' }}
-              />
-            </div>
+            <AtmCurrencyInput
+              value={data.amount || ''}
+              onChange={(val) => setData(p => ({ ...p, amount: val }))}
+              style={{ flex: '1 1 100px', minWidth: '100px', maxWidth: '140px' }}
+            />
             <input
               className="quick-check-input"
               type="text"

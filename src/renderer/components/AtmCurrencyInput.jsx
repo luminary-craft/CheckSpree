@@ -1,7 +1,7 @@
 import React, { useRef } from 'react'
 
 // ATM-style currency input - digits build from right (typing 123 shows $1.23)
-export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0.00' }) {
+export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0.00', onBlur, onFocus: onFocusProp, onInputKeyDown, style, className }) {
   const inputRef = useRef(null)
 
   // Convert external value (string like "1.23") to cents (123)
@@ -34,6 +34,12 @@ export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0
   const displayValue = centsToDisplay(cents)
 
   const handleKeyDown = (e) => {
+    // Call external handler first (e.g. for Enter/Escape interception)
+    if (onInputKeyDown) {
+      onInputKeyDown(e)
+      if (e.defaultPrevented) return
+    }
+
     const input = e.target
     const isAllSelected = input.selectionStart === 0 && input.selectionEnd === input.value.length
 
@@ -80,6 +86,7 @@ export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0
   const handleFocus = (e) => {
     // Select all on focus for easy replacement
     e.target.select()
+    if (onFocusProp) onFocusProp(e)
   }
 
   const handleChange = (e) => {
@@ -87,8 +94,12 @@ export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0
     // This prevents issues with paste and other input methods
   }
 
+  const handleBlur = (e) => {
+    if (onBlur) onBlur(e)
+  }
+
   return (
-    <div className={`input-prefix ${isWarning ? 'warning' : ''}`}>
+    <div className={`input-prefix ${isWarning ? 'warning' : ''} ${className || ''}`} style={style}>
       <span>$</span>
       <input
         ref={inputRef}
@@ -98,6 +109,7 @@ export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onFocus={handleFocus}
+        onBlur={handleBlur}
         placeholder="0.00"
         style={{ textAlign: 'right' }}
       />
