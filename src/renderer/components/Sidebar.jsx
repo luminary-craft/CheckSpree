@@ -107,7 +107,7 @@ export function Sidebar({
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 padding: '10px 12px',
-                                backgroundColor: l.id === activeLedgerId ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                backgroundColor: l.id === activeLedgerId ? 'var(--accent-soft)' : 'transparent',
                                 borderLeft: l.id === activeLedgerId ? '3px solid var(--accent)' : '3px solid transparent'
                               }}
                             >
@@ -311,7 +311,7 @@ export function Sidebar({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          backgroundColor: '#10b981',
+                          backgroundColor: 'var(--success)',
                           color: 'white',
                           border: 'none',
                           borderRadius: '6px',
@@ -335,7 +335,7 @@ export function Sidebar({
                             cursor: 'pointer',
                             fontSize: '32px',
                             fontWeight: '700',
-                            color: hybridBalance < 0 ? '#ef4444' : '#10b981'
+                            color: hybridBalance < 0 ? 'var(--danger)' : 'var(--success)'
                           }}
                         >
                           {formatCurrency(hybridBalance)}
@@ -356,7 +356,7 @@ export function Sidebar({
                             width: '32px',
                             height: '32px',
                             borderRadius: '50%',
-                            backgroundColor: '#10b981',
+                            backgroundColor: 'var(--success)',
                             color: 'white',
                             border: 'none',
                             cursor: 'pointer',
@@ -387,11 +387,11 @@ export function Sidebar({
                       justifyContent: 'space-between',
                       fontSize: '13px',
                       fontWeight: '500',
-                      border: isOverdrawn ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                      color: '#e2e8f0'
+                      border: isOverdrawn ? '1px solid var(--danger-soft)' : '1px solid var(--success-soft)',
+                      color: 'var(--text-bright)'
                     }}>
                       <span>After this check:</span>
-                      <span style={{ color: isOverdrawn ? '#f87171' : '#34d399', fontWeight: '600' }}>
+                      <span style={{ color: isOverdrawn ? 'var(--danger)' : 'var(--success)', fontWeight: '600' }}>
                         {formatCurrency(projectedBalance)}
                       </span>
                     </div>
@@ -417,26 +417,26 @@ export function Sidebar({
                           style={{
                             position: 'relative',
                             padding: '8px 40px 8px 10px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            backgroundColor: 'var(--surface-hover)',
                             borderRadius: '6px',
                             fontSize: '13px',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            border: '1px solid var(--border)',
                             cursor: entry.type !== 'deposit' ? 'pointer' : 'default',
                             transition: 'background-color 0.15s, border-color 0.15s'
                           }}
                           onMouseEnter={(e) => {
                             if (entry.type !== 'deposit') {
-                              e.currentTarget.style.backgroundColor = 'rgba(245, 158, 11, 0.15)'
-                              e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.3)'
+                              e.currentTarget.style.backgroundColor = 'var(--accent-soft)'
+                              e.currentTarget.style.borderColor = 'var(--accent)'
                             }
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
-                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                            e.currentTarget.style.backgroundColor = 'var(--surface-hover)'
+                            e.currentTarget.style.borderColor = 'var(--border)'
                           }}
                         >
                           <div style={{ marginBottom: '4px' }}>
-                            <div style={{ fontWeight: '500', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: '500', color: 'var(--text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {entry.payee}
                             </div>
                             <div style={{ fontSize: '11px', color: 'var(--text-label)' }}>
@@ -448,7 +448,7 @@ export function Sidebar({
                               Note
                             </div>
                           ) : (
-                            <div style={{ fontWeight: '600', color: entry.type === 'deposit' ? '#10b981' : '#f87171', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: '600', color: entry.type === 'deposit' ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' }}>
                               {entry.type === 'deposit' ? '+' : '-'}{formatCurrency(entry.amount)}
                             </div>
                           )}
@@ -468,7 +468,7 @@ export function Sidebar({
                               alignItems: 'center',
                               transition: 'color 0.2s'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
                             onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
                           >
                             <TrashIcon />
@@ -1014,9 +1014,9 @@ export function Sidebar({
                   gap: '12px',
                   marginBottom: '12px',
                   padding: '8px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                  backgroundColor: 'var(--surface)',
                   borderRadius: '6px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                  border: '1px solid var(--border)'
                 }}>
                   <span style={{ fontSize: '13px', color: 'var(--text-label)', fontWeight: '500' }}>Mode:</span>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -1033,8 +1033,8 @@ export function Sidebar({
                         padding: '6px 16px',
                         borderRadius: '4px',
                         border: checkMode === 'simple' ? '1px solid var(--accent)' : '1px solid var(--border-medium)',
-                        backgroundColor: checkMode === 'simple' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                        color: checkMode === 'simple' ? 'var(--accent-hover)' : 'var(--text-label)',
+                        backgroundColor: checkMode === 'simple' ? 'var(--accent-soft)' : 'transparent',
+                        color: checkMode === 'simple' ? 'var(--accent)' : 'var(--text-label)',
                         fontSize: '13px',
                         fontWeight: '500',
                         cursor: 'pointer',
@@ -1049,8 +1049,8 @@ export function Sidebar({
                         padding: '6px 16px',
                         borderRadius: '4px',
                         border: checkMode === 'itemized' ? '1px solid var(--accent)' : '1px solid var(--border-medium)',
-                        backgroundColor: checkMode === 'itemized' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                        color: checkMode === 'itemized' ? 'var(--accent-hover)' : 'var(--text-label)',
+                        backgroundColor: checkMode === 'itemized' ? 'var(--accent-soft)' : 'transparent',
+                        color: checkMode === 'itemized' ? 'var(--accent)' : 'var(--text-label)',
                         fontSize: '13px',
                         fontWeight: '500',
                         cursor: 'pointer',
@@ -1082,11 +1082,11 @@ export function Sidebar({
                       <span style={{
                         fontSize: '18px',
                         fontWeight: '700',
-                        color: '#10b981',
+                        color: 'var(--success)',
                         padding: '4px 12px',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        backgroundColor: 'var(--success-soft)',
                         borderRadius: '4px',
-                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                        border: '1px solid var(--success)'
                       }}>
                         {formatCurrency(lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0))}
                       </span>
@@ -1113,12 +1113,12 @@ export function Sidebar({
                           {lineItems.map((item, index) => (
                             <div key={item.id} style={{
                               display: 'grid',
-                              gridTemplateColumns: '2fr 1fr auto',
+                              gridTemplateColumns: '1fr minmax(120px, 140px) auto',
                               gap: '8px',
                               padding: '8px',
                               borderBottom: index < lineItems.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                               alignItems: 'center',
-                              backgroundColor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent'
+                              backgroundColor: index % 2 === 0 ? 'var(--surface)' : 'transparent'
                             }}>
                               <input
                                 type="text"
@@ -1132,8 +1132,8 @@ export function Sidebar({
                                 placeholder="Description / Invoice #"
                                 style={{
                                   padding: '6px 10px',
-                                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  backgroundColor: 'var(--surface)',
+                                  border: '1px solid var(--border)',
                                   borderRadius: '4px',
                                   color: 'var(--text)',
                                   fontSize: '13px',
@@ -1142,13 +1142,11 @@ export function Sidebar({
                                   transition: 'all 0.2s'
                                 }}
                                 onFocus={(e) => {
-                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                                  e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
-                                  e.target.style.boxShadow = '0 0 0 2px rgba(245, 158, 11, 0.2)'
+                                  e.target.style.borderColor = 'var(--border-focus)'
+                                  e.target.style.boxShadow = '0 0 0 2px var(--accent-soft)'
                                 }}
                                 onBlur={(e) => {
-                                  e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
-                                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.08)'
+                                  e.target.style.borderColor = 'var(--border)'
                                   e.target.style.boxShadow = 'none'
                                 }}
                               />
@@ -1170,7 +1168,7 @@ export function Sidebar({
                                   width: '28px',
                                   height: '28px',
                                   borderRadius: '4px',
-                                  backgroundColor: '#ef4444',
+                                  backgroundColor: 'var(--danger)',
                                   color: 'white',
                                   border: 'none',
                                   cursor: 'pointer',
@@ -1264,8 +1262,8 @@ export function Sidebar({
                       fontSize: '13px',
                       lineHeight: '1.5',
                       resize: 'vertical',
-                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      backgroundColor: 'var(--surface)',
+                      border: '1px solid var(--border)',
                       borderRadius: '4px',
                       color: 'var(--text)',
                       width: '100%',
@@ -1582,7 +1580,12 @@ export function Sidebar({
                           onClick={() => setShowStub1Labels(!showStub1Labels)}
                           title="Show/hide friendly field labels on check"
                         >
-                          {showStub1Labels ? '👁' : '👁‍🗨'} Labels
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                            {!showStub1Labels && <line x1="1" y1="1" x2="23" y2="23" />}
+                          </svg>
+                          Labels
                         </button>
                         <button
                           className="btn-icon-sm danger"
@@ -1745,7 +1748,12 @@ export function Sidebar({
                           onClick={() => setShowStub2Labels(!showStub2Labels)}
                           title="Show/hide friendly field labels on check"
                         >
-                          {showStub2Labels ? '👁' : '👁‍🗨'} Labels
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                            {!showStub2Labels && <line x1="1" y1="1" x2="23" y2="23" />}
+                          </svg>
+                          Labels
                         </button>
                         <button
                           className="btn-icon-sm danger"
@@ -2175,7 +2183,7 @@ export function Sidebar({
                 title="Report Bug"
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  border: '1px solid var(--border-medium)',
                   borderRadius: '6px',
                   padding: '8px 16px',
                   color: 'var(--text-label)',
@@ -2186,8 +2194,8 @@ export function Sidebar({
                   fontSize: '12px',
                   transition: 'all 0.2s'
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = '#e2e8f0' }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'var(--text-label)' }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = 'var(--text-bright)' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-medium)'; e.currentTarget.style.color = 'var(--text-label)' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
@@ -2201,7 +2209,7 @@ export function Sidebar({
                 title="Request Feature"
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  border: '1px solid var(--border-medium)',
                   borderRadius: '6px',
                   padding: '8px 16px',
                   color: 'var(--text-label)',
@@ -2212,8 +2220,8 @@ export function Sidebar({
                   fontSize: '12px',
                   transition: 'all 0.2s'
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = '#e2e8f0' }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'var(--text-label)' }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = 'var(--text-bright)' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-medium)'; e.currentTarget.style.color = 'var(--text-label)' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 18h6" />
