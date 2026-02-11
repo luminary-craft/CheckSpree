@@ -78,7 +78,7 @@ export function TopBar({
               <button className="btn ghost" onClick={handleRestoreBackup} title="Restore data from backup file">
                 📥 Restore
               </button>
-              <button className="btn ghost" onClick={() => setEditMode((v) => !v)}>
+              <button className="btn ghost" onClick={setEditMode}>
                 <span className={`status-dot ${editMode ? 'active' : ''}`} />
                 Edit Layout
               </button>

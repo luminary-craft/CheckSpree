@@ -1376,8 +1376,8 @@ export default function App() {
   }
 
   // Generic confirm helper to avoid focus-stealing native confirm()
-  const showConfirm = (title, message, onConfirm) => {
-    setConfirmConfig({ title, message, onConfirm })
+  const showConfirm = (title, message, onConfirm, confirmText, cancelText) => {
+    setConfirmConfig({ title, message, onConfirm, confirmText, cancelText })
     setShowConfirmModal(true)
   }
 
@@ -2680,9 +2680,64 @@ export default function App() {
       'Reset All Settings?',
       'Reset all settings to defaults? This cannot be undone.',
       () => {
-        setModel(DEFAULT_MODEL)
+        setModel(normalizeModel(DEFAULT_MODEL))
       }
     )
+  }
+
+  // Guard: warn about unsaved layout changes when exiting edit mode
+  const handleToggleEditMode = () => {
+    if (editMode && hasUnsavedChanges) {
+      showConfirm(
+        'Unsaved Layout Changes',
+        'You have unsaved layout changes. Save to your profile before leaving, or discard them?',
+        () => setEditMode(false),
+        'Discard & Exit',
+        'Keep Editing'
+      )
+    } else {
+      setEditMode(v => !v)
+    }
+  }
+
+  // Guard: warn about unsaved layout changes before printing/recording
+  const guardedPrintAndRecord = () => {
+    if (editMode && hasUnsavedChanges) {
+      showConfirm(
+        'Unsaved Layout Changes',
+        'You have unsaved layout changes that won\'t be saved to your profile. Continue with current layout?',
+        () => handlePrintAndRecord(),
+        'Print Anyway'
+      )
+    } else {
+      handlePrintAndRecord()
+    }
+  }
+
+  const guardedRecordOnly = () => {
+    if (editMode && hasUnsavedChanges) {
+      showConfirm(
+        'Unsaved Layout Changes',
+        'You have unsaved layout changes that won\'t be saved to your profile. Continue with current layout?',
+        () => handleRecordOnly(),
+        'Record Anyway'
+      )
+    } else {
+      handleRecordOnly()
+    }
+  }
+
+  const guardedPreviewPdf = () => {
+    if (editMode && hasUnsavedChanges) {
+      showConfirm(
+        'Unsaved Layout Changes',
+        'You have unsaved layout changes that won\'t be saved to your profile. Preview with current layout?',
+        () => handlePreviewPdf(),
+        'Preview Anyway'
+      )
+    } else {
+      handlePreviewPdf()
+    }
   }
 
   const templateName = useMemo(() => {
@@ -2742,8 +2797,8 @@ export default function App() {
         preferences={preferences} setPreferences={setPreferences}
         handleUnlockRequest={handleUnlockRequest} handleLock={handleLock}
         handleBackupData={handleBackupData} handleRestoreBackup={handleRestoreBackup}
-        editMode={editMode} setEditMode={setEditMode} resetModel={resetModel}
-        handlePreviewPdf={handlePreviewPdf} handlePrintAndRecord={handlePrintAndRecord} handleRecordOnly={handleRecordOnly}
+        editMode={editMode} setEditMode={handleToggleEditMode} resetModel={resetModel}
+        handlePreviewPdf={guardedPreviewPdf} handlePrintAndRecord={guardedPrintAndRecord} handleRecordOnly={guardedRecordOnly}
         activeProfile={activeProfile} data={data} setData={setData}
       />
 
@@ -2915,9 +2970,9 @@ export default function App() {
                 <p>{confirmConfig.message}</p>
               </div>
               <div className="modal-footer">
-                <button className="btn ghost" onClick={handleConfirmModalCancel}>Cancel</button>
+                <button className="btn ghost" onClick={handleConfirmModalCancel}>{confirmConfig.cancelText || 'Cancel'}</button>
                 <button className="btn primary" onClick={handleConfirmModalConfirm}>
-                  Confirm
+                  {confirmConfig.confirmText || 'Confirm'}
                 </button>
               </div>
             </div>
