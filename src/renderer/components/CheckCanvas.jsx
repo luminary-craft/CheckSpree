@@ -636,7 +636,7 @@ export function CheckCanvas({
                                 top: `${actualY}in`,
                                 minWidth: !isTextarea ? `${f.w}in` : undefined,
                                 width: !isTextarea ? 'fit-content' : `${f.w}in`,
-                                height: `${f.h}in`
+                                height: showFriendlyLabel ? `${f.h + 14 / 96}in` : `${f.h}in`
                               }}
                               onPointerDown={(e) => onPointerDownField(e, key)}
                             >
