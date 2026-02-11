@@ -196,7 +196,7 @@ body {
   gap: 16px;
   padding: 10px 20px;
   border-bottom: 1px solid var(--border);
-  background: rgba(20, 18, 16, 0.85);
+  background: var(--surface-elevated);
   backdrop-filter: blur(12px);
 }
 
