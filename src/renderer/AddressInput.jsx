@@ -176,8 +176,8 @@ export function AddressInput({ value, onChange, history = [], placeholder = 'Add
                         left: 0,
                         right: 0,
                         marginTop: '4px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #475569',
+                        backgroundColor: 'var(--surface-elevated)',
+                        border: '1px solid var(--border-medium)',
                         borderRadius: '6px',
                         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
                         zIndex: 1000,
@@ -193,8 +193,8 @@ export function AddressInput({ value, onChange, history = [], placeholder = 'Add
                             style={{
                                 padding: '8px 12px',
                                 cursor: 'pointer',
-                                borderBottom: index < suggestions.length - 1 ? '1px solid #334155' : 'none',
-                                color: index === highlightedIndex ? '#60a5fa' : '#e2e8f0',
+                                borderBottom: index < suggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                                color: index === highlightedIndex ? 'var(--accent-hover)' : 'var(--text-bright)',
                                 backgroundColor: index === highlightedIndex ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
                                 transition: 'background-color 0.1s'
                             }}

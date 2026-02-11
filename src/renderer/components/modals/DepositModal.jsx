@@ -56,7 +56,7 @@ export function DepositModal({
             />
           </div>
           <div className="field">
-            <label>Additional Details <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
+            <label>Additional Details <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>(optional)</span></label>
             <textarea
               value={depositData.reason}
               onChange={(e) => setDepositData({ ...depositData, reason: e.target.value })}
@@ -66,7 +66,7 @@ export function DepositModal({
                 width: '100%',
                 resize: 'vertical',
                 minHeight: '60px',
-                background: '#1e293b',
+                background: 'var(--surface-elevated)',
                 color: 'var(--text)',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',

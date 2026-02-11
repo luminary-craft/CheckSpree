@@ -61,7 +61,7 @@ export function ExportDialog({
                 onChange={(e) => setExportGlCodeFilter(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
+                  background: 'var(--surface-elevated)',
                   color: 'var(--text)',
                   border: '1px solid var(--border)',
                   padding: '10px 12px',
@@ -111,7 +111,7 @@ export function ExportDialog({
                 onChange={(e) => setExportDateRange(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
+                  background: 'var(--surface-elevated)',
                   color: 'var(--text)',
                   border: '1px solid var(--border)',
                   padding: '10px 12px',
@@ -163,7 +163,7 @@ export function ExportDialog({
                 onChange={(e) => setExportSortOrder(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
+                  background: 'var(--surface-elevated)',
                   color: 'var(--text)',
                   border: '1px solid var(--border)',
                   padding: '10px 12px',

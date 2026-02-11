@@ -3008,26 +3008,11 @@ export default function App() {
 
       {/* Toast Notification */}
 
-      {
-        toast && (
-          <div style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'error' ? '#ef4444' : toast.type === 'warning' ? '#f59e0b' : '#3b82f6',
-            color: 'white',
-            padding: '12px 20px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            zIndex: 10000,
-            maxWidth: '400px',
-            wordWrap: 'break-word',
-            animation: 'slideIn 0.3s ease-out'
-          }}>
-            {toast.message}
-          </div>
-        )
-      }
+      {toast && (
+        <div className={`toast-notification ${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
 
       {/* Update Notification */}
       <UpdateNotification isAdmin={!preferences.adminLocked} />

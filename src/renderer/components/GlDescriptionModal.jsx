@@ -11,7 +11,7 @@ export function GlDescriptionModal({ code, onClose, onSave }) {
           <button className="btn-icon" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
-          <p style={{ marginBottom: '16px', color: '#94a3b8' }}>
+          <p style={{ marginBottom: '16px', color: 'var(--text-label)' }}>
             This GL Code is not recognized. Would you like to add a description for future reference?
           </p>
           <div className="field">

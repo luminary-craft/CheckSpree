@@ -17,14 +17,14 @@ export function BatchCompleteModal({ batchCompleteData, setShowBatchCompleteModa
           }}>
             {batchCompleteData.cancelled ? '⚠️' : '✅'}
           </div>
-          <p style={{ fontSize: '18px', marginBottom: '8px', color: '#f1f5f9' }}>
+          <p style={{ fontSize: '18px', marginBottom: '8px', color: 'var(--text-bright)' }}>
             {batchCompleteData.cancelled
               ? `Processed ${batchCompleteData.processed} of ${batchCompleteData.total} checks`
               : `Successfully printed and recorded ${batchCompleteData.processed} checks`
             }
           </p>
           {batchCompleteData.cancelled && (
-            <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '12px' }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-label)', marginTop: '12px' }}>
               Already processed checks have been recorded.
             </p>
           )}

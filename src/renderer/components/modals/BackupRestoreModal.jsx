@@ -20,7 +20,7 @@ export function BackupRestoreModal({
             padding: '12px',
             backgroundColor: '#1e3a5f',
             borderRadius: '6px',
-            border: '1px solid #3b82f6'
+            border: '1px solid var(--accent)'
           }}>
             <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
               🔒 <strong>Secure Auto-Backups:</strong> These backups are encrypted and stored securely in your app data folder. Select the most recent backup or choose an older version.
@@ -30,9 +30,9 @@ export function BackupRestoreModal({
           <div style={{
             maxHeight: '400px',
             overflowY: 'auto',
-            border: '1px solid #334155',
+            border: '1px solid var(--border-subtle)',
             borderRadius: '6px',
-            backgroundColor: '#1e293b'
+            backgroundColor: 'var(--surface-elevated)'
           }}>
             {(() => {
               const grouped = groupBackups(availableBackups)
@@ -51,13 +51,13 @@ export function BackupRestoreModal({
                   <div key={groupName}>
                     <div style={{
                       padding: '8px 12px',
-                      backgroundColor: '#0f172a',
+                      backgroundColor: 'var(--surface-deep)',
                       fontWeight: '600',
                       fontSize: '12px',
-                      color: '#94a3b8',
+                      color: 'var(--text-label)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.5px',
-                      borderBottom: '1px solid #334155'
+                      borderBottom: '1px solid var(--border-subtle)'
                     }}>
                       {groupName}
                     </div>
@@ -68,8 +68,8 @@ export function BackupRestoreModal({
                         style={{
                           padding: '12px 16px',
                           cursor: 'pointer',
-                          borderBottom: '1px solid #1e293b',
-                          backgroundColor: selectedBackup?.path === backup.path ? '#334155' : 'transparent',
+                          borderBottom: '1px solid var(--surface-elevated)',
+                          backgroundColor: selectedBackup?.path === backup.path ? 'var(--border-subtle)' : 'transparent',
                           transition: 'background-color 0.2s'
                         }}
                         onMouseEnter={(e) => {
@@ -85,15 +85,15 @@ export function BackupRestoreModal({
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <div style={{ fontWeight: '500', color: '#f1f5f9', fontSize: '14px' }}>
+                            <div style={{ fontWeight: '500', color: 'var(--text-bright)', fontSize: '14px' }}>
                               {backup.friendlyName}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '2px' }}>
                               {backup.fullDate} • {(backup.size / 1024).toFixed(1)} KB
                             </div>
                           </div>
                           {selectedBackup?.path === backup.path && (
-                            <div style={{ color: '#3b82f6', fontSize: '20px', fontWeight: 'bold' }}>✓</div>
+                            <div style={{ color: 'var(--accent)', fontSize: '20px', fontWeight: 'bold' }}>✓</div>
                           )}
                         </div>
                       </div>

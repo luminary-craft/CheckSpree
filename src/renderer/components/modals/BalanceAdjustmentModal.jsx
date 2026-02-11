@@ -25,7 +25,7 @@ export function BalanceAdjustmentModal({
         <div className="modal-body">
           <div style={{
             padding: '16px',
-            backgroundColor: '#1e293b',
+            backgroundColor: 'var(--surface-elevated)',
             borderRadius: '8px',
             marginBottom: '16px'
           }}>
@@ -37,7 +37,7 @@ export function BalanceAdjustmentModal({
               <span style={{ color: '#9ca3af' }}>New Balance:</span>
               <span style={{ fontWeight: 600 }}>{formatCurrency(parseFloat(tempBalance) || 0)}</span>
             </div>
-            <div style={{ borderTop: '1px solid #334155', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: '#9ca3af' }}>Adjustment:</span>
               <span style={{
                 fontWeight: 600,
@@ -60,7 +60,7 @@ export function BalanceAdjustmentModal({
                 width: '100%',
                 resize: 'vertical',
                 minHeight: '80px',
-                background: '#1e293b',
+                background: 'var(--surface-elevated)',
                 color: 'var(--text)',
                 border: '1px solid var(--border)',
                 borderRadius: '6px',
@@ -69,7 +69,7 @@ export function BalanceAdjustmentModal({
               }}
             />
           </div>
-          <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>
             This adjustment will be recorded in the transaction history for audit purposes.
           </p>
         </div>

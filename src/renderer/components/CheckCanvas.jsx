@@ -32,7 +32,7 @@ export function CheckCanvas({
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 borderRadius: '12px',
                 padding: '32px',
-                color: '#94a3b8'
+                color: 'var(--text-label)'
               }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
                 <h3 style={{ color: '#e2e8f0', marginBottom: '12px', fontSize: '20px' }}>No Check Profiles Found</h3>
@@ -77,8 +77,8 @@ export function CheckCanvas({
                     top: Math.min(selectionBox.startY, selectionBox.currentY) + 'in',
                     width: Math.abs(selectionBox.currentX - selectionBox.startX) + 'in',
                     height: Math.abs(selectionBox.currentY - selectionBox.startY) + 'in',
-                    border: '1px solid #3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    border: '1px solid var(--accent)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
                     pointerEvents: 'none',
                     zIndex: 9999
                   }} />
@@ -318,7 +318,7 @@ export function CheckCanvas({
                                 position: 'absolute',
                                 top: `calc(${topY}in + 4px)`,
                                 right: '8px',
-                                background: 'rgba(56, 189, 248, 0.15)',
+                                background: 'rgba(245, 158, 11, 0.15)',
                                 color: 'var(--accent)',
                                 padding: '2px 6px',
                                 borderRadius: '3px',
@@ -328,7 +328,7 @@ export function CheckCanvas({
                                 letterSpacing: '0.05em',
                                 pointerEvents: 'none',
                                 zIndex: 50,
-                                border: '1px solid rgba(56, 189, 248, 0.2)'
+                                border: '1px solid rgba(245, 158, 11, 0.2)'
                               }}
                             >
                               {sectionLabel}
@@ -725,11 +725,11 @@ export function CheckCanvas({
                                     marginTop: '8px',
                                     display: 'flex',
                                     gap: '4px',
-                                    backgroundColor: '#1e293b',
+                                    backgroundColor: 'var(--surface-elevated)',
                                     padding: '4px 8px',
                                     borderRadius: '6px',
                                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                                    border: '1px solid #334155',
+                                    border: '1px solid var(--border-subtle)',
                                     zIndex: 1000
                                   }}
                                 >
@@ -748,10 +748,10 @@ export function CheckCanvas({
                                       selected.forEach(k => setField(k, { bold: !allBold }))
                                     }}
                                     style={{
-                                      background: f.bold ? '#3b82f6' : 'transparent',
-                                      color: f.bold ? '#fff' : '#94a3b8',
+                                      background: f.bold ? 'var(--accent)' : 'transparent',
+                                      color: f.bold ? '#fff' : 'var(--text-label)',
                                       border: '1px solid',
-                                      borderColor: f.bold ? '#3b82f6' : '#475569',
+                                      borderColor: f.bold ? 'var(--accent)' : 'var(--border-medium)',
                                       borderRadius: '4px',
                                       width: '24px',
                                       height: '24px',
@@ -781,10 +781,10 @@ export function CheckCanvas({
                                       selected.forEach(k => setField(k, { italic: !allItalic }))
                                     }}
                                     style={{
-                                      background: f.italic ? '#3b82f6' : 'transparent',
-                                      color: f.italic ? '#fff' : '#94a3b8',
+                                      background: f.italic ? 'var(--accent)' : 'transparent',
+                                      color: f.italic ? '#fff' : 'var(--text-label)',
                                       border: '1px solid',
-                                      borderColor: f.italic ? '#3b82f6' : '#475569',
+                                      borderColor: f.italic ? 'var(--accent)' : 'var(--border-medium)',
                                       borderRadius: '4px',
                                       width: '24px',
                                       height: '24px',
@@ -801,7 +801,7 @@ export function CheckCanvas({
                                     I
                                   </button>
                                   {/* Separator */}
-                                  <div style={{ width: '1px', background: '#475569', margin: '2px 2px' }} />
+                                  <div style={{ width: '1px', background: 'var(--border-medium)', margin: '2px 2px' }} />
                                   {/* Decrease font size button */}
                                   <button
                                     onClick={(e) => {
@@ -820,8 +820,8 @@ export function CheckCanvas({
                                     }}
                                     style={{
                                       background: 'transparent',
-                                      color: '#94a3b8',
-                                      border: '1px solid #475569',
+                                      color: 'var(--text-label)',
+                                      border: '1px solid var(--border-medium)',
                                       borderRadius: '4px',
                                       width: '24px',
                                       height: '24px',
@@ -847,7 +847,7 @@ export function CheckCanvas({
                                       }
                                     }}
                                     style={{
-                                      color: f.customFontIn ? '#60a5fa' : '#94a3b8',
+                                      color: f.customFontIn ? 'var(--accent-hover)' : 'var(--text-label)',
                                       fontSize: '11px',
                                       display: 'flex',
                                       alignItems: 'center',
@@ -877,8 +877,8 @@ export function CheckCanvas({
                                     }}
                                     style={{
                                       background: 'transparent',
-                                      color: '#94a3b8',
-                                      border: '1px solid #475569',
+                                      color: 'var(--text-label)',
+                                      border: '1px solid var(--border-medium)',
                                       borderRadius: '4px',
                                       width: '24px',
                                       height: '24px',
@@ -897,7 +897,7 @@ export function CheckCanvas({
                                   {selected.length > 1 && (
                                     <div
                                       style={{
-                                        color: '#60a5fa',
+                                        color: 'var(--accent-hover)',
                                         fontSize: '10px',
                                         display: 'flex',
                                         alignItems: 'center',

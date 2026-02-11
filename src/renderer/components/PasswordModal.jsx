@@ -9,7 +9,7 @@ export function PasswordModal({ title, message, value, onChange, onSubmit, onCan
           <button className="btn-icon" onClick={onCancel}>×</button>
         </div>
         <div className="modal-body">
-          {message && <p style={{ marginBottom: '16px', color: '#94a3b8' }}>{message}</p>}
+          {message && <p style={{ marginBottom: '16px', color: 'var(--text-label)' }}>{message}</p>}
           <div className="field">
             <label>Password</label>
             <input

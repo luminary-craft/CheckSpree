@@ -67,16 +67,16 @@ export function Sidebar({
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '10px 12px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #475569',
+                      backgroundColor: 'var(--surface-elevated)',
+                      border: '1px solid var(--border-medium)',
                       borderRadius: '6px',
                       cursor: 'pointer',
                       userSelect: 'none'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ color: '#94a3b8', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Ledger:</span>
-                      <span style={{ fontWeight: 600, color: '#f1f5f9' }}>{activeLedger?.name || 'Select Ledger'}</span>
+                      <span style={{ color: 'var(--text-label)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Ledger:</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{activeLedger?.name || 'Select Ledger'}</span>
                     </div>
                     <ChevronIcon open={showLedgerManager} />
                   </div>
@@ -85,8 +85,8 @@ export function Sidebar({
                   {showLedgerManager && (
                     <div className="ledger-dropdown-list" style={{
                       marginTop: '8px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #475569',
+                      backgroundColor: 'var(--surface-elevated)',
+                      border: '1px solid var(--border-medium)',
                       borderRadius: '6px',
                       overflow: 'hidden',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
@@ -96,15 +96,15 @@ export function Sidebar({
                         const canEdit = !preferences.adminLocked || preferences.allowUserLedgerManagement
 
                         return (
-                          <div key={l.id} style={{ borderBottom: '1px solid #334155' }}>
+                          <div key={l.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                             <div
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
                                 padding: '10px 12px',
-                                backgroundColor: l.id === activeLedgerId ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                                borderLeft: l.id === activeLedgerId ? '3px solid #3b82f6' : '3px solid transparent'
+                                backgroundColor: l.id === activeLedgerId ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                                borderLeft: l.id === activeLedgerId ? '3px solid var(--accent)' : '3px solid transparent'
                               }}
                             >
                               <div
@@ -126,7 +126,7 @@ export function Sidebar({
                                       setEditingLedgerName(isEditing ? null : l.id)
                                     }}
                                     title="Edit ledger settings"
-                                    style={{ color: isEditing ? '#3b82f6' : '#94a3b8' }}
+                                    style={{ color: isEditing ? 'var(--accent)' : 'var(--text-label)' }}
                                   >
                                     <PencilIcon />
                                   </button>
@@ -151,11 +151,11 @@ export function Sidebar({
                               <div style={{
                                 padding: '12px',
                                 backgroundColor: 'rgba(0, 0, 0, 0.2)',
-                                borderTop: '1px solid #334155'
+                                borderTop: '1px solid var(--border-subtle)'
                               }}>
                                 {/* Name Edit */}
                                 <div style={{ marginBottom: '12px' }}>
-                                  <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Ledger Name</label>
+                                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-label)', marginBottom: '4px' }}>Ledger Name</label>
                                   <input
                                     className="profile-name-input"
                                     defaultValue={l.name}
@@ -178,7 +178,7 @@ export function Sidebar({
 
                                 {/* Initial Balance - ATM-style input (direct update, no history entry) */}
                                 <div style={{ marginBottom: '12px' }} onClick={(e) => e.stopPropagation()}>
-                                  <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Initial Balance</label>
+                                  <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-label)', marginBottom: '4px' }}>Initial Balance</label>
                                   <div className="input-prefix">
                                     <span>$</span>
                                     <input
@@ -300,7 +300,7 @@ export function Sidebar({
                         <button
                           className="btn ghost full-width"
                           onClick={createNewLedger}
-                          style={{ borderRadius: 0, borderTop: '1px solid #334155', justifyContent: 'center', padding: '10px' }}
+                          style={{ borderRadius: 0, borderTop: '1px solid var(--border-subtle)', justifyContent: 'center', padding: '10px' }}
                         >
                           <PlusIcon /> New Ledger
                         </button>
@@ -309,13 +309,13 @@ export function Sidebar({
                       {!preferences.adminLocked && (
                         <div style={{
                           padding: '12px',
-                          borderTop: '1px solid #334155',
+                          borderTop: '1px solid var(--border-subtle)',
                           backgroundColor: 'rgba(0, 0, 0, 0.2)'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div>
                               <div style={{ fontSize: '12px', fontWeight: 500 }}>User Management</div>
-                              <div style={{ fontSize: '10px', color: '#64748b' }}>Allow standard users to manage ledgers</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>Allow standard users to manage ledgers</div>
                             </div>
                             <label className="toggle-switch">
                               <input
@@ -335,7 +335,7 @@ export function Sidebar({
                 </div>
 
                 {/* Balance Display */}
-                <div style={{ borderTop: '1px solid #334155', paddingTop: '16px', marginBottom: '16px' }}>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', marginBottom: '16px' }}>
                   {editingBalance ? (
                     <div style={{
                       display: 'flex',
@@ -449,12 +449,12 @@ export function Sidebar({
                 </div>
 
                 {/* Recent History */}
-                <div style={{ borderTop: '1px solid #334155', paddingTop: '16px' }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>
+                <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: '600', color: 'var(--text-label)' }}>
                     Recent Activity
                   </h4>
                   {checkHistory.filter(c => c.ledgerId === activeLedgerId).length === 0 ? (
-                    <div style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--text-dim)', textAlign: 'center', padding: '12px 0' }}>
                       No recent activity
                     </div>
                   ) : (
@@ -476,8 +476,8 @@ export function Sidebar({
                           }}
                           onMouseEnter={(e) => {
                             if (entry.type !== 'deposit') {
-                              e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
-                              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
+                              e.currentTarget.style.backgroundColor = 'rgba(245, 158, 11, 0.15)'
+                              e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.3)'
                             }
                           }}
                           onMouseLeave={(e) => {
@@ -489,12 +489,12 @@ export function Sidebar({
                             <div style={{ fontWeight: '500', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {entry.payee}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-label)' }}>
                               {formatDate(entry.date)}
                             </div>
                           </div>
                           {entry.type === 'note' ? (
-                            <div style={{ fontWeight: '500', color: '#60a5fa', whiteSpace: 'nowrap', fontSize: '11px' }}>
+                            <div style={{ fontWeight: '500', color: 'var(--accent-hover)', whiteSpace: 'nowrap', fontSize: '11px' }}>
                               Note
                             </div>
                           ) : (
@@ -513,13 +513,13 @@ export function Sidebar({
                               border: 'none',
                               cursor: 'pointer',
                               padding: '4px',
-                              color: '#64748b',
+                              color: 'var(--text-dim)',
                               display: 'flex',
                               alignItems: 'center',
                               transition: 'color 0.2s'
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                            onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
                           >
                             <TrashIcon />
                           </button>
@@ -676,8 +676,8 @@ export function Sidebar({
                         }
                       }}
                     >
-                      <option value="standard" style={{ backgroundColor: '#1e293b', color: '#f1f5f9' }}>Standard (Check + 2 Stubs)</option>
-                      <option value="three_up" style={{ backgroundColor: '#1e293b', color: '#f1f5f9' }}>3-Up (3 Checks per Page)</option>
+                      <option value="standard" style={{ backgroundColor: 'var(--surface-elevated)', color: 'var(--text-bright)' }}>Standard (Check + 2 Stubs)</option>
+                      <option value="three_up" style={{ backgroundColor: 'var(--surface-elevated)', color: 'var(--text-bright)' }}>3-Up (3 Checks per Page)</option>
                     </select>
                   </div>
                 )}
@@ -1017,7 +1017,7 @@ export function Sidebar({
                 <div className="field">
                   <label style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Address</span>
-                    <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'normal' }}>Window Envelope</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-label)', fontWeight: 'normal' }}>Window Envelope</span>
                   </label>
                   <AddressInput
                     value={getCurrentCheckData().address || ''}
@@ -1065,14 +1065,14 @@ export function Sidebar({
                           padding: '6px 10px',
                           backgroundColor: 'rgba(0, 0, 0, 0.2)',
                           border: '1px solid rgba(255, 255, 255, 0.08)',
-                          color: '#f1f5f9',
+                          color: 'var(--text-bright)',
                           fontSize: '13px',
                           outline: 'none',
                           transition: 'all 0.2s'
                         }}
                         onFocus={(e) => {
                           e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                          e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
+                          e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
                           // We need to maintain boundary with adjacent input
                           e.target.style.borderRight = 'none'
                         }}
@@ -1096,7 +1096,7 @@ export function Sidebar({
                           padding: '6px 10px',
                           backgroundColor: 'rgba(0, 0, 0, 0.2)',
                           border: '1px solid rgba(255, 255, 255, 0.08)',
-                          color: '#f1f5f9',
+                          color: 'var(--text-bright)',
                           fontSize: '13px',
                           outline: 'none',
                           transition: 'all 0.2s',
@@ -1104,7 +1104,7 @@ export function Sidebar({
                         }}
                         onFocus={(e) => {
                           e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                          e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
+                          e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
                           e.target.style.borderLeft = 'none'
                         }}
                         onBlur={(e) => {
@@ -1128,7 +1128,7 @@ export function Sidebar({
                   borderRadius: '6px',
                   border: '1px solid rgba(255, 255, 255, 0.08)'
                 }}>
-                  <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>Mode:</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-label)', fontWeight: '500' }}>Mode:</span>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       onClick={() => {
@@ -1142,9 +1142,9 @@ export function Sidebar({
                       style={{
                         padding: '6px 16px',
                         borderRadius: '4px',
-                        border: checkMode === 'simple' ? '1px solid #3b82f6' : '1px solid #475569',
-                        backgroundColor: checkMode === 'simple' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                        color: checkMode === 'simple' ? '#60a5fa' : '#94a3b8',
+                        border: checkMode === 'simple' ? '1px solid var(--accent)' : '1px solid var(--border-medium)',
+                        backgroundColor: checkMode === 'simple' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                        color: checkMode === 'simple' ? 'var(--accent-hover)' : 'var(--text-label)',
                         fontSize: '13px',
                         fontWeight: '500',
                         cursor: 'pointer',
@@ -1158,9 +1158,9 @@ export function Sidebar({
                       style={{
                         padding: '6px 16px',
                         borderRadius: '4px',
-                        border: checkMode === 'itemized' ? '1px solid #3b82f6' : '1px solid #475569',
-                        backgroundColor: checkMode === 'itemized' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                        color: checkMode === 'itemized' ? '#60a5fa' : '#94a3b8',
+                        border: checkMode === 'itemized' ? '1px solid var(--accent)' : '1px solid var(--border-medium)',
+                        backgroundColor: checkMode === 'itemized' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                        color: checkMode === 'itemized' ? 'var(--accent-hover)' : 'var(--text-label)',
                         fontSize: '13px',
                         fontWeight: '500',
                         cursor: 'pointer',
@@ -1204,7 +1204,7 @@ export function Sidebar({
 
                     {/* Line Items Table */}
                     <div style={{
-                      border: '1px solid #475569',
+                      border: '1px solid var(--border-medium)',
                       borderRadius: '6px',
                       overflow: 'hidden',
                       marginBottom: '8px'
@@ -1213,7 +1213,7 @@ export function Sidebar({
                         <div style={{
                           padding: '20px',
                           textAlign: 'center',
-                          color: '#64748b',
+                          color: 'var(--text-dim)',
                           fontSize: '13px'
                         }}>
                           No line items yet. Click "Add Item" below.
@@ -1226,7 +1226,7 @@ export function Sidebar({
                               gridTemplateColumns: '2fr 1fr auto',
                               gap: '8px',
                               padding: '8px',
-                              borderBottom: index < lineItems.length - 1 ? '1px solid #334155' : 'none',
+                              borderBottom: index < lineItems.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                               alignItems: 'center',
                               backgroundColor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent'
                             }}>
@@ -1253,8 +1253,8 @@ export function Sidebar({
                                 }}
                                 onFocus={(e) => {
                                   e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                                  e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
-                                  e.target.style.boxShadow = '0 0 0 2px rgba(56, 189, 248, 0.2)'
+                                  e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
+                                  e.target.style.boxShadow = '0 0 0 2px rgba(245, 158, 11, 0.2)'
                                 }}
                                 onBlur={(e) => {
                                   e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
@@ -1287,8 +1287,8 @@ export function Sidebar({
                                 }}
                                 onFocus={(e) => {
                                   e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
-                                  e.target.style.borderColor = 'rgba(56, 189, 248, 0.5)'
-                                  e.target.style.boxShadow = '0 0 0 2px rgba(56, 189, 248, 0.2)'
+                                  e.target.style.borderColor = 'rgba(245, 158, 11, 0.5)'
+                                  e.target.style.boxShadow = '0 0 0 2px rgba(245, 158, 11, 0.2)'
                                 }}
                                 onBlur={(e) => {
                                   e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.2)'
@@ -1683,7 +1683,7 @@ export function Sidebar({
                             value={activeProfile?.layoutMode === 'three_up' ? sheetData[activeSlot]?.date : data.date}
                             readOnly
                             className="readonly"
-                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer' }}
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-label)', cursor: 'pointer' }}
                             title="Date is synced from the main check"
                             onClick={() => document.querySelector('input[type="date"]')?.focus()}
                           />
@@ -1694,7 +1694,7 @@ export function Sidebar({
                             value={data.stub1_amount || data.amount || ''}
                             readOnly
                             className="readonly"
-                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8' }}
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-label)' }}
                             title="Amount is synced from the main check"
                           />
                         </div>
@@ -1846,7 +1846,7 @@ export function Sidebar({
                             value={activeProfile?.layoutMode === 'three_up' ? sheetData[activeSlot]?.date : data.date}
                             readOnly
                             className="readonly"
-                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer' }}
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-label)', cursor: 'pointer' }}
                             title="Date is synced from the main check"
                             onClick={() => document.querySelector('input[type="date"]')?.focus()}
                           />
@@ -1857,7 +1857,7 @@ export function Sidebar({
                             value={data.stub2_amount || data.amount || ''}
                             readOnly
                             className="readonly"
-                            style={{ background: 'rgba(255,255,255,0.05)', color: '#94a3b8' }}
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-label)' }}
                             title="Amount is synced from the main check"
                           />
                         </div>
@@ -2152,7 +2152,7 @@ export function Sidebar({
                 <div className="card">
                   <h4>Selected Field</h4>
                   {selected.length === 0 ? (
-                    <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '8px 0' }}>No field selected</div>
+                    <div style={{ color: 'var(--text-label)', fontStyle: 'italic', padding: '8px 0' }}>No field selected</div>
                   ) : selected.length > 1 ? (
                     <div>
                       <div style={{ marginBottom: '12px' }}>{selected.length} fields selected</div>
@@ -2257,7 +2257,7 @@ export function Sidebar({
                   border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '6px',
                   padding: '8px 16px',
-                  color: '#94a3b8',
+                  color: 'var(--text-label)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -2265,8 +2265,8 @@ export function Sidebar({
                   fontSize: '12px',
                   transition: 'all 0.2s'
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#64748b'; e.currentTarget.style.color = '#e2e8f0' }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#94a3b8' }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = '#e2e8f0' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'var(--text-label)' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
@@ -2283,7 +2283,7 @@ export function Sidebar({
                   border: '1px solid rgba(255,255,255,0.15)',
                   borderRadius: '6px',
                   padding: '8px 16px',
-                  color: '#94a3b8',
+                  color: 'var(--text-label)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -2291,8 +2291,8 @@ export function Sidebar({
                   fontSize: '12px',
                   transition: 'all 0.2s'
                 }}
-                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#64748b'; e.currentTarget.style.color = '#e2e8f0' }}
-                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#94a3b8' }}
+                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = '#e2e8f0' }}
+                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'var(--text-label)' }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 18h6" />

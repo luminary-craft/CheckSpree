@@ -16,15 +16,15 @@ export function DeleteConfirmModal({
           <div style={{
             marginTop: '16px',
             padding: '12px',
-            backgroundColor: '#1e293b',
+            backgroundColor: 'var(--surface-elevated)',
             borderRadius: '6px',
-            border: '1px solid #334155'
+            border: '1px solid var(--border-subtle)'
           }}>
             <div><strong>{deleteTarget.type === 'deposit' ? 'Description' : 'Payee'}:</strong> {deleteTarget.payee}</div>
             <div><strong>Amount:</strong> {formatCurrency(deleteTarget.amount)}</div>
             <div><strong>Date:</strong> {deleteTarget.date}</div>
           </div>
-          <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '14px' }}>
+          <p style={{ marginTop: '16px', color: 'var(--text-label)', fontSize: '14px' }}>
             {deleteTarget.type === 'deposit'
               ? `This will remove ${formatCurrency(deleteTarget.amount)} from the ledger balance.`
               : `This will restore ${formatCurrency(deleteTarget.amount)} to the ledger balance.`

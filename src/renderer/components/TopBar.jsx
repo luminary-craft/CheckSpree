@@ -24,8 +24,8 @@ export function TopBar({
         <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <img src={logoImg} alt="CheckSpree" className="logo-img" style={{ height: '44px', width: 'auto' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: '#f1f5f9', lineHeight: 1.2 }}>CheckSpree</span>
-            <span style={{ fontSize: '10px', color: '#64748b', opacity: 0.8 }}>Version {APP_VERSION}</span>
+            <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-bright)', lineHeight: 1.2 }}>CheckSpree</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-dim)', opacity: 0.8 }}>Version {APP_VERSION}</span>
           </div>
         </div>
 
@@ -131,38 +131,15 @@ export function TopBar({
                 </svg>
               </button>
               <div
-                style={{
-                  display: 'none',
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '4px',
-                  background: '#1e293b',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                  zIndex: 1000,
-                  minWidth: '160px',
-                  overflow: 'hidden'
-                }}
+                className="dropdown-menu"
+                style={{ display: 'none' }}
                 onMouseLeave={(e) => e.currentTarget.style.display = 'none'}
               >
                 <button
-                  className="btn"
+                  className="dropdown-item"
                   onClick={(e) => {
                     e.currentTarget.parentElement.style.display = 'none'
                     handleRecordOnly()
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#1e293b'}
-                  style={{
-                    width: '100%',
-                    justifyContent: 'flex-start',
-                    borderRadius: 0,
-                    border: 'none',
-                    background: '#1e293b',
-                    color: 'var(--text)',
-                    padding: '10px 14px'
                   }}
                 >
                   <CheckIcon /> Record Only
@@ -175,58 +152,23 @@ export function TopBar({
 
       {/* Quick Check Bar */}
       {activeProfile?.layoutMode !== 'three_up' && !editMode && (
-        <div className="quick-check-bar no-print" style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '12px 24px',
-          backgroundColor: '#1e293b',
-          borderBottom: '1px solid #334155',
-          flexWrap: 'wrap'
-        }}>
-          <span style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: '#64748b',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            whiteSpace: 'nowrap'
-          }}>
-            Quick Check
-          </span>
+        <div className="quick-check-bar no-print">
+          <span className="quick-check-label">Quick Check</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, flexWrap: 'wrap', minWidth: 0 }}>
             <input
+              className="quick-check-input"
               type="text"
               value={data.payee || ''}
               onChange={(e) => setData(p => ({ ...p, payee: e.target.value }))}
               placeholder="Payee"
-              style={{
-                flex: '2 1 150px',
-                minWidth: '120px',
-                maxWidth: '250px',
-                padding: '8px 12px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #475569',
-                borderRadius: '6px',
-                color: '#f1f5f9',
-                fontSize: '14px'
-              }}
+              style={{ flex: '2 1 150px', minWidth: '120px', maxWidth: '250px' }}
             />
             <input
+              className="quick-check-input"
               type="date"
               value={data.date || getLocalDateString()}
               onChange={(e) => setData(p => ({ ...p, date: e.target.value }))}
-              style={{
-                flex: '1 1 130px',
-                minWidth: '130px',
-                maxWidth: '150px',
-                padding: '8px 12px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #475569',
-                borderRadius: '6px',
-                color: '#f1f5f9',
-                fontSize: '14px'
-              }}
+              style={{ flex: '1 1 130px', minWidth: '130px', maxWidth: '150px' }}
             />
             <div style={{ position: 'relative', flex: '1 1 100px', minWidth: '100px', maxWidth: '140px' }}>
               <span style={{
@@ -234,11 +176,12 @@ export function TopBar({
                 left: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: '#64748b',
+                color: 'var(--text-dim)',
                 fontSize: '14px',
                 pointerEvents: 'none'
               }}>$</span>
               <input
+                className="quick-check-input"
                 type="text"
                 value={data.amount || ''}
                 onChange={(e) => {
@@ -246,33 +189,16 @@ export function TopBar({
                   setData(p => ({ ...p, amount: val }))
                 }}
                 placeholder="0.00"
-                style={{
-                  width: '100%',
-                  padding: '8px 12px 8px 24px',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid #475569',
-                  borderRadius: '6px',
-                  color: '#f1f5f9',
-                  fontSize: '14px'
-                }}
+                style={{ width: '100%', paddingLeft: '24px' }}
               />
             </div>
             <input
+              className="quick-check-input"
               type="text"
               value={data.memo || ''}
               onChange={(e) => setData(p => ({ ...p, memo: e.target.value }))}
               placeholder="Memo (optional)"
-              style={{
-                flex: '2 1 150px',
-                minWidth: '100px',
-                maxWidth: '200px',
-                padding: '8px 12px',
-                backgroundColor: '#0f172a',
-                border: '1px solid #475569',
-                borderRadius: '6px',
-                color: '#f1f5f9',
-                fontSize: '14px'
-              }}
+              style={{ flex: '2 1 150px', minWidth: '100px', maxWidth: '200px' }}
             />
           </div>
         </div>

@@ -38,7 +38,7 @@ export function ManualBackupModal({ confirmManualBackup, setShowManualBackupModa
             padding: '12px',
             backgroundColor: '#1e3a5f',
             borderRadius: '6px',
-            border: '1px solid #3b82f6'
+            border: '1px solid var(--accent)'
           }}>
             <div style={{ fontSize: '13px', color: '#93c5fd', lineHeight: '1.6' }}>
               ✓ An <strong>encrypted</strong> copy will also be saved automatically to your secure app data folder.
@@ -49,7 +49,7 @@ export function ManualBackupModal({ confirmManualBackup, setShowManualBackupModa
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#e2e8f0', fontSize: '14px' }}>
               You will be prompted to choose where to save this file
             </label>
-            <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-label)', marginTop: '4px' }}>
               Recommended locations: Password manager, encrypted drive, or secure cloud storage
             </p>
           </div>

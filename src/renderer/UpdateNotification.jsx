@@ -98,8 +98,8 @@ export default function UpdateNotification({ isAdmin }) {
         bottom: '16px',
         right: '16px',
         zIndex: 50,
-        backgroundColor: '#1e293b',
-        border: '1px solid #475569',
+        backgroundColor: 'var(--surface-elevated)',
+        border: '1px solid var(--border-medium)',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         borderRadius: '8px',
         padding: '16px',
@@ -127,7 +127,7 @@ export default function UpdateNotification({ isAdmin }) {
             <div style={{ fontSize: '15px', fontWeight: 600, color: 'white', marginBottom: '4px' }}>
               You're up to date
             </div>
-            <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-label)' }}>
               No updates available
             </div>
           </div>
@@ -142,7 +142,7 @@ export default function UpdateNotification({ isAdmin }) {
               <div style={{ fontSize: '15px', fontWeight: 600, color: 'white', marginBottom: '4px' }}>
                 Update Available
               </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-label)' }}>
                 Version {version} is ready to download
               </div>
             </div>
@@ -175,7 +175,7 @@ export default function UpdateNotification({ isAdmin }) {
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                background: '#3b82f6',
+                background: 'var(--accent)',
                 color: 'white',
                 transition: 'all 150ms ease'
               }}
@@ -184,7 +184,7 @@ export default function UpdateNotification({ isAdmin }) {
                 e.target.style.transform = 'translateY(-1px)'
               }}
               onMouseLeave={(e) => {
-                e.target.style.background = '#3b82f6'
+                e.target.style.background = 'var(--accent)'
                 e.target.style.transform = 'translateY(0)'
               }}
             >
@@ -211,13 +211,13 @@ export default function UpdateNotification({ isAdmin }) {
             }}>
               <div style={{
                 height: '100%',
-                background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+                background: 'linear-gradient(90deg, var(--accent), var(--secondary))',
                 width: `${downloadPercent}%`,
                 transition: 'width 300ms ease',
                 borderRadius: '3px'
               }} />
             </div>
-            <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-label)' }}>
               {downloadPercent}%
             </div>
           </div>
@@ -232,7 +232,7 @@ export default function UpdateNotification({ isAdmin }) {
               <div style={{ fontSize: '15px', fontWeight: 600, color: 'white', marginBottom: '4px' }}>
                 Update Ready
               </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-label)' }}>
                 Restart to install version {version}
               </div>
             </div>
@@ -291,7 +291,7 @@ export default function UpdateNotification({ isAdmin }) {
             <div style={{ fontSize: '15px', fontWeight: 600, color: 'white', marginBottom: '4px' }}>
               Update Failed
             </div>
-            <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+            <div style={{ fontSize: '13px', color: 'var(--text-label)' }}>
               Unable to check for updates
             </div>
           </div>

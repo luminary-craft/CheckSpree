@@ -23,7 +23,7 @@ export function BatchProgressModal({ batchPrintProgress, cancelBatchPrint }) {
               <div style={{
                 width: `${(batchPrintProgress.current / batchPrintProgress.total) * 100}%`,
                 height: '100%',
-                backgroundColor: '#3b82f6',
+                backgroundColor: 'var(--accent)',
                 transition: 'width 0.3s ease'
               }} />
             </div>

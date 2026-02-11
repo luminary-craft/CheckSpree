@@ -115,8 +115,8 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', s
                         left: 0,
                         right: 0,
                         marginTop: '4px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #475569',
+                        backgroundColor: 'var(--surface-elevated)',
+                        border: '1px solid var(--border-medium)',
                         borderRadius: '6px',
                         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
                         zIndex: 1000,
@@ -125,7 +125,7 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', s
                     }}
                 >
                     {suggestions.length === 0 ? (
-                        <div style={{ padding: '8px 12px', color: '#94a3b8', fontSize: '13px', fontStyle: 'italic' }}>
+                        <div style={{ padding: '8px 12px', color: 'var(--text-label)', fontSize: '13px', fontStyle: 'italic' }}>
                             No GL codes found
                         </div>
                     ) : (
@@ -140,8 +140,8 @@ function GlCodeInput({ value, onChange, glCodes = [], placeholder = 'GL Code', s
                                     padding: '8px 12px',
                                     cursor: 'pointer',
                                     backgroundColor: index === highlightedIndex ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
-                                    color: index === highlightedIndex ? '#60a5fa' : '#e2e8f0',
-                                    borderBottom: index < suggestions.length - 1 ? '1px solid #334155' : 'none',
+                                    color: index === highlightedIndex ? 'var(--accent-hover)' : 'var(--text-bright)',
+                                    borderBottom: index < suggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                                     fontSize: '13px',
                                     transition: 'background-color 0.1s',
                                     display: 'flex',
@@ -171,7 +171,7 @@ function GlDescriptionModal({ code, onClose, onSave }) {
                     <button className="btn-icon" onClick={onClose}>×</button>
                 </div>
                 <div className="modal-body">
-                    <p style={{ marginBottom: '16px', color: '#94a3b8' }}>
+                    <p style={{ marginBottom: '16px', color: 'var(--text-label)' }}>
                         This GL Code is not recognized. Would you like to add a description for future reference?
                     </p>
                     <div className="field">

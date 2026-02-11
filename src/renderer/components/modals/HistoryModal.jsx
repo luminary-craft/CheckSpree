@@ -92,7 +92,7 @@ export function HistoryModal({
                 onChange={(e) => setHistoryGlCodeFilter(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
+                  background: 'var(--surface-elevated)',
                   color: 'var(--text)',
                   border: '1px solid var(--border)',
                   borderRadius: '6px',
@@ -114,7 +114,7 @@ export function HistoryModal({
                 onChange={(e) => setHistorySortOrder(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
+                  background: 'var(--surface-elevated)',
                   color: 'var(--text)',
                   border: '1px solid var(--border)',
                   borderRadius: '6px',
@@ -156,7 +156,7 @@ export function HistoryModal({
                     <div className="history-card-main">
                       <div className="history-card-payee">{entry.payee}</div>
                       {entry.type === 'note' ? (
-                        <div className="history-card-amount" style={{ color: '#60a5fa', fontSize: '12px' }}>
+                        <div className="history-card-amount" style={{ color: 'var(--accent-hover)', fontSize: '12px' }}>
                           Note
                         </div>
                       ) : (
@@ -172,12 +172,12 @@ export function HistoryModal({
                           • {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
-                      {entry.glCode && <span className="history-card-memo" style={{ color: '#60a5fa' }}>• GL: {entry.glCode}{entry.glDescription ? ` - ${entry.glDescription}` : (() => {
+                      {entry.glCode && <span className="history-card-memo" style={{ color: 'var(--accent-hover)' }}>• GL: {entry.glCode}{entry.glDescription ? ` - ${entry.glDescription}` : (() => {
                         const match = glCodes.find(g => g.code === entry.glCode)
                         return match && match.description ? ` - ${match.description}` : ''
                       })()}</span>}
                       {entry.memo && <span className="history-card-memo">• {entry.memo}</span>}
-                      {entry.reason && <span className="history-card-memo" style={{ color: '#a78bfa' }}>• {entry.reason}</span>}
+                      {entry.reason && <span className="history-card-memo" style={{ color: 'var(--secondary)' }}>• {entry.reason}</span>}
                     </div>
                     <div className="history-card-tags">
                       <span className="tag tag-ledger">{ledger?.name || entry.ledgerName || 'Unknown'}</span>

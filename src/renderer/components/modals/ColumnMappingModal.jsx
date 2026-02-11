@@ -67,8 +67,8 @@ export function ColumnMappingModal({
             <div style={{
               marginTop: '24px',
               padding: '16px',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
+              backgroundColor: 'var(--surface-elevated)',
+              border: '1px solid var(--border-subtle)',
               borderRadius: '8px'
             }}>
               <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#e2e8f0' }}>Preview (First Row)</h3>

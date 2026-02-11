@@ -15,7 +15,7 @@ export function PrintFailureModal({
           <p style={{ marginBottom: '12px', fontWeight: 600 }}>
             Failed to print: {printFailureInfo.payee}
           </p>
-          <p style={{ marginBottom: '16px', color: '#94a3b8', fontSize: '14px' }}>
+          <p style={{ marginBottom: '16px', color: 'var(--text-label)', fontSize: '14px' }}>
             Error: {printFailureInfo.error}
           </p>
           <div style={{
