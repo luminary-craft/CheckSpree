@@ -15,7 +15,7 @@ export function TopBar({
   preferences, setPreferences,
   handleUnlockRequest, handleLock,
   handleBackupData, handleRestoreBackup,
-  editMode, setEditMode,
+  editMode, setEditMode, resetModel,
   handlePreviewPdf, handlePrintAndRecord, handleRecordOnly,
   activeProfile, data, setData
 }) {
@@ -83,15 +83,24 @@ export function TopBar({
                 Edit Layout
               </button>
               {editMode && (
-                <label className="toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0 12px' }}>
-                  <input
-                    type="checkbox"
-                    checked={preferences.enableSnapping}
-                    onChange={(e) => setPreferences(p => ({ ...p, enableSnapping: e.target.checked }))}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <span style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>Snap to Grid</span>
-                </label>
+                <>
+                  <label className="toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0 12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={preferences.enableSnapping}
+                      onChange={(e) => setPreferences(p => ({ ...p, enableSnapping: e.target.checked }))}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>Snap to Grid</span>
+                  </label>
+                  <button className="btn ghost" onClick={resetModel} title="Reset layout and fields to defaults">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M1.5 2.5V5.5H4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M2.1 8.5A5 5 0 104.05 3.05L1.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Reset Layout
+                  </button>
+                </>
               )}
             </>
           )}

@@ -2,7 +2,8 @@ import {
   clamp, roundTo, calculateBaseYForSection,
   formatAmountForDisplay, formatDate, formatDateByPreference,
   formatLineItems, formatLedgerSnapshot, getDateRangeForFilter,
-  normalizeModel, DEFAULT_LAYOUT, DEFAULT_FIELDS, DEFAULT_MODEL
+  normalizeModel, DEFAULT_LAYOUT, DEFAULT_FIELDS, DEFAULT_MODEL,
+  DEFAULT_PREFERENCES
 } from './defaults'
 
 describe('clamp', () => {
@@ -355,5 +356,115 @@ describe('normalizeModel', () => {
     const result = normalizeModel(legacy)
     expect(result.layout.widthIn).toBe(8.5)
     expect(result.layout.checkHeightIn).toBe(3.5)
+  })
+})
+
+describe('DEFAULT_LAYOUT perfect 1/3 split', () => {
+  it('section heights sum to 11 inches (Letter page)', () => {
+    const total = DEFAULT_LAYOUT.checkHeightIn + DEFAULT_LAYOUT.stub1HeightIn + DEFAULT_LAYOUT.stub2HeightIn
+    expect(total).toBeCloseTo(11.0, 1)
+  })
+
+  it('check section is approximately 1/3 of 11 inches', () => {
+    expect(DEFAULT_LAYOUT.checkHeightIn).toBeCloseTo(11 / 3, 1)
+  })
+
+  it('stub1 section is approximately 1/3 of 11 inches', () => {
+    expect(DEFAULT_LAYOUT.stub1HeightIn).toBeCloseTo(11 / 3, 1)
+  })
+
+  it('stub2 section is approximately 1/3 of 11 inches', () => {
+    expect(DEFAULT_LAYOUT.stub2HeightIn).toBeCloseTo(11 / 3, 1)
+  })
+
+  it('cutLine1 equals check height', () => {
+    expect(DEFAULT_LAYOUT.cutLine1In).toBe(DEFAULT_LAYOUT.checkHeightIn)
+  })
+
+  it('cutLine2 equals check + stub1 height', () => {
+    expect(DEFAULT_LAYOUT.cutLine2In).toBeCloseTo(
+      DEFAULT_LAYOUT.checkHeightIn + DEFAULT_LAYOUT.stub1HeightIn, 2
+    )
+  })
+})
+
+describe('DEFAULT_FIELDS within check section', () => {
+  const checkFields = ['date', 'payee', 'amount', 'amountWords', 'memo', 'checkNumber', 'glCode', 'glDescription', 'address']
+
+  it('all check field y + h stay within checkHeightIn', () => {
+    for (const key of checkFields) {
+      const f = DEFAULT_FIELDS[key]
+      expect(f.y + f.h).toBeLessThanOrEqual(DEFAULT_LAYOUT.checkHeightIn)
+    }
+  })
+
+  it('all check field x + w stay within widthIn', () => {
+    for (const key of checkFields) {
+      const f = DEFAULT_FIELDS[key]
+      expect(f.x + f.w).toBeLessThanOrEqual(DEFAULT_LAYOUT.widthIn)
+    }
+  })
+
+  it('no check field has a negative y position', () => {
+    for (const key of checkFields) {
+      expect(DEFAULT_FIELDS[key].y).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('no check field has a negative x position', () => {
+    for (const key of checkFields) {
+      expect(DEFAULT_FIELDS[key].x).toBeGreaterThanOrEqual(0)
+    }
+  })
+})
+
+describe('normalizeModel stub field boundaries', () => {
+  it('stub1 fields stay within stub1 section', () => {
+    const result = normalizeModel({})
+    const stub1BaseY = calculateBaseYForSection('stub1', result.layout)
+    const stub1EndY = stub1BaseY + result.layout.stub1HeightIn
+    const stub1Keys = Object.keys(result.fields).filter(k => k.startsWith('stub1_'))
+
+    expect(stub1Keys.length).toBeGreaterThan(0)
+    for (const key of stub1Keys) {
+      const f = result.fields[key]
+      expect(f.y).toBeGreaterThanOrEqual(stub1BaseY)
+      expect(f.y + f.h).toBeLessThanOrEqual(stub1EndY + 0.01) // small tolerance for float
+    }
+  })
+
+  it('stub2 fields stay within stub2 section', () => {
+    const result = normalizeModel({})
+    const stub2BaseY = calculateBaseYForSection('stub2', result.layout)
+    const stub2EndY = stub2BaseY + result.layout.stub2HeightIn
+    const stub2Keys = Object.keys(result.fields).filter(k => k.startsWith('stub2_'))
+
+    expect(stub2Keys.length).toBeGreaterThan(0)
+    for (const key of stub2Keys) {
+      const f = result.fields[key]
+      expect(f.y).toBeGreaterThanOrEqual(stub2BaseY)
+      expect(f.y + f.h).toBeLessThanOrEqual(stub2EndY + 0.01)
+    }
+  })
+})
+
+describe('DEFAULT_PREFERENCES', () => {
+  it('has a valid theme value', () => {
+    expect(['dark', 'light', 'glass']).toContain(DEFAULT_PREFERENCES.theme)
+  })
+
+  it('has a valid accentColor value', () => {
+    expect(['amber', 'blue', 'emerald', 'rose', 'purple']).toContain(DEFAULT_PREFERENCES.accentColor)
+  })
+
+  it('has adminLocked set to true by default', () => {
+    expect(DEFAULT_PREFERENCES.adminLocked).toBe(true)
+  })
+
+  it('has all required preference keys', () => {
+    const requiredKeys = ['theme', 'accentColor', 'fontFamily', 'adminPin', 'adminLocked']
+    for (const key of requiredKeys) {
+      expect(DEFAULT_PREFERENCES).toHaveProperty(key)
+    }
   })
 })

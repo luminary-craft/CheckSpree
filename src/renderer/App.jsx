@@ -41,6 +41,7 @@ import { BatchCompleteModal } from './components/modals/BatchCompleteModal'
 import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
 import { CheckCanvas } from './components/CheckCanvas'
+import { ThemePicker } from './components/ThemePicker'
 
 // Domain hooks
 import { useToast } from './hooks/useToast'
@@ -456,6 +457,8 @@ export default function App() {
     const root = document.documentElement
     if (preferences.theme === 'light') {
       root.setAttribute('data-theme', 'light')
+    } else if (preferences.theme === 'glass') {
+      root.setAttribute('data-theme', 'glass')
     } else {
       root.removeAttribute('data-theme')
     }
@@ -2702,9 +2705,9 @@ export default function App() {
   const projectedBalance = hybridBalance - pendingAmount
   const isOverdrawn = pendingAmount > 0 && projectedBalance < 0
 
-  // Calculate Y-offset for three-up mode
+  // Calculate Y-offset for three-up mode (use model cut lines, fall back to defaults)
   const threeUpYOffset = activeProfile?.layoutMode === 'three_up'
-    ? (threeUpSlot === 'top' ? 0 : threeUpSlot === 'middle' ? 3.66 : 7.33)
+    ? (threeUpSlot === 'top' ? 0 : threeUpSlot === 'middle' ? (model.layout.cutLine1In ?? DEFAULT_LAYOUT.cutLine1In) : (model.layout.cutLine2In ?? DEFAULT_LAYOUT.cutLine2In))
     : 0
 
   const downloadTemplate = () => {
@@ -2739,7 +2742,7 @@ export default function App() {
         preferences={preferences} setPreferences={setPreferences}
         handleUnlockRequest={handleUnlockRequest} handleLock={handleLock}
         handleBackupData={handleBackupData} handleRestoreBackup={handleRestoreBackup}
-        editMode={editMode} setEditMode={setEditMode}
+        editMode={editMode} setEditMode={setEditMode} resetModel={resetModel}
         handlePreviewPdf={handlePreviewPdf} handlePrintAndRecord={handlePrintAndRecord} handleRecordOnly={handleRecordOnly}
         activeProfile={activeProfile} data={data} setData={setData}
       />
@@ -3029,6 +3032,9 @@ export default function App() {
           {toast.message}
         </div>
       )}
+
+      {/* Theme Picker (floating bottom-right) */}
+      <ThemePicker preferences={preferences} setPreferences={setPreferences} />
 
       {/* Update Notification */}
       <UpdateNotification isAdmin={!preferences.adminLocked} />

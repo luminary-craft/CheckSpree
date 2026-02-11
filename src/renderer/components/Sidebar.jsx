@@ -617,13 +617,6 @@ export function Sidebar({
                             ? { ...p, layoutMode: newMode }
                             : p
                         ))
-                        // Auto-adjust check height for three_up mode
-                        if (newMode === 'three_up' && model.layout.heightIn !== 3.66) {
-                          setModel(m => ({
-                            ...m,
-                            layout: { ...m.layout, heightIn: 3.66 }
-                          }))
-                        }
                       }}
                     >
                       <option value="standard" style={{ backgroundColor: 'var(--surface-elevated)', color: 'var(--text-bright)' }}>Standard (Check + 2 Stubs)</option>
@@ -1347,62 +1340,6 @@ export function Sidebar({
                 </section>
               )
             }
-
-            {/* Theme Settings */}
-            <section className="section">
-              <h3>Appearance</h3>
-              <div className="card">
-                <div className="field">
-                  <label>Mode</label>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {[{ id: 'dark', label: 'Dark' }, { id: 'light', label: 'Light' }].map(t => (
-                      <button
-                        key={t.id}
-                        className={`btn ghost${preferences.theme === t.id ? ' active' : ''}`}
-                        style={{
-                          flex: 1,
-                          borderColor: preferences.theme === t.id ? 'var(--accent)' : undefined,
-                          background: preferences.theme === t.id ? 'var(--accent-soft)' : undefined,
-                          color: preferences.theme === t.id ? 'var(--accent)' : undefined
-                        }}
-                        onClick={() => setPreferences(p => ({ ...p, theme: t.id }))}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="field">
-                  <label>Accent Color</label>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {[
-                      { id: 'amber', color: '#f59e0b', label: 'Amber' },
-                      { id: 'blue', color: '#3b82f6', label: 'Blue' },
-                      { id: 'emerald', color: '#10b981', label: 'Emerald' },
-                      { id: 'rose', color: '#f43f5e', label: 'Rose' },
-                      { id: 'purple', color: '#a855f7', label: 'Purple' }
-                    ].map(c => (
-                      <button
-                        key={c.id}
-                        title={c.label}
-                        onClick={() => setPreferences(p => ({ ...p, accentColor: c.id }))}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          background: c.color,
-                          border: preferences.accentColor === c.id ? '3px solid var(--text-bright)' : '3px solid transparent',
-                          cursor: 'pointer',
-                          outline: preferences.accentColor === c.id ? '2px solid ' + c.color : 'none',
-                          outlineOffset: '1px',
-                          transition: 'all 150ms ease'
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
 
             {/* Text & Font Settings */}
             {

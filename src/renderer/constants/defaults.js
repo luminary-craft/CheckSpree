@@ -21,28 +21,28 @@ export const AVAILABLE_FONTS = [
 
 export const DEFAULT_LAYOUT = {
   widthIn: 8.5,
-  checkHeightIn: 3.0,
+  checkHeightIn: 3.67,
   stub1Enabled: true,
-  stub1HeightIn: 3.0,
+  stub1HeightIn: 3.67,
   stub2Enabled: true,
-  stub2HeightIn: 3.0,
-  // Three-up cut line positions (relative to placement offset)
-  cutLine1In: 3.66,
-  cutLine2In: 7.33,
+  stub2HeightIn: 3.66,
+  // Three-up cut line positions (perfect 1/3 split of 11" page)
+  cutLine1In: 3.67,
+  cutLine2In: 7.34,
   // Order of sections: 'check', 'stub1', 'stub2'
   sectionOrder: ['check', 'stub1', 'stub2']
 }
 
 export const DEFAULT_FIELDS = {
-  date: { x: 6.65, y: 0.50, w: 1.6, h: 0.40, fontIn: 0.28, label: 'Date' },
-  payee: { x: 0.75, y: 1.05, w: 6.2, h: 0.45, fontIn: 0.32, label: 'Pay to the Order of' },
-  amount: { x: 6.95, y: 1.05, w: 1.25, h: 0.45, fontIn: 0.32, label: 'Amount ($)' },
-  amountWords: { x: 0.75, y: 1.55, w: 7.5, h: 0.45, fontIn: 0.30, label: 'Amount in Words' },
-  memo: { x: 0.75, y: 2.35, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' },
-  checkNumber: { x: 7.8, y: 0.15, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' },
-  glCode: { x: 0.75, y: 2.85, w: 2.0, h: 0.30, fontIn: 0.26, label: 'GL Code' },
-  glDescription: { x: 0.75, y: 3.15, w: 3.8, h: 0.30, fontIn: 0.26, label: 'GL Description' },
-  address: { x: 0.75, y: 1.85, w: 3.0, h: 0.90, fontIn: 0.22, label: 'Address' }
+  date: { x: 6.65, y: 0.55, w: 1.6, h: 0.40, fontIn: 0.28, label: 'Date' },
+  payee: { x: 0.75, y: 1.20, w: 6.2, h: 0.45, fontIn: 0.32, label: 'Pay to the Order of' },
+  amount: { x: 6.95, y: 1.20, w: 1.25, h: 0.45, fontIn: 0.32, label: 'Amount ($)' },
+  amountWords: { x: 0.75, y: 1.75, w: 7.5, h: 0.45, fontIn: 0.30, label: 'Amount in Words' },
+  memo: { x: 0.75, y: 2.65, w: 3.8, h: 0.45, fontIn: 0.28, label: 'Memo' },
+  checkNumber: { x: 7.8, y: 0.20, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' },
+  glCode: { x: 0.75, y: 3.10, w: 2.0, h: 0.30, fontIn: 0.26, label: 'GL Code' },
+  glDescription: { x: 0.75, y: 3.35, w: 3.8, h: 0.30, fontIn: 0.26, label: 'GL Description' },
+  address: { x: 0.75, y: 2.10, w: 3.0, h: 0.90, fontIn: 0.22, label: 'Address' }
 }
 
 export const DEFAULT_PROFILE = {
@@ -104,7 +104,7 @@ export const DEFAULT_PREFERENCES = {
   showAddressOnStub1: false,
   showAddressOnStub2: false,
   // Theme
-  theme: 'dark',         // 'dark' | 'light'
+  theme: 'dark',         // 'dark' | 'light' | 'glass'
   accentColor: 'amber'   // 'amber' | 'blue' | 'emerald' | 'rose' | 'purple'
 }
 
