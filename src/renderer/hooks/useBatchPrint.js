@@ -32,11 +32,11 @@ export function useBatchPrint({
   const confirmBatchPrint = async () => {
     // Validate printer mode settings
     if (preferences.batchPrintMode === 'silent' && !preferences.batchPrinterDeviceName) {
-      alert('Please select a printer for silent printing mode')
+      showToast('Please select a printer for silent printing mode', 'warning')
       return
     }
     if (preferences.batchPrintMode === 'pdf' && !preferences.batchPdfExportPath) {
-      alert('Please select a folder for PDF export')
+      showToast('Please select a folder for PDF export', 'warning')
       return
     }
 

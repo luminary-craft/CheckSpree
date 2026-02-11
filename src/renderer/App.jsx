@@ -1157,7 +1157,7 @@ export default function App() {
 
   const deleteLedger = (ledgerId) => {
     if (ledgers.length <= 1) {
-      alert('You must have at least one ledger')
+      showToast('You must have at least one ledger', 'warning')
       return
     }
     const ledger = ledgers.find(l => l.id === ledgerId)
@@ -1659,7 +1659,7 @@ export default function App() {
 
     const fileRes = await window.cs2.importRead(res.path)
     if (!fileRes?.success) {
-      alert(`Failed to read file: ${fileRes.error}`)
+      showToast(`Failed to read file: ${fileRes.error}`, 'error')
       return
     }
 
@@ -1667,7 +1667,7 @@ export default function App() {
     const headers = extractHeaders(fileRes.content, fileRes.ext)
 
     if (headers.length === 0) {
-      alert('No headers found in file. Make sure your file has a header row.')
+      showToast('No headers found in file. Make sure your file has a header row.', 'info')
       return
     }
 
@@ -1687,7 +1687,7 @@ export default function App() {
   const processImportWithMapping = () => {
     // Validate that at least payee or amount is mapped
     if (!columnMapping.payee && !columnMapping.amount) {
-      alert('Please map at least Payee or Amount field to continue.')
+      showToast('Please map at least Payee or Amount field to continue.', 'warning')
       return
     }
 
@@ -1702,7 +1702,7 @@ export default function App() {
     }
 
     if (parsed.length === 0) {
-      alert('No valid check data found in file.')
+      showToast('No valid check data found in file.', 'info')
       return
     }
 
@@ -1766,7 +1766,7 @@ export default function App() {
 
   const handleExport = () => {
     if (checkHistory.length === 0) {
-      alert('No check history to export')
+      showToast('No check history to export', 'info')
       return
     }
     // Initialize with all ledgers selected and default date range
@@ -1781,7 +1781,7 @@ export default function App() {
 
   const executeExport = async () => {
     if (selectedLedgersForExport.length === 0) {
-      alert('Please select at least one ledger to export')
+      showToast('Please select at least one ledger to export', 'warning')
       return
     }
 
@@ -1839,7 +1839,7 @@ export default function App() {
     })
 
     if (selectedChecks.length === 0) {
-      alert('No checks found matching the selected filters')
+      showToast('No checks found matching the selected filters', 'info')
       return
     }
 
@@ -1921,7 +1921,7 @@ export default function App() {
       setShowExportDialog(false)
       // File saved and folder opened
     } else if (res?.error) {
-      alert(`Export failed: ${res.error}`)
+      showToast(`Export failed: ${res.error}`, 'error')
     }
   }
 
@@ -2177,7 +2177,7 @@ export default function App() {
     setIsPrinting(true)
     setTimeout(async () => {
       const res = await window.cs2.previewPdf()
-      if (res?.success === false) alert(`Preview failed: ${res.error || 'Unknown error'}`)
+      if (res?.success === false) showToast(`Preview failed: ${res.error || 'Unknown error'}`, 'error')
       setIsPrinting(false)
     }, 250)
   }
@@ -2201,7 +2201,7 @@ export default function App() {
       document.title = originalTitle
       if (wasInEditMode) setEditMode(true)
 
-      if (res?.success === false) alert(`Print failed: ${res.error || 'Unknown error'}`)
+      if (res?.success === false) showToast(`Print failed: ${res.error || 'Unknown error'}`, 'error')
       setIsPrinting(false)
     }, 250)
   }
@@ -2221,11 +2221,11 @@ export default function App() {
   const handlePrintAndRecordSingle = async () => {
     const amount = sanitizeCurrencyInput(data.amount)
     if (amount <= 0) {
-      alert('Please enter a valid amount')
+      showToast('Please enter a valid amount', 'warning')
       return
     }
     if (!data.payee.trim()) {
-      alert('Please enter a payee')
+      showToast('Please enter a payee', 'warning')
       return
     }
 
@@ -2291,7 +2291,7 @@ export default function App() {
           window.removeEventListener('afterprint', handleAfterPrint)
           setIsPrinting(false)
           if (wasInEditMode) setEditMode(true)
-          alert(`Print failed: ${res.error || 'Unknown error'}`)
+          showToast(`Print failed: ${res.error || 'Unknown error'}`, 'error')
           return
         }
 
@@ -2359,7 +2359,7 @@ export default function App() {
       } catch (error) {
         setIsPrinting(false)
         if (wasInEditMode) setEditMode(true)
-        alert(`Print error: ${error?.message || 'Unknown error'}`)
+        showToast(`Print error: ${error?.message || 'Unknown error'}`, 'error')
       }
     }, 250)
   }
@@ -2375,11 +2375,11 @@ export default function App() {
       if (!isSlotEmpty(slotData)) {
         const amount = sanitizeCurrencyInput(slotData.amount)
         if (amount <= 0) {
-          alert(`Please enter a valid amount for ${slot} slot`)
+          showToast(`Please enter a valid amount for ${slot} slot`, 'warning')
           return
         }
         if (!slotData.payee?.trim()) {
-          alert(`Please enter a payee for ${slot} slot`)
+          showToast(`Please enter a payee for ${slot} slot`, 'warning')
           return
         }
         filledSlots.push({
@@ -2402,7 +2402,7 @@ export default function App() {
     }
 
     if (filledSlots.length === 0) {
-      alert('Please fill at least one slot before printing')
+      showToast('Please fill at least one slot before printing', 'warning')
       return
     }
 
@@ -2453,7 +2453,7 @@ export default function App() {
           window.removeEventListener('afterprint', handleAfterPrint)
           setIsPrinting(false)
           if (wasInEditMode) setEditMode(true)
-          alert(`Print failed: ${res.error || 'Unknown error'}`)
+          showToast(`Print failed: ${res.error || 'Unknown error'}`, 'error')
           return
         }
 
@@ -2550,7 +2550,7 @@ export default function App() {
       } catch (error) {
         setIsPrinting(false)
         if (wasInEditMode) setEditMode(true)
-        alert(`Print error: ${error?.message || 'Unknown error'}`)
+        showToast(`Print error: ${error?.message || 'Unknown error'}`, 'error')
       }
     }, 250)
   }
