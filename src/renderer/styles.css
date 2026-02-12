@@ -162,6 +162,24 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* Glass theme: darken select dropdowns for better contrast */
+/* --surface-elevated is nearly transparent in glass mode, making dropdowns hard to read */
+[data-theme="glass"] select {
+  background-color: rgba(20, 20, 30, 0.80);
+  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+[data-theme="glass"] select:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="glass"] select option {
+  background-color: #1a1a2e;
+  color: var(--text);
+}
+
 * {
   box-sizing: border-box;
 }
