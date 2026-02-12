@@ -53,7 +53,9 @@ import { useBatchPrint } from './hooks/useBatchPrint'
 
 
 export default function App() {
-  const [model, setModel] = useState(DEFAULT_MODEL)
+  // Use normalizeModel to ensure stub fields are created on fresh install
+  // DEFAULT_MODEL only has check-face fields; normalizeModel adds stub1_/stub2_ fields
+  const [model, setModel] = useState(() => normalizeModel(DEFAULT_MODEL))
 
   // Layout Editor State
   const [editMode, setEditMode] = useState(false)
