@@ -38,6 +38,7 @@ import { DeleteConfirmModal } from './components/modals/DeleteConfirmModal'
 import { PrintFailureModal } from './components/modals/PrintFailureModal'
 import { BatchProgressModal } from './components/modals/BatchProgressModal'
 import { BatchCompleteModal } from './components/modals/BatchCompleteModal'
+import { SetupWizard } from './components/modals/SetupWizard'
 import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
 import { CheckCanvas } from './components/CheckCanvas'
@@ -214,6 +215,9 @@ export default function App() {
   const [showBackupModal, setShowBackupModal] = useState(false)
   const [availableBackups, setAvailableBackups] = useState([])
   const [selectedBackup, setSelectedBackup] = useState(null)
+
+  // First-launch setup wizard state
+  const [showSetupWizard, setShowSetupWizard] = useState(false)
 
   // Manual backup modal state
   const [showManualBackupModal, setShowManualBackupModal] = useState(false)
@@ -427,7 +431,16 @@ export default function App() {
         if (persisted?.glCodes) setGlCodes(persisted.glCodes)
         if (persisted?.preferences) {
           // Always force admin to be locked on startup for security
-          setPreferences({ ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true })
+          const mergedPrefs = { ...DEFAULT_PREFERENCES, ...persisted.preferences, adminLocked: true }
+          setPreferences(mergedPrefs)
+
+          // Show setup wizard on first launch (setupCompleted defaults to false)
+          if (!mergedPrefs.setupCompleted) {
+            setShowSetupWizard(true)
+          }
+        } else {
+          // No persisted preferences at all — definitely a first launch
+          setShowSetupWizard(true)
         }
         if (persisted?.importQueue && persisted.importQueue.length > 0) {
           setImportQueue(persisted.importQueue)
@@ -3117,6 +3130,34 @@ export default function App() {
 
       {/* Update Notification */}
       <UpdateNotification isAdmin={!preferences.adminLocked} />
+
+      {/* First-Launch Setup Wizard */}
+      {showSetupWizard && (
+        <SetupWizard
+          preferences={preferences}
+          setPreferences={setPreferences}
+          onComplete={({ ledgerName, startingBalance, theme, accentColor }) => {
+            // Apply the user's ledger configuration to the default ledger
+            setLedgers(prev => prev.map((l, idx) =>
+              idx === 0
+                ? { ...l, name: ledgerName, balance: startingBalance, startingBalance }
+                : l
+            ))
+
+            // Apply theme and accent (already applied live, but ensure final values)
+            setPreferences(p => ({
+              ...p,
+              theme,
+              accentColor,
+              setupCompleted: true
+            }))
+
+            // Close the wizard
+            setShowSetupWizard(false)
+            showToast('Setup complete! Welcome to CheckSpree 🎉', 'success')
+          }}
+        />
+      )}
     </div >
   )
 }

@@ -105,7 +105,9 @@ export const DEFAULT_PREFERENCES = {
   showAddressOnStub2: false,
   // Theme
   theme: 'dark',         // 'dark' | 'light' | 'glass'
-  accentColor: 'amber'   // 'amber' | 'blue' | 'emerald' | 'rose' | 'purple'
+  accentColor: 'amber',  // 'amber' | 'blue' | 'emerald' | 'rose' | 'purple'
+  // First-launch setup wizard
+  setupCompleted: false   // Set to true after completing the setup wizard
 }
 
 export const DEFAULT_MODEL = {
