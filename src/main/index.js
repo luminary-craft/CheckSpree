@@ -346,6 +346,10 @@ function createWindow() {
     width: 1400,
     height: 920,
     backgroundColor: '#0b1220',
+    // Set icon for window title bar and taskbar
+    icon: process.env.NODE_ENV === 'development'
+      ? path.join(__dirname, '../../resources/icon.ico')
+      : path.join(process.resourcesPath, 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
