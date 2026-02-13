@@ -58,6 +58,9 @@ import { Form1099Modal } from './components/modals/Form1099Modal'
 import { useApprovals } from './hooks/useApprovals'
 import { ApprovalPanel } from './components/modals/ApprovalPanel'
 import { ReportsPanel } from './components/modals/ReportsPanel'
+import { ReconciliationPanel } from './components/modals/ReconciliationPanel'
+import { useRecurringChecks } from './hooks/useRecurringChecks'
+import { RecurringChecksPanel } from './components/modals/RecurringChecksPanel'
 
 
 export default function App() {
@@ -246,6 +249,12 @@ export default function App() {
 
   // Reports panel modal state
   const [showReportsPanel, setShowReportsPanel] = useState(false)
+
+  // Reconciliation panel modal state
+  const [showReconciliation, setShowReconciliation] = useState(false)
+
+  // Recurring checks panel modal state
+  const [showRecurring, setShowRecurring] = useState(false)
 
   const [data, setData] = useState({
     date: (() => {
@@ -779,6 +788,9 @@ export default function App() {
     enabled: preferences.approvalEnabled,
     threshold: preferences.approvalThreshold
   })
+
+  // Recurring checks management
+  const recurringHook = useRecurringChecks(preferences.recurringSchedules)
 
   // Initialize slotFields if not present (backward compatibility)
   useEffect(() => {
@@ -2872,6 +2884,9 @@ export default function App() {
         onOpenApprovals={() => setShowApprovalPanel(true)}
         approvalCount={approvalHook.counts.pending}
         onOpenReports={() => setShowReportsPanel(true)}
+        onOpenReconciliation={() => setShowReconciliation(true)}
+        onOpenRecurring={() => setShowRecurring(true)}
+        recurringDueCount={recurringHook.stats.due}
       />
 
       <div className="layout">
@@ -3248,6 +3263,34 @@ export default function App() {
         <ReportsPanel
           checkHistory={checkHistory}
           onClose={() => setShowReportsPanel(false)}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Bank Reconciliation Panel */}
+      {showReconciliation && (
+        <ReconciliationPanel
+          checkHistory={checkHistory}
+          onClose={() => setShowReconciliation(false)}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Recurring Checks Panel */}
+      {showRecurring && (
+        <RecurringChecksPanel
+          recurringHook={recurringHook}
+          onClose={() => setShowRecurring(false)}
+          onGenerateCheck={(checkData) => {
+            setData(prev => ({
+              ...prev,
+              payee: checkData.payee || prev.payee,
+              amount: checkData.amount || prev.amount,
+              memo: checkData.memo || prev.memo
+            }))
+            setShowRecurring(false)
+            showToast?.('Check data filled from schedule')
+          }}
           showToast={showToast}
         />
       )}

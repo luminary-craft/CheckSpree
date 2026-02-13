@@ -22,7 +22,10 @@ export function TopBar({
   onOpenVendors,
   onOpenApprovals,
   approvalCount,
-  onOpenReports
+  onOpenReports,
+  onOpenReconciliation,
+  onOpenRecurring,
+  recurringDueCount
 }) {
   return (
     <>
@@ -95,6 +98,28 @@ export function TopBar({
           </button>
           <button className="btn ghost" onClick={onOpenReports} title="Reports and search">
             📊 Reports
+          </button>
+          <button className="btn ghost" onClick={onOpenReconciliation} title="Bank reconciliation">
+            🏦 Reconcile
+          </button>
+          <button className="btn ghost" onClick={onOpenRecurring} title="Recurring/scheduled checks" style={{ position: 'relative' }}>
+            🔄 Recurring
+            {recurringDueCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '2px',
+                right: '2px',
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '1px 4px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--warning)',
+                color: 'var(--bg)',
+                lineHeight: '1.3'
+              }}>
+                {recurringDueCount}
+              </span>
+            )}
           </button>
           <button
             className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}
