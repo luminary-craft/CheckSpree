@@ -52,6 +52,9 @@ import { useLayoutEditor } from './hooks/useLayoutEditor'
 import { useBatchPrint } from './hooks/useBatchPrint'
 import { useSignature } from './hooks/useSignature'
 import { PositivePayModal } from './components/modals/PositivePayModal'
+import { useVendors } from './hooks/useVendors'
+import { VendorPanel } from './components/vendors/VendorPanel'
+import { Form1099Modal } from './components/modals/Form1099Modal'
 
 
 export default function App() {
@@ -230,6 +233,10 @@ export default function App() {
 
   // Positive Pay export modal state
   const [showPositivePay, setShowPositivePay] = useState(false)
+
+  // Vendor database modal states
+  const [showVendorPanel, setShowVendorPanel] = useState(false)
+  const [show1099Modal, setShow1099Modal] = useState(false)
 
   const [data, setData] = useState({
     date: (() => {
@@ -754,6 +761,9 @@ export default function App() {
 
   // Digital signature management (stored per-profile)
   const signature = useSignature(activeProfile, setProfiles, activeProfileId)
+
+  // Vendor/payee database (persisted as top-level state)
+  const vendorHook = useVendors(preferences.vendors, checkHistory)
 
   // Initialize slotFields if not present (backward compatibility)
   useEffect(() => {
@@ -2843,6 +2853,7 @@ export default function App() {
         handlePreviewPdf={guardedPreviewPdf} handlePrintAndRecord={guardedPrintAndRecord} handleRecordOnly={guardedRecordOnly}
         activeProfile={activeProfile} data={data} setData={setData}
         onOpenPositivePay={() => setShowPositivePay(true)}
+        onOpenVendors={() => setShowVendorPanel(true)}
       />
 
       <div className="layout">
@@ -3177,6 +3188,30 @@ export default function App() {
         <PositivePayModal
           checkHistory={checkHistory}
           onClose={() => setShowPositivePay(false)}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Vendor Database Panel */}
+      {showVendorPanel && (
+        <VendorPanel
+          vendorHook={vendorHook}
+          compiledGlCodes={compiledGlCodes}
+          onClose={() => setShowVendorPanel(false)}
+          onOpen1099={() => {
+            setShowVendorPanel(false)
+            setShow1099Modal(true)
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* 1099 Tax Report Modal */}
+      {show1099Modal && (
+        <Form1099Modal
+          vendors={vendorHook.vendors}
+          checkHistory={checkHistory}
+          onClose={() => setShow1099Modal(false)}
           showToast={showToast}
         />
       )}

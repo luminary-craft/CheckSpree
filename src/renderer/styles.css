@@ -3758,6 +3758,64 @@ select option {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
+/* ── Vendor Database ─────────────────────────────────── */
+.vendor-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.vendor-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.15s;
+}
+
+.vendor-list-item:hover {
+  background: var(--surface-elevated);
+}
+
+.vendor-list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vendor-list-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-bright);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vendor-list-details {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vendor-badge-1099 {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--bg);
+  line-height: 1.4;
+}
+
+.vendor-list-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 /* ── Print hide ─────────────────────────────────────── */
 @media print {
   .setup-wizard-overlay {

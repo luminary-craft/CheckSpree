@@ -18,7 +18,8 @@ export function TopBar({
   editMode, setEditMode, resetModel,
   handlePreviewPdf, handlePrintAndRecord, handleRecordOnly,
   activeProfile, data, setData,
-  onOpenPositivePay
+  onOpenPositivePay,
+  onOpenVendors
 }) {
   return (
     <>
@@ -66,6 +67,9 @@ export function TopBar({
           </button>
           <button className="btn ghost" onClick={onOpenPositivePay} title="Generate Positive Pay file for bank">
             🏦 Pos. Pay
+          </button>
+          <button className="btn ghost" onClick={onOpenVendors} title="Manage vendors and payees">
+            📌 Vendors
           </button>
           <button
             className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}
