@@ -41,18 +41,14 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
         annually: 'Annually'
     }
 
-    /**
-     * Open the add form with empty fields.
-     */
+    /** Open the add form with empty fields */
     const openAddForm = () => {
         setForm({ payee: '', amount: '', memo: '', frequency: 'monthly', nextDue: new Date().toISOString().split('T')[0] })
         setEditingId(null)
         setShowForm(true)
     }
 
-    /**
-     * Open the edit form with existing schedule data.
-     */
+    /** Open the edit form with existing schedule data */
     const openEditForm = (schedule) => {
         setForm({
             payee: schedule.payee,
@@ -65,9 +61,7 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
         setShowForm(true)
     }
 
-    /**
-     * Save (create or update) a schedule.
-     */
+    /** Save (create or update) a schedule */
     const handleSave = () => {
         if (!form.payee.trim()) {
             showToast?.('Payee name is required')
@@ -85,9 +79,7 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
         setEditingId(null)
     }
 
-    /**
-     * Generate a check from a schedule and advance the next due date.
-     */
+    /** Generate a check from a schedule and advance the next due date */
     const handleGenerate = (schedule) => {
         onGenerateCheck?.({
             payee: schedule.payee,
@@ -98,136 +90,105 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
         showToast?.(`Check generated for ${schedule.payee}`)
     }
 
-    const inputStyle = {
-        width: '100%',
-        padding: '8px 10px',
-        backgroundColor: 'var(--surface-elevated)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-sm)',
-        color: 'var(--text)',
-        fontSize: '13px',
-        outline: 'none'
-    }
-
     return (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className="modal-content" style={{ maxWidth: '650px', width: '95%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-content" style={{ maxWidth: '650px', width: '95%', maxHeight: '80vh' }}>
 
                 {/* Header */}
-                <div className="modal-header" style={{ flexShrink: 0 }}>
+                <div className="modal-header">
                     <div>
-                        <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
-                            🔄 Recurring Checks
-                        </h3>
+                        <h2 style={{ margin: 0 }}>🔄 Recurring Checks</h2>
                         <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
                             {stats.active} active · {stats.paused} paused
-                            {stats.due > 0 && <span style={{ color: 'var(--warning)', fontWeight: 600 }}> · {stats.due} due!</span>}
+                            {stats.due > 0 && <span className="panel-badge warning" style={{ marginLeft: '6px' }}>{stats.due} due</span>}
                         </span>
                     </div>
                     <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
                 </div>
 
-                {/* Due alert */}
-                {dueSchedules.length > 0 && !showForm && (
-                    <div style={{
-                        padding: '8px 12px',
-                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                        border: '1px solid var(--warning)',
-                        borderRadius: 'var(--radius-sm)',
-                        marginBottom: '12px',
-                        fontSize: '13px',
-                        color: 'var(--warning)',
-                        fontWeight: 500,
-                        flexShrink: 0
-                    }}>
-                        ⚠ {dueSchedules.length} payment{dueSchedules.length !== 1 ? 's' : ''} due today or overdue
-                    </div>
-                )}
+                {/* Body */}
+                <div className="modal-body">
+                    {/* Due alert */}
+                    {dueSchedules.length > 0 && !showForm && (
+                        <div className="panel-alert warning">
+                            ⚠ {dueSchedules.length} payment{dueSchedules.length !== 1 ? 's' : ''} due today or overdue
+                        </div>
+                    )}
 
-                {showForm ? (
-                    /* ── Add / Edit Form ── */
-                    <div style={{ overflow: 'auto', flex: 1 }}>
-                        <h4 style={{ margin: '0 0 12px', color: 'var(--text-bright)', fontSize: '15px' }}>
-                            {editingId ? '✏️ Edit Schedule' : '➕ New Schedule'}
-                        </h4>
-                        <div style={{ marginBottom: '10px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>Payee *</label>
-                            <input type="text" value={form.payee} onChange={e => setForm(p => ({ ...p, payee: e.target.value }))} style={inputStyle} placeholder="Payee name" autoFocus />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>Amount</label>
-                                <input type="text" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} style={inputStyle} placeholder="0.00" />
+                    {showForm ? (
+                        /* ── Add / Edit Form ── */
+                        <>
+                            <h3 style={{ margin: '0 0 14px', color: 'var(--text-bright)', fontSize: '15px' }}>
+                                {editingId ? '✏️ Edit Schedule' : '➕ New Schedule'}
+                            </h3>
+                            <div className="panel-field">
+                                <label className="panel-label">Payee *</label>
+                                <input type="text" className="panel-input" value={form.payee} onChange={e => setForm(p => ({ ...p, payee: e.target.value }))} placeholder="Payee name" autoFocus />
                             </div>
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>Frequency</label>
-                                <select value={form.frequency} onChange={e => setForm(p => ({ ...p, frequency: e.target.value }))} style={{ width: '100%' }}>
-                                    {Object.entries(frequencyLabels).map(([k, v]) => (
-                                        <option key={k} value={k}>{v}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>Next Due Date</label>
-                                <input type="date" value={form.nextDue} onChange={e => setForm(p => ({ ...p, nextDue: e.target.value }))} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>Memo</label>
-                                <input type="text" value={form.memo} onChange={e => setForm(p => ({ ...p, memo: e.target.value }))} style={inputStyle} placeholder="Optional" />
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                            <button className="btn" onClick={() => setShowForm(false)}>Cancel</button>
-                            <button className="btn primary" onClick={handleSave}>
-                                {editingId ? 'Update' : 'Create Schedule'}
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    /* ── Schedule List ── */
-                    <>
-                        <div style={{ marginBottom: '12px', flexShrink: 0 }}>
-                            <button className="btn primary btn-sm" onClick={openAddForm}>+ New Schedule</button>
-                        </div>
-                        <div style={{ overflow: 'auto', flex: 1 }}>
-                            {schedules.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)', fontSize: '13px' }}>
-                                    No recurring checks scheduled yet.
+                            <div className="panel-grid-2">
+                                <div>
+                                    <label className="panel-label">Amount</label>
+                                    <input type="text" className="panel-input" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" />
                                 </div>
-                            ) : (
-                                schedules.map(schedule => {
-                                    const isDue = dueSchedules.some(d => d.id === schedule.id)
-                                    return (
-                                        <div
-                                            key={schedule.id}
-                                            style={{
-                                                padding: '10px 12px',
-                                                borderBottom: '1px solid var(--border-subtle)',
-                                                borderLeft: `3px solid ${isDue ? 'var(--warning)' : schedule.active ? 'var(--accent)' : 'var(--border)'}`,
-                                                opacity: schedule.active ? 1 : 0.6,
-                                                transition: 'opacity 0.15s'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div>
-                                                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-bright)' }}>
+                                <div>
+                                    <label className="panel-label">Frequency</label>
+                                    <select className="panel-select" value={form.frequency} onChange={e => setForm(p => ({ ...p, frequency: e.target.value }))}>
+                                        {Object.entries(frequencyLabels).map(([k, v]) => (
+                                            <option key={k} value={k}>{v}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="panel-grid-2">
+                                <div>
+                                    <label className="panel-label">Next Due Date</label>
+                                    <input type="date" className="panel-input" value={form.nextDue} onChange={e => setForm(p => ({ ...p, nextDue: e.target.value }))} />
+                                </div>
+                                <div>
+                                    <label className="panel-label">Memo</label>
+                                    <input type="text" className="panel-input" value={form.memo} onChange={e => setForm(p => ({ ...p, memo: e.target.value }))} placeholder="Optional" />
+                                </div>
+                            </div>
+                            <div className="modal-footer" style={{ padding: '16px 0 0', borderTop: 'none' }}>
+                                <button className="btn ghost" onClick={() => setShowForm(false)}>Cancel</button>
+                                <button className="btn primary" onClick={handleSave}>
+                                    {editingId ? 'Update' : 'Create Schedule'}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        /* ── Schedule List ── */
+                        <>
+                            <div style={{ marginBottom: '14px' }}>
+                                <button className="btn primary" onClick={openAddForm}>+ New Schedule</button>
+                            </div>
+                            <div className="panel-list-scroll" style={{ maxHeight: '400px' }}>
+                                {schedules.length === 0 ? (
+                                    <div className="panel-empty">No recurring checks scheduled yet.</div>
+                                ) : (
+                                    schedules.map(schedule => {
+                                        const isDue = dueSchedules.some(d => d.id === schedule.id)
+                                        const borderClass = isDue ? 'border-warning' : schedule.active ? 'border-accent' : 'border-muted'
+                                        return (
+                                            <div
+                                                key={schedule.id}
+                                                className={`panel-list-item ${borderClass} ${schedule.active ? '' : 'dimmed'}`}
+                                            >
+                                                <div style={{ flex: 1 }}>
+                                                    <div className="panel-list-primary">
                                                         {schedule.payee}
-                                                        {isDue && <span style={{ fontSize: '11px', color: 'var(--warning)', marginLeft: '8px', fontWeight: 700 }}>DUE</span>}
-                                                        {!schedule.active && <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginLeft: '8px' }}>PAUSED</span>}
+                                                        {isDue && <span className="panel-badge warning">DUE</span>}
+                                                        {!schedule.active && <span className="panel-badge muted">PAUSED</span>}
                                                     </div>
-                                                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                                                    <div className="panel-list-secondary">
                                                         {frequencyLabels[schedule.frequency]} · Next: {new Date(schedule.nextDue).toLocaleDateString()}
                                                         {schedule.amount && ` · $${schedule.amount}`}
                                                         {schedule.memo && ` · ${schedule.memo}`}
                                                     </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                                <div className="panel-row" style={{ gap: '4px', flexShrink: 0 }}>
                                                     {isDue && (
-                                                        <button className="btn btn-sm primary" onClick={() => handleGenerate(schedule)} title="Generate check">
-                                                            ▶
-                                                        </button>
+                                                        <button className="btn primary btn-sm" onClick={() => handleGenerate(schedule)} title="Generate check">▶</button>
                                                     )}
                                                     <button className="btn btn-sm" onClick={() => toggleSchedule(schedule.id)} title={schedule.active ? 'Pause' : 'Resume'}>
                                                         {schedule.active ? '⏸' : '▶'}
@@ -235,7 +196,7 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
                                                     <button className="btn btn-sm" onClick={() => openEditForm(schedule)} title="Edit">✏️</button>
                                                     {confirmDelete === schedule.id ? (
                                                         <>
-                                                            <button className="btn btn-sm danger" onClick={() => { deleteSchedule(schedule.id); setConfirmDelete(null); showToast?.('Schedule deleted') }}>Yes</button>
+                                                            <button className="btn danger btn-sm" onClick={() => { deleteSchedule(schedule.id); setConfirmDelete(null); showToast?.('Schedule deleted') }}>Yes</button>
                                                             <button className="btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
                                                         </>
                                                     ) : (
@@ -243,13 +204,13 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
                                                     )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    )
-                                })
-                            )}
-                        </div>
-                    </>
-                )}
+                                        )
+                                    })
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     )

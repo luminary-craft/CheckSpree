@@ -47,7 +47,7 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
     // Void report
     const voidReport = useMemo(() => generateVoidReport(checkHistory), [checkHistory])
 
-    // Format currency display
+    /** Format currency display */
     const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
     const views = [
@@ -59,41 +59,55 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
 
     return (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className="modal-content" style={{ maxWidth: '800px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-content" style={{ maxWidth: '800px', width: '95%', maxHeight: '85vh' }}>
 
                 {/* Header */}
-                <div className="modal-header" style={{ flexShrink: 0 }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
-                        Reports & Search
-                    </h3>
+                <div className="modal-header">
+                    <h2>Reports & Search</h2>
                     <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
                 </div>
 
-                {/* View tabs */}
-                <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', flexShrink: 0 }}>
-                    {views.map(v => (
-                        <button
-                            key={v.id}
-                            className={`btn btn-sm ${activeView === v.id ? 'primary' : ''}`}
-                            onClick={() => setActiveView(v.id)}
-                        >
-                            {v.label}
-                        </button>
-                    ))}
-                </div>
-
-                <div style={{ overflow: 'auto', flex: 1 }}>
+                {/* Body */}
+                <div className="modal-body">
+                    {/* View tabs */}
+                    <div className="panel-tabs">
+                        {views.map(v => (
+                            <button
+                                key={v.id}
+                                className={`panel-tab ${activeView === v.id ? 'active' : ''}`}
+                                onClick={() => setActiveView(v.id)}
+                            >
+                                {v.label}
+                            </button>
+                        ))}
+                    </div>
 
                     {/* ── Dashboard ── */}
                     {activeView === 'dashboard' && (
-                        <div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-                                <StatCard label="Total Checks" value={stats.totalChecks} />
-                                <StatCard label="Total Amount" value={fmt(stats.totalAmount)} accent />
-                                <StatCard label="Average Check" value={fmt(stats.averageAmount)} />
-                                <StatCard label="This Month" value={stats.thisMonthCount} />
-                                <StatCard label="Month Total" value={fmt(stats.thisMonthTotal)} accent />
-                                <StatCard label="Voided" value={stats.voidCount} warning={stats.voidCount > 0} />
+                        <div className="panel-grid-3">
+                            <div className="stat-card">
+                                <div className="stat-card-label">Total Checks</div>
+                                <div className="stat-card-value">{stats.totalChecks}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-card-label">Total Amount</div>
+                                <div className="stat-card-value accent">{fmt(stats.totalAmount)}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-card-label">Average Check</div>
+                                <div className="stat-card-value">{fmt(stats.averageAmount)}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-card-label">This Month</div>
+                                <div className="stat-card-value">{stats.thisMonthCount}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-card-label">Month Total</div>
+                                <div className="stat-card-value accent">{fmt(stats.thisMonthTotal)}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-card-label">Voided</div>
+                                <div className={`stat-card-value ${stats.voidCount > 0 ? 'danger' : ''}`}>{stats.voidCount}</div>
                             </div>
                         </div>
                     )}
@@ -102,35 +116,28 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                     {activeView === 'register' && (
                         <div>
                             {/* Search + date filters */}
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                            <div className="panel-row" style={{ marginBottom: '12px', flexWrap: 'wrap' }}>
                                 <input
                                     type="text"
+                                    className="panel-input"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search checks..."
-                                    style={{
-                                        flex: 1,
-                                        minWidth: '150px',
-                                        padding: '8px 12px',
-                                        backgroundColor: 'var(--surface-elevated)',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        color: 'var(--text)',
-                                        fontSize: '13px',
-                                        outline: 'none'
-                                    }}
+                                    style={{ flex: 1, minWidth: '150px' }}
                                 />
                                 <input
                                     type="date"
+                                    className="panel-input"
                                     value={dateFilter.start}
                                     onChange={(e) => setDateFilter(p => ({ ...p, start: e.target.value }))}
-                                    style={{ padding: '6px 8px', backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontSize: '12px' }}
+                                    style={{ width: 'auto' }}
                                 />
                                 <input
                                     type="date"
+                                    className="panel-input"
                                     value={dateFilter.end}
                                     onChange={(e) => setDateFilter(p => ({ ...p, end: e.target.value }))}
-                                    style={{ padding: '6px 8px', backgroundColor: 'var(--surface-elevated)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', fontSize: '12px' }}
+                                    style={{ width: 'auto' }}
                                 />
                             </div>
 
@@ -139,15 +146,15 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                             </div>
 
                             {/* Register table */}
-                            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'auto', maxHeight: '400px' }}>
+                            <div className="panel-list-scroll" style={{ maxHeight: '400px' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, backgroundColor: 'var(--surface)' }}>
-                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)' }}>#</th>
-                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)' }}>Date</th>
-                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)' }}>Payee</th>
-                                            <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text-label)' }}>Amount</th>
-                                            <th style={{ textAlign: 'center', padding: '8px', color: 'var(--text-label)' }}>Status</th>
+                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>#</th>
+                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Date</th>
+                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Payee</th>
+                                            <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Amount</th>
+                                            <th style={{ textAlign: 'center', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -158,13 +165,7 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                                                 <td style={{ padding: '6px 8px', color: 'var(--text-bright)' }}>{c.payee || '—'}</td>
                                                 <td style={{ padding: '6px 8px', color: 'var(--accent)', textAlign: 'right', fontWeight: 600 }}>{fmt(parseFloat(String(c.amount || '0').replace(/[^0-9.-]/g, '')))}</td>
                                                 <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                                                    <span style={{
-                                                        fontSize: '11px',
-                                                        padding: '2px 6px',
-                                                        borderRadius: '4px',
-                                                        backgroundColor: c.status === 'void' ? 'var(--danger-soft)' : 'var(--success-soft, rgba(34,197,94,0.15))',
-                                                        color: c.status === 'void' ? 'var(--danger)' : 'var(--success, #22c55e)'
-                                                    }}>
+                                                    <span className={`panel-badge ${c.status === 'void' ? 'danger' : 'success'}`}>
                                                         {c.status === 'void' ? 'VOID' : 'PRINTED'}
                                                     </span>
                                                 </td>
@@ -179,9 +180,9 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                     {/* ── Spending Summary ── */}
                     {activeView === 'spending' && (
                         <div>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+                            <div className="panel-row" style={{ marginBottom: '12px' }}>
                                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Group by:</span>
-                                <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ minWidth: '120px' }}>
+                                <select className="panel-select" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ width: 'auto', minWidth: '120px' }}>
                                     <option value="payee">Payee</option>
                                     <option value="month">Month</option>
                                     <option value="glCode">GL Code</option>
@@ -191,20 +192,14 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                                 </span>
                             </div>
 
-                            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'auto', maxHeight: '400px' }}>
+                            <div className="panel-list-scroll" style={{ maxHeight: '400px' }}>
                                 {spendingSummary.map((group, i) => (
-                                    <div key={i} style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        padding: '8px 12px',
-                                        borderBottom: '1px solid var(--border-subtle)'
-                                    }}>
-                                        <div>
-                                            <div style={{ fontSize: '13px', color: 'var(--text-bright)', fontWeight: 500 }}>{group.label}</div>
-                                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{group.count} check{group.count !== 1 ? 's' : ''}</div>
+                                    <div key={i} className="panel-list-item">
+                                        <div style={{ flex: 1 }}>
+                                            <div className="panel-list-primary">{group.label}</div>
+                                            <div className="panel-list-secondary">{group.count} check{group.count !== 1 ? 's' : ''}</div>
                                         </div>
-                                        <div style={{ fontSize: '14px', color: 'var(--accent)', fontWeight: 600 }}>{fmt(group.total)}</div>
+                                        <div className="panel-list-amount" style={{ fontSize: '14px' }}>{fmt(group.total)}</div>
                                     </div>
                                 ))}
                             </div>
@@ -219,23 +214,19 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                             </div>
 
                             {voidReport.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>
-                                    No voided checks found ✓
-                                </div>
+                                <div className="panel-empty">No voided checks found ✓</div>
                             ) : (
-                                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'auto', maxHeight: '400px' }}>
+                                <div className="panel-list-scroll" style={{ maxHeight: '400px' }}>
                                     {voidReport.map((c, i) => (
-                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <div>
-                                                <span style={{ fontWeight: 600, color: 'var(--text-bright)', fontSize: '13px' }}>
+                                        <div key={i} className="panel-list-item border-danger">
+                                            <div style={{ flex: 1 }}>
+                                                <div className="panel-list-primary">
                                                     #{c.checkNumber || '—'}
-                                                </span>
-                                                <span style={{ color: 'var(--text-secondary)', fontSize: '13px', marginLeft: '8px' }}>
-                                                    {c.payee || 'No payee'}
-                                                </span>
+                                                    <span style={{ fontWeight: 400, marginLeft: '8px' }}>{c.payee || 'No payee'}</span>
+                                                </div>
                                             </div>
-                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                                <span style={{ fontSize: '13px', color: 'var(--danger)', fontWeight: 600 }}>
+                                            <div className="panel-row" style={{ gap: '12px' }}>
+                                                <span className="panel-list-amount" style={{ color: 'var(--danger)' }}>
                                                     {fmt(parseFloat(String(c.amount || '0').replace(/[^0-9.-]/g, '')))}
                                                 </span>
                                                 <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
@@ -249,29 +240,6 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
-    )
-}
-
-/**
- * StatCard — Small stat display card for the dashboard view.
- */
-function StatCard({ label, value, accent, warning }) {
-    return (
-        <div style={{
-            padding: '12px 16px',
-            backgroundColor: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)'
-        }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '4px' }}>{label}</div>
-            <div style={{
-                fontSize: '20px',
-                fontWeight: 700,
-                color: warning ? 'var(--danger)' : accent ? 'var(--accent)' : 'var(--text-bright)'
-            }}>
-                {value}
             </div>
         </div>
     )

@@ -3828,6 +3828,432 @@ select option {
   background: var(--surface-elevated);
 }
 
+/* ── Panel Reusable Classes ────────────────────────── */
+
+/* Close button for modals — icon-style 32×32 */
+.modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* Form labels */
+.panel-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-label);
+  margin-bottom: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* Text, number, date inputs */
+.panel-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.panel-input:focus {
+  border-color: var(--border-focus);
+}
+
+.panel-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Select dropdowns */
+.panel-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.panel-select:focus {
+  border-color: var(--border-focus);
+}
+
+/* Textarea */
+.panel-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.panel-textarea:focus {
+  border-color: var(--border-focus);
+}
+
+/* Layout: flex row with gap */
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Layout: form field group with bottom margin */
+.panel-field {
+  margin-bottom: 14px;
+}
+
+/* Layout: 2-column grid */
+.panel-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* Layout: 3-column grid */
+.panel-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+/* Stat card (summary box) */
+.stat-card {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.stat-card:hover {
+  background: var(--surface-hover);
+}
+
+.stat-card-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-card-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.2;
+}
+
+.stat-card-value.success {
+  color: var(--success);
+}
+
+.stat-card-value.warning {
+  color: var(--warning);
+}
+
+.stat-card-value.danger {
+  color: var(--danger);
+}
+
+.stat-card-value.accent {
+  color: var(--accent);
+}
+
+/* Panel list item (check rows, vendor rows, schedule rows) */
+.panel-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+  cursor: default;
+}
+
+.panel-list-item:hover {
+  background: var(--surface-hover);
+}
+
+.panel-list-item:last-child {
+  border-bottom: none;
+}
+
+.panel-list-item.clickable {
+  cursor: pointer;
+}
+
+.panel-list-item.cleared {
+  background: rgba(34, 197, 94, 0.04);
+}
+
+/* Left-color border variants */
+.panel-list-item.border-accent {
+  border-left: 3px solid var(--accent);
+}
+
+.panel-list-item.border-warning {
+  border-left: 3px solid var(--warning);
+}
+
+.panel-list-item.border-success {
+  border-left: 3px solid var(--success);
+}
+
+.panel-list-item.border-danger {
+  border-left: 3px solid var(--danger);
+}
+
+.panel-list-item.border-muted {
+  border-left: 3px solid var(--border);
+}
+
+.panel-list-item.dimmed {
+  opacity: 0.6;
+}
+
+.panel-list-primary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.panel-list-secondary {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.panel-list-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Alert banners */
+.panel-alert {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-alert.warning {
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+}
+
+.panel-alert.success {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.panel-alert.danger {
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.panel-alert.info {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+/* Small badge (1099, DUE, PAUSED, etc.) */
+.panel-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--bg);
+  line-height: 1.4;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.panel-badge.warning {
+  background: var(--warning);
+}
+
+.panel-badge.danger {
+  background: var(--danger);
+}
+
+.panel-badge.success {
+  background: var(--success);
+}
+
+.panel-badge.muted {
+  background: var(--text-dim);
+  color: var(--bg);
+}
+
+/* Tab bar */
+.panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.panel-tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.panel-tab:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.panel-tab.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Empty state */
+.panel-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* Summary row (label: value) */
+.panel-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.panel-summary-row+.panel-summary-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.panel-summary-label {
+  color: var(--text-secondary);
+}
+
+.panel-summary-value {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+/* Checkbox row */
+.panel-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+/* Scrollable list container */
+.panel-list-scroll {
+  overflow-y: auto;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Glass theme overrides for panel classes ───────── */
+[data-theme="glass"] .panel-input,
+[data-theme="glass"] .panel-textarea {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="glass"] .panel-input:focus,
+[data-theme="glass"] .panel-textarea:focus {
+  border-color: var(--border-focus);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="glass"] .panel-select {
+  background: rgba(20, 20, 30, 0.80);
+  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+[data-theme="glass"] .stat-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="glass"] .panel-list-scroll {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="glass"] .panel-list-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="glass"] .panel-tab.active {
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
 /* ── Print hide ─────────────────────────────────────── */
 @media print {
   .setup-wizard-overlay {

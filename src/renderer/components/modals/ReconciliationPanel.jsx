@@ -18,10 +18,10 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
     const [clearedIds, setClearedIds] = useState(new Set())
     const [searchQuery, setSearchQuery] = useState('')
 
-    // Format currency
+    /** Format currency for display */
     const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-    // Parse amount from check data
+    /** Parse amount from check data — handles strings like "$1,234.56" */
     const parseAmount = (amount) => {
         const num = typeof amount === 'string'
             ? parseFloat(amount.replace(/[^0-9.-]/g, ''))
@@ -29,7 +29,7 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
         return isNaN(num) ? 0 : num
     }
 
-    // Active (non-voided) checks
+    // Active (non-voided) checks sorted newest first
     const activeChecks = useMemo(() =>
         (checkHistory || [])
             .filter(c => c.status !== 'void')
@@ -37,7 +37,7 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
         [checkHistory]
     )
 
-    // Filter by search
+    // Filter by search query
     const filteredChecks = useMemo(() => {
         if (!searchQuery.trim()) return activeChecks
         const q = searchQuery.toLowerCase()
@@ -75,9 +75,7 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
         }
     }, [activeChecks, clearedIds, statementBalance])
 
-    /**
-     * Toggle a check's cleared status.
-     */
+    /** Toggle a check's cleared status */
     const toggleCleared = (checkKey) => {
         setClearedIds(prev => {
             const next = new Set(prev)
@@ -90,150 +88,112 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
         })
     }
 
-    /**
-     * Mark all visible checks as cleared.
-     */
+    /** Mark all visible checks as cleared */
     const clearAll = () => {
         const allKeys = filteredChecks.map(c => c.checkNumber || c.id)
         setClearedIds(prev => new Set([...prev, ...allKeys]))
     }
 
-    /**
-     * Unmark all checks.
-     */
+    /** Unmark all checks */
     const uncheckAll = () => {
         setClearedIds(new Set())
     }
 
     return (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh' }}>
                 {/* Header */}
-                <div className="modal-header" style={{ flexShrink: 0 }}>
-                    <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
-                        🏦 Bank Reconciliation
-                    </h3>
+                <div className="modal-header">
+                    <h2>🏦 Bank Reconciliation</h2>
                     <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
                 </div>
 
-                {/* Statement balance input */}
-                <div style={{ marginBottom: '16px', flexShrink: 0 }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                        Bank Statement Ending Balance
-                    </label>
-                    <input
-                        type="number"
-                        value={statementBalance}
-                        onChange={(e) => setStatementBalance(e.target.value)}
-                        placeholder="Enter balance from bank statement"
-                        style={{
-                            width: '200px',
-                            padding: '8px 10px',
-                            backgroundColor: 'var(--surface-elevated)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text)',
-                            fontSize: '14px',
-                            fontWeight: 600
-                        }}
-                    />
-                </div>
+                {/* Body */}
+                <div className="modal-body">
+                    {/* Statement balance input */}
+                    <div className="panel-field">
+                        <label className="panel-label">Bank Statement Ending Balance</label>
+                        <input
+                            type="number"
+                            className="panel-input"
+                            value={statementBalance}
+                            onChange={(e) => setStatementBalance(e.target.value)}
+                            placeholder="Enter balance from bank statement"
+                            style={{ maxWidth: '240px', fontWeight: 600 }}
+                        />
+                    </div>
 
-                {/* Reconciliation summary cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px', flexShrink: 0 }}>
-                    <div style={{ padding: '10px 14px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Cleared ({reconciliation.clearedCount})</div>
-                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--success, #22c55e)' }}>{fmt(reconciliation.clearedTotal)}</div>
-                    </div>
-                    <div style={{ padding: '10px 14px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Outstanding ({reconciliation.outstandingCount})</div>
-                        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--warning)' }}>{fmt(reconciliation.outstandingTotal)}</div>
-                    </div>
-                    <div style={{ padding: '10px 14px', backgroundColor: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Difference</div>
-                        <div style={{
-                            fontSize: '18px',
-                            fontWeight: 700,
-                            color: Math.abs(reconciliation.difference) < 0.01 ? 'var(--success, #22c55e)' : 'var(--danger)'
-                        }}>
-                            {fmt(reconciliation.difference)}
+                    {/* Reconciliation summary cards */}
+                    <div className="panel-grid-3">
+                        <div className="stat-card">
+                            <div className="stat-card-label">Cleared ({reconciliation.clearedCount})</div>
+                            <div className="stat-card-value success">{fmt(reconciliation.clearedTotal)}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-card-label">Outstanding ({reconciliation.outstandingCount})</div>
+                            <div className="stat-card-value warning">{fmt(reconciliation.outstandingTotal)}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-card-label">Difference</div>
+                            <div className={`stat-card-value ${Math.abs(reconciliation.difference) < 0.01 ? 'success' : 'danger'}`}>
+                                {fmt(reconciliation.difference)}
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                {/* Search + actions */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexShrink: 0 }}>
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search by check # or payee..."
-                        style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            backgroundColor: 'var(--surface-elevated)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text)',
-                            fontSize: '13px',
-                            outline: 'none'
-                        }}
-                    />
-                    <button className="btn btn-sm" onClick={clearAll}>Clear All</button>
-                    <button className="btn btn-sm" onClick={uncheckAll}>Uncheck All</button>
-                </div>
+                    {/* Search + bulk actions */}
+                    <div className="panel-row" style={{ marginBottom: '12px' }}>
+                        <input
+                            type="text"
+                            className="panel-input"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by check # or payee..."
+                            style={{ flex: 1 }}
+                        />
+                        <button className="btn btn-sm" onClick={clearAll}>Clear All</button>
+                        <button className="btn btn-sm" onClick={uncheckAll}>Uncheck All</button>
+                    </div>
 
-                {/* Check list */}
-                <div style={{ overflow: 'auto', flex: 1, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                    {filteredChecks.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-dim)' }}>
-                            No checks to reconcile
-                        </div>
-                    ) : (
-                        filteredChecks.map((check, i) => {
-                            const key = check.checkNumber || check.id || `check-${i}`
-                            const isCleared = clearedIds.has(key)
-                            return (
-                                <label
-                                    key={key}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        padding: '8px 12px',
-                                        borderBottom: '1px solid var(--border-subtle)',
-                                        cursor: 'pointer',
-                                        backgroundColor: isCleared ? 'rgba(34, 197, 94, 0.05)' : 'transparent',
-                                        transition: 'background 0.15s'
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={isCleared}
-                                        onChange={() => toggleCleared(key)}
-                                        style={{ flexShrink: 0 }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '13px', color: isCleared ? 'var(--text-dim)' : 'var(--text-bright)', textDecoration: isCleared ? 'line-through' : 'none' }}>
-                                            <span style={{ fontWeight: 600 }}>#{check.checkNumber || '—'}</span>
-                                            <span style={{ marginLeft: '8px' }}>{check.payee || 'No payee'}</span>
+                    {/* Check list */}
+                    <div className="panel-list-scroll" style={{ maxHeight: '300px' }}>
+                        {filteredChecks.length === 0 ? (
+                            <div className="panel-empty">No checks to reconcile</div>
+                        ) : (
+                            filteredChecks.map((check, i) => {
+                                const key = check.checkNumber || check.id || `check-${i}`
+                                const isCleared = clearedIds.has(key)
+                                return (
+                                    <label
+                                        key={key}
+                                        className={`panel-list-item clickable ${isCleared ? 'cleared' : ''}`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isCleared}
+                                            onChange={() => toggleCleared(key)}
+                                            style={{ flexShrink: 0 }}
+                                        />
+                                        <div style={{ flex: 1 }}>
+                                            <div className="panel-list-primary" style={{ textDecoration: isCleared ? 'line-through' : 'none', color: isCleared ? 'var(--text-dim)' : undefined }}>
+                                                <span>#{check.checkNumber || '—'}</span>
+                                                <span style={{ fontWeight: 400, marginLeft: '8px' }}>{check.payee || 'No payee'}</span>
+                                            </div>
+                                            <div className="panel-list-secondary">
+                                                {new Date(check.date || check.printedAt).toLocaleDateString()}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                                            {new Date(check.date || check.printedAt).toLocaleDateString()}
+                                        <div className="panel-list-amount" style={{
+                                            textDecoration: isCleared ? 'line-through' : 'none',
+                                            color: isCleared ? 'var(--text-dim)' : undefined
+                                        }}>
+                                            {fmt(parseAmount(check.amount))}
                                         </div>
-                                    </div>
-                                    <div style={{
-                                        fontSize: '13px',
-                                        fontWeight: 600,
-                                        color: isCleared ? 'var(--text-dim)' : 'var(--accent)',
-                                        textDecoration: isCleared ? 'line-through' : 'none'
-                                    }}>
-                                        {fmt(parseAmount(check.amount))}
-                                    </div>
-                                </label>
-                            )
-                        })
-                    )}
+                                    </label>
+                                )
+                            })
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

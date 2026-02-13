@@ -37,6 +37,9 @@ export function Form1099Modal({ vendors, checkHistory, onClose, showToast }) {
         [eligibleVendors]
     )
 
+    /** Format currency for display */
+    const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
     /**
      * Export 1099 data as CSV.
      */
@@ -86,126 +89,87 @@ export function Form1099Modal({ vendors, checkHistory, onClose, showToast }) {
             <div className="modal-content" style={{ maxWidth: '600px', width: '95%' }}>
                 {/* Header */}
                 <div className="modal-header">
-                    <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
-                        📋 1099 Tax Report
-                    </h3>
+                    <h2>📋 1099 Tax Report</h2>
                     <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
                 </div>
 
-                {/* Controls */}
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'end' }}>
-                    <div>
-                        <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                            Tax Year
-                        </label>
-                        <select
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(Number(e.target.value))}
-                            style={{ minWidth: '100px' }}
-                        >
-                            {yearOptions.map(y => (
-                                <option key={y} value={y}>{y}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                            Threshold ($)
-                        </label>
-                        <input
-                            type="number"
-                            value={threshold}
-                            onChange={(e) => setThreshold(Number(e.target.value) || 0)}
-                            style={{
-                                width: '100px',
-                                padding: '8px 10px',
-                                backgroundColor: 'var(--surface-elevated)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-sm)',
-                                color: 'var(--text)',
-                                fontSize: '13px'
-                            }}
-                        />
-                    </div>
-                </div>
-
-                {/* Summary Stats */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '12px',
-                    marginBottom: '16px'
-                }}>
-                    <div style={{
-                        padding: '10px 14px',
-                        backgroundColor: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)'
-                    }}>
-                        <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Eligible Vendors</div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-bright)' }}>
-                            {eligibleVendors.length}
-                        </div>
-                    </div>
-                    <div style={{
-                        padding: '10px 14px',
-                        backgroundColor: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)'
-                    }}>
-                        <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>Total Payments</div>
-                        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent)' }}>
-                            ${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Vendor list */}
-                <div style={{
-                    maxHeight: '300px',
-                    overflow: 'auto',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)',
-                    marginBottom: '16px'
-                }}>
-                    {eligibleVendors.length === 0 ? (
-                        <div style={{
-                            textAlign: 'center',
-                            padding: '24px',
-                            color: 'var(--text-dim)',
-                            fontSize: '13px'
-                        }}>
-                            No vendors above ${threshold} threshold for {selectedYear}
-                        </div>
-                    ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                    <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)' }}>Vendor</th>
-                                    <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)' }}>Tax ID</th>
-                                    <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)' }}>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {eligibleVendors.map(v => (
-                                    <tr key={v.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                        <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text)' }}>{v.name}</td>
-                                        <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                            {v.taxId || '—'}
-                                        </td>
-                                        <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--accent)', textAlign: 'right', fontWeight: 600 }}>
-                                            ${v.yearTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </td>
-                                    </tr>
+                {/* Body */}
+                <div className="modal-body">
+                    {/* Controls */}
+                    <div className="panel-row" style={{ gap: '12px', marginBottom: '16px', alignItems: 'flex-end' }}>
+                        <div>
+                            <label className="panel-label">Tax Year</label>
+                            <select
+                                className="panel-select"
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                style={{ width: 'auto', minWidth: '100px' }}
+                            >
+                                {yearOptions.map(y => (
+                                    <option key={y} value={y}>{y}</option>
                                 ))}
-                            </tbody>
-                        </table>
-                    )}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="panel-label">Threshold ($)</label>
+                            <input
+                                type="number"
+                                className="panel-input"
+                                value={threshold}
+                                onChange={(e) => setThreshold(Number(e.target.value) || 0)}
+                                style={{ width: '100px' }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Summary Stats */}
+                    <div className="panel-grid-2">
+                        <div className="stat-card">
+                            <div className="stat-card-label">Eligible Vendors</div>
+                            <div className="stat-card-value">{eligibleVendors.length}</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-card-label">Total Payments</div>
+                            <div className="stat-card-value accent">{fmt(grandTotal)}</div>
+                        </div>
+                    </div>
+
+                    {/* Vendor list */}
+                    <div className="panel-list-scroll" style={{ maxHeight: '300px', marginBottom: '4px' }}>
+                        {eligibleVendors.length === 0 ? (
+                            <div className="panel-empty">
+                                No vendors above ${threshold} threshold for {selectedYear}
+                            </div>
+                        ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, backgroundColor: 'var(--surface)' }}>
+                                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)', fontWeight: 600 }}>Vendor</th>
+                                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)', fontWeight: 600 }}>Tax ID</th>
+                                        <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)', fontWeight: 600 }}>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {eligibleVendors.map(v => (
+                                        <tr key={v.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text)' }}>{v.name}</td>
+                                            <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                                {v.taxId || '—'}
+                                            </td>
+                                            <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--accent)', textAlign: 'right', fontWeight: 600 }}>
+                                                {fmt(v.yearTotal)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button className="btn" onClick={onClose}>Close</button>
+                {/* Footer */}
+                <div className="modal-footer">
+                    <button className="btn ghost" onClick={onClose}>Close</button>
                     <button
                         className="btn primary"
                         onClick={handleExport}

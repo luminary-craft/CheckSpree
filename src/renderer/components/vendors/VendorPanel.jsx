@@ -36,7 +36,7 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
             ? searchVendors(searchQuery, 50)
             : [...vendors]
 
-        // Sort
+        // Sort by selected criteria
         if (sortBy === 'name') {
             list.sort((a, b) => a.name.localeCompare(b.name))
         } else if (sortBy === 'recent') {
@@ -49,9 +49,7 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
         return list
     }, [vendors, searchQuery, sortBy, searchVendors])
 
-    /**
-     * Save handler for create/edit form.
-     */
+    /** Save handler for create/edit form */
     const handleSave = (formData) => {
         if (editingVendor === 'new') {
             addVendor(formData)
@@ -63,9 +61,7 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
         setEditingVendor(null)
     }
 
-    /**
-     * Confirm and execute vendor deletion.
-     */
+    /** Confirm and execute vendor deletion */
     const handleDelete = (vendorId) => {
         const vendor = vendors.find(v => v.id === vendorId)
         deleteVendor(vendorId)
@@ -75,20 +71,18 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
 
     return (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-            <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh' }}>
 
                 {/* Header */}
-                <div className="modal-header" style={{ flexShrink: 0 }}>
+                <div className="modal-header">
                     <div>
-                        <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
-                            Vendor Database
-                        </h3>
+                        <h2 style={{ margin: 0 }}>Vendor Database</h2>
                         <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
                             {vendorStats.total} vendor{vendorStats.total !== 1 ? 's' : ''}
                             {vendorStats.eligible1099 > 0 && ` · ${vendorStats.eligible1099} eligible for 1099`}
                         </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div className="panel-row" style={{ gap: '8px' }}>
                         {onOpen1099 && vendorStats.eligible1099 > 0 && (
                             <button className="btn btn-sm" onClick={onOpen1099} title="Generate 1099 report">
                                 📋 1099 Report
@@ -98,74 +92,63 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
                     </div>
                 </div>
 
-                {/* Show form or list */}
-                {editingVendor !== null ? (
-                    /* ── Add/Edit Form ── */
-                    <div style={{ overflow: 'auto', flex: 1, padding: '0 4px' }}>
-                        <h4 style={{ color: 'var(--text-bright)', margin: '0 0 16px', fontSize: '15px' }}>
-                            {editingVendor === 'new' ? '➕ Add New Vendor' : `✏️ Edit: ${editingVendor.name}`}
-                        </h4>
-                        <VendorForm
-                            vendor={editingVendor === 'new' ? null : editingVendor}
-                            onSave={handleSave}
-                            onCancel={() => setEditingVendor(null)}
-                            compiledGlCodes={compiledGlCodes}
-                        />
-                    </div>
-                ) : (
-                    /* ── Vendor List ── */
-                    <>
-                        {/* Search + Actions Bar */}
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexShrink: 0 }}>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search vendors..."
-                                style={{
-                                    flex: 1,
-                                    padding: '8px 12px',
-                                    backgroundColor: 'var(--surface-elevated)',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    color: 'var(--text)',
-                                    fontSize: '13px',
-                                    outline: 'none'
-                                }}
+                {/* Body */}
+                <div className="modal-body">
+                    {editingVendor !== null ? (
+                        /* ── Add/Edit Form ── */
+                        <>
+                            <h3 style={{ color: 'var(--text-bright)', margin: '0 0 16px', fontSize: '15px' }}>
+                                {editingVendor === 'new' ? '➕ Add New Vendor' : `✏️ Edit: ${editingVendor.name}`}
+                            </h3>
+                            <VendorForm
+                                vendor={editingVendor === 'new' ? null : editingVendor}
+                                onSave={handleSave}
+                                onCancel={() => setEditingVendor(null)}
+                                compiledGlCodes={compiledGlCodes}
                             />
-                            <select
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                                style={{ minWidth: '120px' }}
-                            >
-                                <option value="name">Name A-Z</option>
-                                <option value="recent">Recently Updated</option>
-                                <option value="1099">1099 Eligible</option>
-                            </select>
-                            <button
-                                className="btn primary btn-sm"
-                                onClick={() => setEditingVendor('new')}
-                            >
-                                + Add
-                            </button>
-                        </div>
+                        </>
+                    ) : (
+                        /* ── Vendor List ── */
+                        <>
+                            {/* Search + Actions Bar */}
+                            <div className="panel-row" style={{ marginBottom: '12px' }}>
+                                <input
+                                    type="text"
+                                    className="panel-input"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search vendors..."
+                                    style={{ flex: 1 }}
+                                />
+                                <select
+                                    className="panel-select"
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                    style={{ width: 'auto', minWidth: '120px' }}
+                                >
+                                    <option value="name">Name A-Z</option>
+                                    <option value="recent">Recently Updated</option>
+                                    <option value="1099">1099 Eligible</option>
+                                </select>
+                                <button
+                                    className="btn primary btn-sm"
+                                    onClick={() => setEditingVendor('new')}
+                                >
+                                    + Add
+                                </button>
+                            </div>
 
-                        {/* Vendor list */}
-                        <div style={{ overflow: 'auto', flex: 1 }}>
-                            {displayedVendors.length === 0 ? (
-                                <div style={{
-                                    textAlign: 'center',
-                                    padding: '40px 20px',
-                                    color: 'var(--text-dim)'
-                                }}>
-                                    {searchQuery
-                                        ? `No vendors matching "${searchQuery}"`
-                                        : 'No vendors yet. Click "+ Add" to create your first vendor.'
-                                    }
-                                </div>
-                            ) : (
-                                <div className="vendor-list">
-                                    {displayedVendors.map(vendor => (
+                            {/* Vendor list */}
+                            <div className="panel-list-scroll" style={{ maxHeight: '450px' }}>
+                                {displayedVendors.length === 0 ? (
+                                    <div className="panel-empty">
+                                        {searchQuery
+                                            ? `No vendors matching "${searchQuery}"`
+                                            : 'No vendors yet. Click "+ Add" to create your first vendor.'
+                                        }
+                                    </div>
+                                ) : (
+                                    displayedVendors.map(vendor => (
                                         <div key={vendor.id} className="vendor-list-item">
                                             <div className="vendor-list-info">
                                                 <div className="vendor-list-name">
@@ -216,12 +199,12 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
                                                 )}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
+                                    ))
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     )

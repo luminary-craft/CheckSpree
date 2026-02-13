@@ -87,143 +87,92 @@ export function PositivePayModal({ checkHistory, onClose, showToast }) {
             <div className="modal-content" style={{ maxWidth: '520px', width: '95%' }}>
                 {/* Header */}
                 <div className="modal-header">
-                    <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
-                        Positive Pay Export
-                    </h3>
+                    <h2>Positive Pay Export</h2>
                     <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
                 </div>
 
-                {/* Description */}
-                <p style={{
-                    fontSize: '13px',
-                    color: 'var(--text-secondary)',
-                    margin: '0 0 20px',
-                    lineHeight: '1.5'
-                }}>
-                    Generate a file of issued checks for your bank's Positive Pay fraud prevention system.
-                </p>
+                {/* Body */}
+                <div className="modal-body">
+                    {/* Description */}
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 18px', lineHeight: '1.5' }}>
+                        Generate a file of issued checks for your bank's Positive Pay fraud prevention system.
+                    </p>
 
-                {/* Date Range */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    <div>
-                        <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                            Start Date
-                        </label>
+                    {/* Date Range */}
+                    <div className="panel-grid-2">
+                        <div>
+                            <label className="panel-label">Start Date</label>
+                            <input
+                                type="date"
+                                className="panel-input"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label className="panel-label">End Date</label>
+                            <input
+                                type="date"
+                                className="panel-input"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Format */}
+                    <div className="panel-field">
+                        <label className="panel-label">Export Format</label>
+                        <select
+                            className="panel-select"
+                            value={format}
+                            onChange={(e) => setFormat(e.target.value)}
+                        >
+                            <option value="csv">Standard CSV</option>
+                            <option value="fixed">Fixed-Width Text</option>
+                        </select>
+                    </div>
+
+                    {/* Account Number */}
+                    <div className="panel-field">
+                        <label className="panel-label">Account Number (optional)</label>
                         <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '8px 10px',
-                                backgroundColor: 'var(--surface-elevated)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-sm)',
-                                color: 'var(--text)',
-                                fontSize: '13px'
-                            }}
+                            type="text"
+                            className="panel-input"
+                            value={accountNumber}
+                            onChange={(e) => setAccountNumber(e.target.value)}
+                            placeholder="Enter bank account number"
                         />
                     </div>
-                    <div>
-                        <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                            End Date
-                        </label>
+
+                    {/* Include voided toggle */}
+                    <label className="panel-checkbox" style={{ marginBottom: '18px' }}>
                         <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '8px 10px',
-                                backgroundColor: 'var(--surface-elevated)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-sm)',
-                                color: 'var(--text)',
-                                fontSize: '13px'
-                            }}
+                            type="checkbox"
+                            checked={includeVoided}
+                            onChange={(e) => setIncludeVoided(e.target.checked)}
                         />
-                    </div>
-                </div>
-
-                {/* Format + Account Number */}
-                <div style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                        Export Format
+                        Include voided checks
                     </label>
-                    <select
-                        value={format}
-                        onChange={(e) => setFormat(e.target.value)}
-                        style={{ width: '100%' }}
-                    >
-                        <option value="csv">Standard CSV</option>
-                        <option value="fixed">Fixed-Width Text</option>
-                    </select>
-                </div>
 
-                <div style={{ marginBottom: '16px' }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
-                        Account Number (optional)
-                    </label>
-                    <input
-                        type="text"
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
-                        placeholder="Enter bank account number"
-                        style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            backgroundColor: 'var(--surface-elevated)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text)',
-                            fontSize: '13px'
-                        }}
-                    />
-                </div>
-
-                {/* Include voided toggle */}
-                <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    fontSize: '13px',
-                    color: 'var(--text-secondary)',
-                    marginBottom: '20px',
-                    cursor: 'pointer'
-                }}>
-                    <input
-                        type="checkbox"
-                        checked={includeVoided}
-                        onChange={(e) => setIncludeVoided(e.target.checked)}
-                    />
-                    Include voided checks
-                </label>
-
-                {/* Summary card */}
-                <div style={{
-                    padding: '12px 16px',
-                    backgroundColor: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)',
-                    marginBottom: '20px'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Checks found</span>
-                        <span style={{ fontSize: '13px', color: 'var(--text-bright)', fontWeight: 600 }}>
-                            {summary.count}
-                        </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Total amount</span>
-                        <span style={{ fontSize: '13px', color: 'var(--accent)', fontWeight: 600 }}>
-                            ${summary.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
+                    {/* Summary card */}
+                    <div className="stat-card">
+                        <div className="panel-summary-row">
+                            <span className="panel-summary-label">Checks found</span>
+                            <span className="panel-summary-value">{summary.count}</span>
+                        </div>
+                        <div className="panel-summary-row">
+                            <span className="panel-summary-label">Total amount</span>
+                            <span className="panel-summary-value" style={{ color: 'var(--accent)' }}>
+                                ${summary.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button className="btn" onClick={onClose}>Cancel</button>
+                {/* Footer */}
+                <div className="modal-footer">
+                    <button className="btn ghost" onClick={onClose}>Cancel</button>
                     <button
                         className="btn primary"
                         onClick={handleExport}
