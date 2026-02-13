@@ -21,7 +21,8 @@ export function TopBar({
   onOpenPositivePay,
   onOpenVendors,
   onOpenApprovals,
-  approvalCount
+  approvalCount,
+  onOpenReports
 }) {
   return (
     <>
@@ -91,6 +92,9 @@ export function TopBar({
                 {approvalCount}
               </span>
             )}
+          </button>
+          <button className="btn ghost" onClick={onOpenReports} title="Reports and search">
+            📊 Reports
           </button>
           <button
             className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}

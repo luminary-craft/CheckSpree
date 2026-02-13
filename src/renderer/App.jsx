@@ -57,6 +57,7 @@ import { VendorPanel } from './components/vendors/VendorPanel'
 import { Form1099Modal } from './components/modals/Form1099Modal'
 import { useApprovals } from './hooks/useApprovals'
 import { ApprovalPanel } from './components/modals/ApprovalPanel'
+import { ReportsPanel } from './components/modals/ReportsPanel'
 
 
 export default function App() {
@@ -242,6 +243,9 @@ export default function App() {
 
   // Approval workflow modal state
   const [showApprovalPanel, setShowApprovalPanel] = useState(false)
+
+  // Reports panel modal state
+  const [showReportsPanel, setShowReportsPanel] = useState(false)
 
   const [data, setData] = useState({
     date: (() => {
@@ -2867,6 +2871,7 @@ export default function App() {
         onOpenVendors={() => setShowVendorPanel(true)}
         onOpenApprovals={() => setShowApprovalPanel(true)}
         approvalCount={approvalHook.counts.pending}
+        onOpenReports={() => setShowReportsPanel(true)}
       />
 
       <div className="layout">
@@ -3234,6 +3239,15 @@ export default function App() {
         <ApprovalPanel
           approvalHook={approvalHook}
           onClose={() => setShowApprovalPanel(false)}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Reports & Search Panel */}
+      {showReportsPanel && (
+        <ReportsPanel
+          checkHistory={checkHistory}
+          onClose={() => setShowReportsPanel(false)}
           showToast={showToast}
         />
       )}
