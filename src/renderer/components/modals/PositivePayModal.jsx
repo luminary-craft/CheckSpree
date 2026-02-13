@@ -1,0 +1,238 @@
+import React, { useState, useMemo } from 'react'
+import {
+    generatePositivePayCSV,
+    generatePositivePayFixedWidth,
+    filterChecksByDateRange,
+    getCheckSummary
+} from '../../utils/positivePayExport'
+
+/**
+ * PositivePayModal — Export dialog for generating Positive Pay files.
+ *
+ * Allows the user to select a date range, export format, and optional
+ * account number, then preview and export the data for bank submission.
+ *
+ * @param {Object} props
+ * @param {Array} props.checkHistory - Full check history array
+ * @param {Function} props.onClose - Close the modal
+ * @param {Function} props.showToast - Display a toast notification
+ */
+export function PositivePayModal({ checkHistory, onClose, showToast }) {
+    // Date range defaults to last 30 days
+    const today = new Date()
+    const thirtyDaysAgo = new Date(today)
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().split('T')[0])
+    const [endDate, setEndDate] = useState(today.toISOString().split('T')[0])
+    const [format, setFormat] = useState('csv')
+    const [accountNumber, setAccountNumber] = useState('')
+    const [includeVoided, setIncludeVoided] = useState(false)
+
+    // Filter and summarize checks based on selected date range
+    const filteredChecks = useMemo(
+        () => filterChecksByDateRange(checkHistory, startDate, endDate),
+        [checkHistory, startDate, endDate]
+    )
+
+    const summary = useMemo(
+        () => getCheckSummary(filteredChecks),
+        [filteredChecks]
+    )
+
+    /**
+     * Generate the export content and trigger download via IPC.
+     */
+    const handleExport = async () => {
+        if (filteredChecks.length === 0) {
+            showToast?.('No checks found in the selected date range')
+            return
+        }
+
+        try {
+            const options = { accountNumber, includeVoided }
+            let content, filename
+
+            if (format === 'csv') {
+                content = generatePositivePayCSV(filteredChecks, options)
+                filename = `positive_pay_${startDate}_to_${endDate}.csv`
+            } else {
+                content = generatePositivePayFixedWidth(filteredChecks, options)
+                filename = `positive_pay_${startDate}_to_${endDate}.txt`
+            }
+
+            // Use existing export IPC to save the file
+            const result = await window.cs2.exportHistory({
+                content,
+                filename,
+                type: 'positive-pay'
+            })
+
+            if (result?.success) {
+                showToast?.(`Exported ${filteredChecks.length} checks to ${filename}`)
+                onClose()
+            } else {
+                // User may have cancelled the save dialog — not an error
+                if (result?.cancelled) return
+                showToast?.('Export failed: ' + (result?.error || 'Unknown error'))
+            }
+        } catch (error) {
+            console.error('[PositivePay] Export failed:', error)
+            showToast?.('Export failed: ' + error.message)
+        }
+    }
+
+    return (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+            <div className="modal-content" style={{ maxWidth: '520px', width: '95%' }}>
+                {/* Header */}
+                <div className="modal-header">
+                    <h3 style={{ margin: 0, color: 'var(--text-bright)', fontSize: '18px' }}>
+                        Positive Pay Export
+                    </h3>
+                    <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
+                </div>
+
+                {/* Description */}
+                <p style={{
+                    fontSize: '13px',
+                    color: 'var(--text-secondary)',
+                    margin: '0 0 20px',
+                    lineHeight: '1.5'
+                }}>
+                    Generate a file of issued checks for your bank's Positive Pay fraud prevention system.
+                </p>
+
+                {/* Date Range */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                    <div>
+                        <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
+                            Start Date
+                        </label>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                backgroundColor: 'var(--surface-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-sm)',
+                                color: 'var(--text)',
+                                fontSize: '13px'
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
+                            End Date
+                        </label>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                backgroundColor: 'var(--surface-elevated)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-sm)',
+                                color: 'var(--text)',
+                                fontSize: '13px'
+                            }}
+                        />
+                    </div>
+                </div>
+
+                {/* Format + Account Number */}
+                <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
+                        Export Format
+                    </label>
+                    <select
+                        value={format}
+                        onChange={(e) => setFormat(e.target.value)}
+                        style={{ width: '100%' }}
+                    >
+                        <option value="csv">Standard CSV</option>
+                        <option value="fixed">Fixed-Width Text</option>
+                    </select>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: '12px', color: 'var(--text-label)', display: 'block', marginBottom: '4px' }}>
+                        Account Number (optional)
+                    </label>
+                    <input
+                        type="text"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        placeholder="Enter bank account number"
+                        style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            backgroundColor: 'var(--surface-elevated)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-sm)',
+                            color: 'var(--text)',
+                            fontSize: '13px'
+                        }}
+                    />
+                </div>
+
+                {/* Include voided toggle */}
+                <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '13px',
+                    color: 'var(--text-secondary)',
+                    marginBottom: '20px',
+                    cursor: 'pointer'
+                }}>
+                    <input
+                        type="checkbox"
+                        checked={includeVoided}
+                        onChange={(e) => setIncludeVoided(e.target.checked)}
+                    />
+                    Include voided checks
+                </label>
+
+                {/* Summary card */}
+                <div style={{
+                    padding: '12px 16px',
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    marginBottom: '20px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Checks found</span>
+                        <span style={{ fontSize: '13px', color: 'var(--text-bright)', fontWeight: 600 }}>
+                            {summary.count}
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Total amount</span>
+                        <span style={{ fontSize: '13px', color: 'var(--accent)', fontWeight: 600 }}>
+                            ${summary.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button className="btn" onClick={onClose}>Cancel</button>
+                    <button
+                        className="btn primary"
+                        onClick={handleExport}
+                        disabled={summary.count === 0}
+                    >
+                        Export {summary.count > 0 ? `${summary.count} Checks` : ''}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}

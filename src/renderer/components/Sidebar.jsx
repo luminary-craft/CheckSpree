@@ -8,6 +8,7 @@ import { AtmCurrencyInput } from './AtmCurrencyInput'
 import { PayeeAutocomplete } from './PayeeAutocomplete'
 import { AddressInput } from '../AddressInput'
 import { GlCodeInput } from './GlCodeInput'
+import { SignaturePad } from './signature/SignaturePad'
 
 export function Sidebar({
   // Ledger
@@ -48,7 +49,9 @@ export function Sidebar({
   // Admin
   handleUnlockRequest,
   // Toast
-  showToast
+  showToast,
+  // Digital Signature
+  signature
 }) {
   // Track original balance for history entry on blur
   const originalBalanceRef = useRef(0)
@@ -797,6 +800,20 @@ export function Sidebar({
               </>
             )}
           </div>
+
+          {/* Digital Signature — admin-only setting inside profile section */}
+          {signature && (
+            <SignaturePad
+              signatureImage={signature.signatureImage}
+              signatureEnabled={signature.signatureEnabled}
+              signatureOpacity={signature.signatureOpacity}
+              isLoading={signature.isLoadingSignature}
+              onLoad={signature.loadSignature}
+              onClear={signature.clearSignature}
+              onToggle={signature.toggleSignature}
+              onOpacityChange={signature.updateOpacity}
+            />
+          )}
         </section>
 
         {/* Check Data - Main focus */}

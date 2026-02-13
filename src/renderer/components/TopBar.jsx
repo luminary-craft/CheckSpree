@@ -17,7 +17,8 @@ export function TopBar({
   handleBackupData, handleRestoreBackup,
   editMode, setEditMode, resetModel,
   handlePreviewPdf, handlePrintAndRecord, handleRecordOnly,
-  activeProfile, data, setData
+  activeProfile, data, setData,
+  onOpenPositivePay
 }) {
   return (
     <>
@@ -62,6 +63,9 @@ export function TopBar({
           </button>
           <button className="btn ghost" onClick={handleExport} title="Export check history">
             <DownloadIcon /> Export
+          </button>
+          <button className="btn ghost" onClick={onOpenPositivePay} title="Generate Positive Pay file for bank">
+            🏦 Pos. Pay
           </button>
           <button
             className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}

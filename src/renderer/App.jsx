@@ -50,6 +50,8 @@ import { useAdmin } from './hooks/useAdmin'
 import { useTemplate } from './hooks/useTemplate'
 import { useLayoutEditor } from './hooks/useLayoutEditor'
 import { useBatchPrint } from './hooks/useBatchPrint'
+import { useSignature } from './hooks/useSignature'
+import { PositivePayModal } from './components/modals/PositivePayModal'
 
 
 export default function App() {
@@ -225,6 +227,9 @@ export default function App() {
   const [showManualBackupModal, setShowManualBackupModal] = useState(false)
   const [backupFilename, setBackupFilename] = useState('')
   const [backupLocation, setBackupLocation] = useState('downloads')
+
+  // Positive Pay export modal state
+  const [showPositivePay, setShowPositivePay] = useState(false)
 
   const [data, setData] = useState({
     date: (() => {
@@ -746,6 +751,9 @@ export default function App() {
 
   // Profile helpers
   const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0]
+
+  // Digital signature management (stored per-profile)
+  const signature = useSignature(activeProfile, setProfiles, activeProfileId)
 
   // Initialize slotFields if not present (backward compatibility)
   useEffect(() => {
@@ -2834,6 +2842,7 @@ export default function App() {
         editMode={editMode} setEditMode={handleToggleEditMode} resetModel={resetModel}
         handlePreviewPdf={guardedPreviewPdf} handlePrintAndRecord={guardedPrintAndRecord} handleRecordOnly={guardedRecordOnly}
         activeProfile={activeProfile} data={data} setData={setData}
+        onOpenPositivePay={() => setShowPositivePay(true)}
       />
 
       <div className="layout">
@@ -2866,6 +2875,7 @@ export default function App() {
           showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
           handleUnlockRequest={handleUnlockRequest}
           showToast={showToast}
+          signature={signature}
         />
 
         <CheckCanvas
@@ -2881,6 +2891,7 @@ export default function App() {
           updateCurrentCheckData={updateCurrentCheckData} getSectionHeight={getSectionHeight} getSectionY={getSectionY} setField={setField}
           handleUnlockRequest={handleUnlockRequest} isSlotEmpty={isSlotEmpty}
           showStub1Labels={showStub1Labels} showStub2Labels={showStub2Labels}
+          signature={signature}
         />
       </div >
 
@@ -3158,6 +3169,15 @@ export default function App() {
             setShowSetupWizard(false)
             showToast('Setup complete! Welcome to CheckSpree 🎉', 'success')
           }}
+        />
+      )}
+
+      {/* Positive Pay Export Modal */}
+      {showPositivePay && (
+        <PositivePayModal
+          checkHistory={checkHistory}
+          onClose={() => setShowPositivePay(false)}
+          showToast={showToast}
         />
       )}
     </div >

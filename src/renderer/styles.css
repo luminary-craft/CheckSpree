@@ -3685,6 +3685,79 @@ select option {
   gap: 8px;
 }
 
+/* ── Digital Signature Pad ──────────────────────────── */
+.signature-pad {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.signature-pad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.signature-pad-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-label);
+}
+
+.signature-preview-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signature-preview-img {
+  width: 100%;
+  max-height: 80px;
+  object-fit: contain;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.05) 0% 25%,
+      transparent 0% 50%) 50% / 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+}
+
+.signature-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.signature-actions .btn {
+  flex: 1;
+}
+
+.signature-opacity-control {
+  margin-top: 8px;
+}
+
+.signature-opacity-slider {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--border-medium);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.signature-opacity-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 /* ── Print hide ─────────────────────────────────────── */
 @media print {
   .setup-wizard-overlay {
