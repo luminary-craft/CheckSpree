@@ -19,7 +19,9 @@ export function TopBar({
   handlePreviewPdf, handlePrintAndRecord, handleRecordOnly,
   activeProfile, data, setData,
   onOpenPositivePay,
-  onOpenVendors
+  onOpenVendors,
+  onOpenApprovals,
+  approvalCount
 }) {
   return (
     <>
@@ -70,6 +72,25 @@ export function TopBar({
           </button>
           <button className="btn ghost" onClick={onOpenVendors} title="Manage vendors and payees">
             📌 Vendors
+          </button>
+          <button className="btn ghost" onClick={onOpenApprovals} title="Check approval queue" style={{ position: 'relative' }}>
+            ✅ Approvals
+            {approvalCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '2px',
+                right: '2px',
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '1px 4px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--warning)',
+                color: 'var(--bg)',
+                lineHeight: '1.3'
+              }}>
+                {approvalCount}
+              </span>
+            )}
           </button>
           <button
             className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}

@@ -55,6 +55,8 @@ import { PositivePayModal } from './components/modals/PositivePayModal'
 import { useVendors } from './hooks/useVendors'
 import { VendorPanel } from './components/vendors/VendorPanel'
 import { Form1099Modal } from './components/modals/Form1099Modal'
+import { useApprovals } from './hooks/useApprovals'
+import { ApprovalPanel } from './components/modals/ApprovalPanel'
 
 
 export default function App() {
@@ -237,6 +239,9 @@ export default function App() {
   // Vendor database modal states
   const [showVendorPanel, setShowVendorPanel] = useState(false)
   const [show1099Modal, setShow1099Modal] = useState(false)
+
+  // Approval workflow modal state
+  const [showApprovalPanel, setShowApprovalPanel] = useState(false)
 
   const [data, setData] = useState({
     date: (() => {
@@ -764,6 +769,12 @@ export default function App() {
 
   // Vendor/payee database (persisted as top-level state)
   const vendorHook = useVendors(preferences.vendors, checkHistory)
+
+  // Check approval workflow
+  const approvalHook = useApprovals(preferences.approvals, {
+    enabled: preferences.approvalEnabled,
+    threshold: preferences.approvalThreshold
+  })
 
   // Initialize slotFields if not present (backward compatibility)
   useEffect(() => {
@@ -2854,6 +2865,8 @@ export default function App() {
         activeProfile={activeProfile} data={data} setData={setData}
         onOpenPositivePay={() => setShowPositivePay(true)}
         onOpenVendors={() => setShowVendorPanel(true)}
+        onOpenApprovals={() => setShowApprovalPanel(true)}
+        approvalCount={approvalHook.counts.pending}
       />
 
       <div className="layout">
@@ -3212,6 +3225,15 @@ export default function App() {
           vendors={vendorHook.vendors}
           checkHistory={checkHistory}
           onClose={() => setShow1099Modal(false)}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Check Approval Panel */}
+      {showApprovalPanel && (
+        <ApprovalPanel
+          approvalHook={approvalHook}
+          onClose={() => setShowApprovalPanel(false)}
           showToast={showToast}
         />
       )}

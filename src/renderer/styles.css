@@ -3816,6 +3816,18 @@ select option {
   flex-shrink: 0;
 }
 
+/* ── Approval Workflow ──────────────────────────────── */
+.approval-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--warning);
+  transition: background 0.15s;
+}
+
+.approval-item:hover {
+  background: var(--surface-elevated);
+}
+
 /* ── Print hide ─────────────────────────────────────── */
 @media print {
   .setup-wizard-overlay {
