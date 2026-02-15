@@ -6,6 +6,7 @@ import {
     getDashboardStats,
     exportReportCSV
 } from '../../utils/reportHelpers'
+import { formatAmount, parseAmount } from '../../utils/helpers'
 
 /**
  * ReportsPanel — Reporting & Search Modal.
@@ -46,9 +47,6 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
 
     // Void report
     const voidReport = useMemo(() => generateVoidReport(checkHistory), [checkHistory])
-
-    /** Format currency display */
-    const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
     const views = [
         { id: 'dashboard', label: '📊 Dashboard' },
@@ -91,11 +89,11 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                             </div>
                             <div className="stat-card">
                                 <div className="stat-card-label">Total Amount</div>
-                                <div className="stat-card-value accent">{fmt(stats.totalAmount)}</div>
+                                <div className="stat-card-value accent">{formatAmount(stats.totalAmount)}</div>
                             </div>
                             <div className="stat-card">
                                 <div className="stat-card-label">Average Check</div>
-                                <div className="stat-card-value">{fmt(stats.averageAmount)}</div>
+                                <div className="stat-card-value">{formatAmount(stats.averageAmount)}</div>
                             </div>
                             <div className="stat-card">
                                 <div className="stat-card-label">This Month</div>
@@ -103,7 +101,7 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                             </div>
                             <div className="stat-card">
                                 <div className="stat-card-label">Month Total</div>
-                                <div className="stat-card-value accent">{fmt(stats.thisMonthTotal)}</div>
+                                <div className="stat-card-value accent">{formatAmount(stats.thisMonthTotal)}</div>
                             </div>
                             <div className="stat-card">
                                 <div className="stat-card-label">Voided</div>
@@ -147,24 +145,24 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
 
                             {/* Register table */}
                             <div className="panel-list-scroll" style={{ maxHeight: '400px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                                <table className="panel-table">
                                     <thead>
-                                        <tr style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, backgroundColor: 'var(--surface)' }}>
-                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>#</th>
-                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Date</th>
-                                            <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Payee</th>
-                                            <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Amount</th>
-                                            <th style={{ textAlign: 'center', padding: '8px', color: 'var(--text-label)', fontWeight: 600 }}>Status</th>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Date</th>
+                                            <th>Payee</th>
+                                            <th className="text-right">Amount</th>
+                                            <th className="text-center">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {register.slice(0, 200).map((c, i) => (
-                                            <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                                <td style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>{c.checkNumber || '—'}</td>
-                                                <td style={{ padding: '6px 8px', color: 'var(--text)' }}>{new Date(c.date || c.printedAt).toLocaleDateString()}</td>
-                                                <td style={{ padding: '6px 8px', color: 'var(--text-bright)' }}>{c.payee || '—'}</td>
-                                                <td style={{ padding: '6px 8px', color: 'var(--accent)', textAlign: 'right', fontWeight: 600 }}>{fmt(parseFloat(String(c.amount || '0').replace(/[^0-9.-]/g, '')))}</td>
-                                                <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                            <tr key={i}>
+                                                <td className="text-secondary">{c.checkNumber || '—'}</td>
+                                                <td>{new Date(c.date || c.printedAt).toLocaleDateString()}</td>
+                                                <td className="text-bright">{c.payee || '—'}</td>
+                                                <td className="text-right text-accent">{formatAmount(parseAmount(String(c.amount || '0')))}</td>
+                                                <td className="text-center">
                                                     <span className={`panel-badge ${c.status === 'void' ? 'danger' : 'success'}`}>
                                                         {c.status === 'void' ? 'VOID' : 'PRINTED'}
                                                     </span>
@@ -199,7 +197,7 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                                             <div className="panel-list-primary">{group.label}</div>
                                             <div className="panel-list-secondary">{group.count} check{group.count !== 1 ? 's' : ''}</div>
                                         </div>
-                                        <div className="panel-list-amount" style={{ fontSize: '14px' }}>{fmt(group.total)}</div>
+                                        <div className="panel-list-amount" style={{ fontSize: '14px' }}>{formatAmount(group.total)}</div>
                                     </div>
                                 ))}
                             </div>
@@ -227,7 +225,7 @@ export function ReportsPanel({ checkHistory, onClose, showToast }) {
                                             </div>
                                             <div className="panel-row" style={{ gap: '12px' }}>
                                                 <span className="panel-list-amount" style={{ color: 'var(--danger)' }}>
-                                                    {fmt(parseFloat(String(c.amount || '0').replace(/[^0-9.-]/g, '')))}
+                                                    {formatAmount(parseAmount(String(c.amount || '0')))}
                                                 </span>
                                                 <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
                                                     {new Date(c.voidedAt || c.date || c.printedAt).toLocaleDateString()}

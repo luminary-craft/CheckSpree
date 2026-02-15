@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { calculate1099Totals, generate1099CSV } from '../../utils/vendorHelpers'
+import { formatAmount } from '../../utils/helpers'
 
 /**
  * Form1099Modal — 1099 Tax Reporting Modal.
@@ -36,9 +37,6 @@ export function Form1099Modal({ vendors, checkHistory, onClose, showToast }) {
         () => eligibleVendors.reduce((sum, v) => sum + v.yearTotal, 0),
         [eligibleVendors]
     )
-
-    /** Format currency for display */
-    const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
     /**
      * Export 1099 data as CSV.
@@ -130,7 +128,7 @@ export function Form1099Modal({ vendors, checkHistory, onClose, showToast }) {
                         </div>
                         <div className="stat-card">
                             <div className="stat-card-label">Total Payments</div>
-                            <div className="stat-card-value accent">{fmt(grandTotal)}</div>
+                            <div className="stat-card-value accent">{formatAmount(grandTotal)}</div>
                         </div>
                     </div>
 
@@ -141,24 +139,20 @@ export function Form1099Modal({ vendors, checkHistory, onClose, showToast }) {
                                 No vendors above ${threshold} threshold for {selectedYear}
                             </div>
                         ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <table className="panel-table">
                                 <thead>
-                                    <tr style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, backgroundColor: 'var(--surface)' }}>
-                                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)', fontWeight: 600 }}>Vendor</th>
-                                        <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)', fontWeight: 600 }}>Tax ID</th>
-                                        <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: '12px', color: 'var(--text-label)', fontWeight: 600 }}>Total</th>
+                                    <tr>
+                                        <th>Vendor</th>
+                                        <th>Tax ID</th>
+                                        <th className="text-right">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {eligibleVendors.map(v => (
-                                        <tr key={v.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                            <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text)' }}>{v.name}</td>
-                                            <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                                {v.taxId || '—'}
-                                            </td>
-                                            <td style={{ padding: '8px 12px', fontSize: '13px', color: 'var(--accent)', textAlign: 'right', fontWeight: 600 }}>
-                                                {fmt(v.yearTotal)}
-                                            </td>
+                                        <tr key={v.id}>
+                                            <td>{v.name}</td>
+                                            <td className="text-secondary">{v.taxId || '—'}</td>
+                                            <td className="text-right text-accent">{formatAmount(v.yearTotal)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

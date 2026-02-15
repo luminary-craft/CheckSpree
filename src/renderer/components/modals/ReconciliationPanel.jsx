@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { formatAmount, parseAmount } from '../../utils/helpers'
 
 /**
  * ReconciliationPanel — Bank Reconciliation View.
@@ -17,17 +18,6 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
     const [statementBalance, setStatementBalance] = useState('')
     const [clearedIds, setClearedIds] = useState(new Set())
     const [searchQuery, setSearchQuery] = useState('')
-
-    /** Format currency for display */
-    const fmt = (n) => '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-    /** Parse amount from check data — handles strings like "$1,234.56" */
-    const parseAmount = (amount) => {
-        const num = typeof amount === 'string'
-            ? parseFloat(amount.replace(/[^0-9.-]/g, ''))
-            : (amount || 0)
-        return isNaN(num) ? 0 : num
-    }
 
     // Active (non-voided) checks sorted newest first
     const activeChecks = useMemo(() =>
@@ -127,16 +117,16 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
                     <div className="panel-grid-3">
                         <div className="stat-card">
                             <div className="stat-card-label">Cleared ({reconciliation.clearedCount})</div>
-                            <div className="stat-card-value success">{fmt(reconciliation.clearedTotal)}</div>
+                            <div className="stat-card-value success">{formatAmount(reconciliation.clearedTotal)}</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-card-label">Outstanding ({reconciliation.outstandingCount})</div>
-                            <div className="stat-card-value warning">{fmt(reconciliation.outstandingTotal)}</div>
+                            <div className="stat-card-value warning">{formatAmount(reconciliation.outstandingTotal)}</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-card-label">Difference</div>
                             <div className={`stat-card-value ${Math.abs(reconciliation.difference) < 0.01 ? 'success' : 'danger'}`}>
-                                {fmt(reconciliation.difference)}
+                                {formatAmount(reconciliation.difference)}
                             </div>
                         </div>
                     </div>
@@ -187,13 +177,18 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
                                             textDecoration: isCleared ? 'line-through' : 'none',
                                             color: isCleared ? 'var(--text-dim)' : undefined
                                         }}>
-                                            {fmt(parseAmount(check.amount))}
+                                            {formatAmount(parseAmount(check.amount))}
                                         </div>
                                     </label>
                                 )
                             })
                         )}
                     </div>
+                </div>
+
+                {/* Footer */}
+                <div className="modal-footer">
+                    <button className="btn ghost" onClick={onClose}>Close</button>
                 </div>
             </div>
         </div>

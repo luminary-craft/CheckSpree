@@ -149,15 +149,15 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
                                     </div>
                                 ) : (
                                     displayedVendors.map(vendor => (
-                                        <div key={vendor.id} className="vendor-list-item">
-                                            <div className="vendor-list-info">
-                                                <div className="vendor-list-name">
+                                        <div key={vendor.id} className="panel-list-item">
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div className="panel-list-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     {vendor.name}
                                                     {vendor.is1099Eligible && (
-                                                        <span className="vendor-badge-1099" title="1099 Eligible">1099</span>
+                                                        <span className="panel-badge">1099</span>
                                                     )}
                                                 </div>
-                                                <div className="vendor-list-details">
+                                                <div className="panel-list-secondary" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     {[
                                                         vendor.city && vendor.state ? `${vendor.city}, ${vendor.state}` : (vendor.city || vendor.state || ''),
                                                         vendor.phone,
@@ -165,7 +165,7 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
                                                     ].filter(Boolean).join(' · ') || 'No contact info'}
                                                 </div>
                                             </div>
-                                            <div className="vendor-list-actions">
+                                            <div className="panel-row" style={{ gap: '4px', flexShrink: 0 }}>
                                                 <button
                                                     className="btn btn-sm"
                                                     onClick={() => setEditingVendor(vendor)}

@@ -5,6 +5,7 @@ import {
     filterChecksByDateRange,
     getCheckSummary
 } from '../../utils/positivePayExport'
+import { formatAmount } from '../../utils/helpers'
 
 /**
  * PositivePayModal — Export dialog for generating Positive Pay files.
@@ -164,7 +165,7 @@ export function PositivePayModal({ checkHistory, onClose, showToast }) {
                         <div className="panel-summary-row">
                             <span className="panel-summary-label">Total amount</span>
                             <span className="panel-summary-value" style={{ color: 'var(--accent)' }}>
-                                ${summary.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {formatAmount(summary.totalAmount)}
                             </span>
                         </div>
                     </div>

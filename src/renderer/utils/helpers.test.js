@@ -1,4 +1,4 @@
-import { generateId, formatCurrency, sanitizeCurrencyInput } from './helpers'
+import { generateId, formatCurrency, formatAmount, parseAmount, sanitizeCurrencyInput } from './helpers'
 
 describe('generateId', () => {
   it('returns a non-empty string', () => {
@@ -31,6 +31,48 @@ describe('formatCurrency', () => {
   it('rounds to two decimal places', () => {
     expect(formatCurrency(10.999)).toBe('$11.00')
     expect(formatCurrency(10.005)).toBe('$10.01')
+  })
+})
+
+describe('formatAmount', () => {
+  it('formats positive amounts', () => {
+    expect(formatAmount(1234.56)).toBe('$1,234.56')
+    expect(formatAmount(0)).toBe('$0.00')
+  })
+
+  it('formats null/undefined as $0.00', () => {
+    expect(formatAmount(null)).toBe('$0.00')
+    expect(formatAmount(undefined)).toBe('$0.00')
+  })
+
+  it('formats large numbers with commas', () => {
+    expect(formatAmount(1000000)).toBe('$1,000,000.00')
+  })
+})
+
+describe('parseAmount', () => {
+  it('parses plain number strings', () => {
+    expect(parseAmount('100')).toBe(100)
+    expect(parseAmount('99.99')).toBe(99.99)
+  })
+
+  it('strips dollar signs and commas', () => {
+    expect(parseAmount('$1,234.56')).toBe(1234.56)
+  })
+
+  it('returns 0 for non-numeric strings', () => {
+    expect(parseAmount('abc')).toBe(0)
+    expect(parseAmount('')).toBe(0)
+  })
+
+  it('handles number input directly', () => {
+    expect(parseAmount(42)).toBe(42)
+    expect(parseAmount(0)).toBe(0)
+  })
+
+  it('returns 0 for null/undefined', () => {
+    expect(parseAmount(null)).toBe(0)
+    expect(parseAmount(undefined)).toBe(0)
   })
 })
 

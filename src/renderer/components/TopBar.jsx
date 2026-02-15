@@ -30,11 +30,11 @@ export function TopBar({
   return (
     <>
       <div className="topbar">
-        <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img src={logoImg} alt="CheckSpree" className="logo-img" style={{ height: '44px', width: 'auto' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-            <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-bright)', lineHeight: 1.2 }}>CheckSpree</span>
-            <span style={{ fontSize: '10px', color: 'var(--text-dim)', opacity: 0.8 }}>Version {APP_VERSION}</span>
+        <div className="brand">
+          <img src={logoImg} alt="CheckSpree" className="brand-logo" />
+          <div className="brand-text">
+            <span className="brand-name">CheckSpree</span>
+            <span className="brand-version">Version {APP_VERSION}</span>
           </div>
         </div>
 
@@ -80,20 +80,7 @@ export function TopBar({
           <button className="btn ghost" onClick={onOpenApprovals} title="Check approval queue" style={{ position: 'relative' }}>
             ✅ Approvals
             {approvalCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: '2px',
-                right: '2px',
-                fontSize: '10px',
-                fontWeight: 700,
-                padding: '1px 4px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--warning)',
-                color: 'var(--bg)',
-                lineHeight: '1.3'
-              }}>
-                {approvalCount}
-              </span>
+              <span className="topbar-badge">{approvalCount}</span>
             )}
           </button>
           <button className="btn ghost" onClick={onOpenReports} title="Reports and search">
@@ -105,20 +92,7 @@ export function TopBar({
           <button className="btn ghost" onClick={onOpenRecurring} title="Recurring/scheduled checks" style={{ position: 'relative' }}>
             🔄 Recurring
             {recurringDueCount > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: '2px',
-                right: '2px',
-                fontSize: '10px',
-                fontWeight: 700,
-                padding: '1px 4px',
-                borderRadius: '6px',
-                backgroundColor: 'var(--warning)',
-                color: 'var(--bg)',
-                lineHeight: '1.3'
-              }}>
-                {recurringDueCount}
-              </span>
+              <span className="topbar-badge">{recurringDueCount}</span>
             )}
           </button>
           <button

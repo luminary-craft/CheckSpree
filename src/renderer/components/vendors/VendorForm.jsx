@@ -175,8 +175,10 @@ export function VendorForm({ vendor, onSave, onCancel, compiledGlCodes = [] }) {
                         onChange={(e) => updateField('defaultGlCode', e.target.value)}
                     >
                         <option value="">None</option>
-                        {compiledGlCodes.map(code => (
-                            <option key={code} value={code}>{code}</option>
+                        {compiledGlCodes.map(gl => (
+                            <option key={gl.code} value={gl.code}>
+                                {gl.code}{gl.description ? ` — ${gl.description}` : ''}
+                            </option>
                         ))}
                     </select>
                 </div>
