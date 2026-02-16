@@ -42,7 +42,8 @@ export const DEFAULT_FIELDS = {
   checkNumber: { x: 7.8, y: 0.20, w: 0.6, h: 0.30, fontIn: 0.24, label: 'Check #' },
   glCode: { x: 0.75, y: 3.10, w: 2.0, h: 0.30, fontIn: 0.26, label: 'GL Code' },
   glDescription: { x: 0.75, y: 3.35, w: 3.8, h: 0.30, fontIn: 0.26, label: 'GL Description' },
-  address: { x: 0.75, y: 2.10, w: 3.0, h: 0.90, fontIn: 0.22, label: 'Address' }
+  address: { x: 0.75, y: 2.10, w: 3.0, h: 0.90, fontIn: 0.22, label: 'Address' },
+  signature: { x: 5.0, y: 2.6, w: 2.0, h: 0.8, fontIn: 0.16, label: 'Signature' }
 }
 
 export const DEFAULT_PROFILE = {

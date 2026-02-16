@@ -19,7 +19,6 @@ export function useSignature(activeProfile, setProfiles, activeProfileId) {
     // Extract signature data from the active profile (or use defaults)
     const signature = activeProfile?.signature || null
     const signatureImage = signature?.imageDataUrl || null
-    const signaturePosition = signature?.position || { x: 5.0, y: 2.0, w: 2.0, h: 0.8 }
     const signatureOpacity = signature?.opacity ?? 1.0
     const signatureEnabled = signature?.enabled ?? false
 
@@ -36,7 +35,6 @@ export function useSignature(activeProfile, setProfiles, activeProfileId) {
                     ...p,
                     signature: {
                         ...(p.signature || {}),
-                        position: signaturePosition,
                         opacity: signatureOpacity,
                         enabled: signatureEnabled,
                         ...partial
@@ -44,7 +42,7 @@ export function useSignature(activeProfile, setProfiles, activeProfileId) {
                 }
                 : p
         ))
-    }, [activeProfileId, setProfiles, signaturePosition, signatureOpacity, signatureEnabled])
+    }, [activeProfileId, setProfiles, signatureOpacity, signatureEnabled])
 
     /**
      * Load a signature image from the file system.
@@ -103,18 +101,6 @@ export function useSignature(activeProfile, setProfiles, activeProfileId) {
     }, [updateSignature, signatureEnabled])
 
     /**
-     * Update the signature position and size on the canvas.
-     *
-     * @param {number} x - X position in inches
-     * @param {number} y - Y position in inches
-     * @param {number} w - Width in inches
-     * @param {number} h - Height in inches
-     */
-    const updatePosition = useCallback((x, y, w, h) => {
-        updateSignature({ position: { x, y, w, h } })
-    }, [updateSignature])
-
-    /**
      * Update the signature opacity (0.0 to 1.0).
      *
      * @param {number} opacity - Opacity value between 0 and 1
@@ -127,7 +113,6 @@ export function useSignature(activeProfile, setProfiles, activeProfileId) {
     return {
         // State
         signatureImage,
-        signaturePosition,
         signatureOpacity,
         signatureEnabled,
         isLoadingSignature,
@@ -136,7 +121,6 @@ export function useSignature(activeProfile, setProfiles, activeProfileId) {
         loadSignature,
         clearSignature,
         toggleSignature,
-        updatePosition,
         updateOpacity,
         updateSignature
     }

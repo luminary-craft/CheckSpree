@@ -72,26 +72,6 @@ export function CheckCanvas({
               />
             )}
 
-            {/* Digital signature overlay — positioned on the check face */}
-            {signature?.signatureEnabled && signature?.signatureImage && (
-              <img
-                src={signature.signatureImage}
-                alt=""
-                draggable="false"
-                className="no-print-if-disabled"
-                style={{
-                  position: 'absolute',
-                  left: `${signature.signaturePosition.x}in`,
-                  top: `${signature.signaturePosition.y}in`,
-                  width: `${signature.signaturePosition.w}in`,
-                  height: `${signature.signaturePosition.h}in`,
-                  objectFit: 'contain',
-                  opacity: signature.signatureOpacity,
-                  pointerEvents: 'none',
-                  zIndex: 3
-                }}
-              />
-            )}
             {selectionBox && (
               <div style={{
                 position: 'absolute',
@@ -504,6 +484,49 @@ export function CheckCanvas({
 
                       // Force Hide MICR (legacy data cleanup)
                       if (key === 'micr') return null
+
+                      // Signature field — render as image instead of text input
+                      if (key === 'signature') {
+                        // Hide if no signature loaded or disabled (unless in edit mode)
+                        if (!editMode && (!signature?.signatureEnabled || !signature?.signatureImage)) return null
+
+                        const isSelected = editMode && selected.includes(key)
+                        return (
+                          <div
+                            key={key}
+                            className={`fieldBox ${editMode ? 'editable' : ''} ${isSelected ? 'selected' : ''}`}
+                            style={{
+                              position: 'absolute',
+                              left: `${f.x}in`,
+                              top: `${f.y}in`,
+                              width: `${f.w}in`,
+                              height: `${f.h}in`
+                            }}
+                            onPointerDown={(e) => onPointerDownField(e, key)}
+                          >
+                            {editMode && (
+                              <div className="label" style={{ fontSize: `${preferences.labelSize}px` }}>
+                                {f.label}
+                              </div>
+                            )}
+                            {signature?.signatureImage && (
+                              <img
+                                src={signature.signatureImage}
+                                alt=""
+                                draggable="false"
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'contain',
+                                  opacity: signature.signatureEnabled ? (signature.signatureOpacity ?? 1) : 0.3,
+                                  pointerEvents: 'none'
+                                }}
+                              />
+                            )}
+                            {editMode && <div className="handle" onPointerDown={(e) => onPointerDownHandle(e, key)} />}
+                          </div>
+                        )
+                      }
 
                       // Special Handling: Unified GL Field on Check Face
                       if (key === 'glCode' && !isStub1Field && !isStub2Field) {
