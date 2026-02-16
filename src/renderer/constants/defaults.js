@@ -107,7 +107,12 @@ export const DEFAULT_PREFERENCES = {
   theme: 'dark',         // 'dark' | 'light' | 'glass'
   accentColor: 'amber',  // 'amber' | 'blue' | 'emerald' | 'rose' | 'purple'
   // First-launch setup wizard
-  setupCompleted: false   // Set to true after completing the setup wizard
+  setupCompleted: false,  // Set to true after completing the setup wizard
+  // Invoice generator
+  invoices: [],
+  nextInvoiceNumber: 1,
+  companyInfo: { name: '', address: '', phone: '', email: '' },
+  invoiceDefaults: { terms: 'net30', taxRate: 0, notes: 'Thank you for your business!' }
 }
 
 export const DEFAULT_MODEL = {

@@ -1,10 +1,59 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { formatCurrency } from '../utils/helpers'
 import { getLocalDateString } from '../utils/date'
 import { DownloadIcon, UploadIcon, CheckIcon } from '../constants/icons'
 import logoImg from '../assets/logo.png'
 import { APP_VERSION } from '../constants/defaults'
 import { AtmCurrencyInput } from './AtmCurrencyInput'
+
+function TopBarMenu({ label, icon, badge, children }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onClickOutside)
+    return () => document.removeEventListener('pointerdown', onClickOutside)
+  }, [open])
+
+  return (
+    <div className="topbar-menu" ref={ref}>
+      <button
+        className={`topbar-menu-trigger ${open ? 'active' : ''}`}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="topbar-menu-icon">{icon}</span>
+        <span>{label}</span>
+        <svg className="topbar-menu-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        {badge > 0 && <span className="topbar-badge">{badge}</span>}
+      </button>
+      {open && (
+        <div className="topbar-menu-dropdown" onClick={() => setOpen(false)}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MenuDivider() {
+  return <div className="topbar-menu-divider" />
+}
+
+function MenuItem({ icon, label, onClick, badge, danger }) {
+  return (
+    <button className={`topbar-menu-item ${danger ? 'danger' : ''}`} onClick={onClick}>
+      <span className="topbar-menu-item-icon">{icon}</span>
+      <span className="topbar-menu-item-label">{label}</span>
+      {badge > 0 && <span className="topbar-menu-item-badge">{badge}</span>}
+    </button>
+  )
+}
 
 export function TopBar({
   ledgers, checkHistory, calculateHybridBalance,
@@ -25,8 +74,12 @@ export function TopBar({
   onOpenReports,
   onOpenReconciliation,
   onOpenRecurring,
-  recurringDueCount
+  recurringDueCount,
+  onOpenInvoices,
+  invoiceOverdueCount
 }) {
+  const totalBadge = (approvalCount || 0) + (recurringDueCount || 0) + (invoiceOverdueCount || 0)
+
   return (
     <>
       <div className="topbar">
@@ -62,80 +115,66 @@ export function TopBar({
         </div>
 
         <div className="topbar-actions">
-          <button className="btn ghost" onClick={downloadTemplate} title="Download CSV import template">
-            <DownloadIcon /> Template
-          </button>
-          <button className="btn ghost" onClick={handleImport} title="Import checks from CSV">
-            <UploadIcon /> Import
-          </button>
-          <button className="btn ghost" onClick={handleExport} title="Export check history">
-            <DownloadIcon /> Export
-          </button>
-          <button className="btn ghost" onClick={onOpenPositivePay} title="Generate Positive Pay file for bank">
-            🏦 Pos. Pay
-          </button>
-          <button className="btn ghost" onClick={onOpenVendors} title="Manage vendors and payees">
-            📌 Vendors
-          </button>
-          <button className="btn ghost" onClick={onOpenApprovals} title="Check approval queue" style={{ position: 'relative' }}>
-            ✅ Approvals
-            {approvalCount > 0 && (
-              <span className="topbar-badge">{approvalCount}</span>
-            )}
-          </button>
-          <button className="btn ghost" onClick={onOpenReports} title="Reports and search">
-            📊 Reports
-          </button>
-          <button className="btn ghost" onClick={onOpenReconciliation} title="Bank reconciliation">
-            🏦 Reconcile
-          </button>
-          <button className="btn ghost" onClick={onOpenRecurring} title="Recurring/scheduled checks" style={{ position: 'relative' }}>
-            🔄 Recurring
-            {recurringDueCount > 0 && (
-              <span className="topbar-badge">{recurringDueCount}</span>
-            )}
-          </button>
-          <button
-            className={`btn ghost ${preferences.adminLocked ? '' : 'active'}`}
-            onClick={preferences.adminLocked ? handleUnlockRequest : handleLock}
-            title={preferences.adminLocked ? 'Unlock admin settings' : 'Lock admin settings'}
-          >
-            {preferences.adminLocked ? '🔒' : '🔓'} Admin
-          </button>
-          {!preferences.adminLocked && (
-            <>
-              <button className="btn ghost" onClick={handleBackupData} title="Backup all data to file">
-                💾 Backup
-              </button>
-              <button className="btn ghost" onClick={handleRestoreBackup} title="Restore data from backup file">
-                📥 Restore
-              </button>
-              <button className="btn ghost" onClick={setEditMode}>
-                <span className={`status-dot ${editMode ? 'active' : ''}`} />
-                Edit Layout
-              </button>
-              {editMode && (
-                <>
-                  <label className="toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0 12px' }}>
-                    <input
-                      type="checkbox"
-                      checked={preferences.enableSnapping}
-                      onChange={(e) => setPreferences(p => ({ ...p, enableSnapping: e.target.checked }))}
-                      style={{ cursor: 'pointer' }}
+          {/* Data Menu */}
+          <TopBarMenu label="Data" icon="📁">
+            <MenuItem icon={<DownloadIcon />} label="Download Template" onClick={downloadTemplate} />
+            <MenuItem icon={<UploadIcon />} label="Import CSV" onClick={handleImport} />
+            <MenuItem icon={<DownloadIcon />} label="Export History" onClick={handleExport} />
+            <MenuDivider />
+            <MenuItem icon="🏦" label="Positive Pay" onClick={onOpenPositivePay} />
+          </TopBarMenu>
+
+          {/* Tools Menu */}
+          <TopBarMenu label="Tools" icon="🛠️" badge={totalBadge}>
+            <MenuItem icon="📌" label="Vendors" onClick={onOpenVendors} />
+            <MenuItem icon="✅" label="Approvals" onClick={onOpenApprovals} badge={approvalCount} />
+            <MenuItem icon="📊" label="Reports" onClick={onOpenReports} />
+            <MenuDivider />
+            <MenuItem icon="🏦" label="Reconcile" onClick={onOpenReconciliation} />
+            <MenuItem icon="🔄" label="Recurring" onClick={onOpenRecurring} badge={recurringDueCount} />
+            <MenuDivider />
+            <MenuItem icon="📄" label="Invoices" onClick={onOpenInvoices} badge={invoiceOverdueCount} />
+          </TopBarMenu>
+
+          {/* Admin Menu */}
+          <TopBarMenu label="Admin" icon={preferences.adminLocked ? '🔒' : '🔓'}>
+            <MenuItem
+              icon={preferences.adminLocked ? '🔓' : '🔒'}
+              label={preferences.adminLocked ? 'Unlock Admin' : 'Lock Admin'}
+              onClick={preferences.adminLocked ? handleUnlockRequest : handleLock}
+            />
+            {!preferences.adminLocked && (
+              <>
+                <MenuDivider />
+                <MenuItem icon="💾" label="Backup Data" onClick={handleBackupData} />
+                <MenuItem icon="📥" label="Restore Backup" onClick={handleRestoreBackup} />
+                <MenuDivider />
+                <MenuItem
+                  icon={<span className={`status-dot ${editMode ? 'active' : ''}`} />}
+                  label="Edit Layout"
+                  onClick={setEditMode}
+                />
+                {editMode && (
+                  <>
+                    <MenuItem
+                      icon={preferences.enableSnapping ? '✓' : ' '}
+                      label="Snap to Grid"
+                      onClick={() => setPreferences(p => ({ ...p, enableSnapping: !p.enableSnapping }))}
                     />
-                    <span style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'nowrap' }}>Snap to Grid</span>
-                  </label>
-                  <button className="btn ghost" onClick={resetModel} title="Reset layout and fields to defaults">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M1.5 2.5V5.5H4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M2.1 8.5A5 5 0 104.05 3.05L1.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Reset Layout
-                  </button>
-                </>
-              )}
-            </>
-          )}
+                    <MenuItem
+                      icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M1.5 2.5V5.5H4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M2.1 8.5A5 5 0 104.05 3.05L1.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>}
+                      label="Reset Layout"
+                      onClick={resetModel}
+                      danger
+                    />
+                  </>
+                )}
+              </>
+            )}
+          </TopBarMenu>
 
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           {/* Print & Record dropdown button */}

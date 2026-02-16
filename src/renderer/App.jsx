@@ -61,6 +61,8 @@ import { ReportsPanel } from './components/modals/ReportsPanel'
 import { ReconciliationPanel } from './components/modals/ReconciliationPanel'
 import { useRecurringChecks } from './hooks/useRecurringChecks'
 import { RecurringChecksPanel } from './components/modals/RecurringChecksPanel'
+import { useInvoices } from './hooks/useInvoices'
+import { InvoicePanel } from './components/modals/InvoicePanel'
 
 
 export default function App() {
@@ -255,6 +257,9 @@ export default function App() {
 
   // Recurring checks panel modal state
   const [showRecurring, setShowRecurring] = useState(false)
+
+  // Invoice generator panel modal state
+  const [showInvoicePanel, setShowInvoicePanel] = useState(false)
 
   const [data, setData] = useState({
     date: (() => {
@@ -791,6 +796,32 @@ export default function App() {
 
   // Recurring checks management
   const recurringHook = useRecurringChecks(preferences.recurringSchedules)
+
+  // Invoice generator
+  const invoiceHook = useInvoices(preferences.invoices, {
+    nextNumber: preferences.nextInvoiceNumber || 1
+  })
+
+  // Sync expansion hook state back to preferences for persistence
+  useEffect(() => {
+    setPreferences(prev => ({ ...prev, vendors: vendorHook.vendors }))
+  }, [vendorHook.vendors])
+
+  useEffect(() => {
+    setPreferences(prev => ({ ...prev, approvals: approvalHook.approvals }))
+  }, [approvalHook.approvals])
+
+  useEffect(() => {
+    setPreferences(prev => ({ ...prev, recurringSchedules: recurringHook.schedules }))
+  }, [recurringHook.schedules])
+
+  useEffect(() => {
+    setPreferences(prev => ({
+      ...prev,
+      invoices: invoiceHook.invoices,
+      nextInvoiceNumber: invoiceHook.nextNumber
+    }))
+  }, [invoiceHook.invoices, invoiceHook.nextNumber])
 
   // Initialize slotFields if not present (backward compatibility)
   useEffect(() => {
@@ -2887,6 +2918,8 @@ export default function App() {
         onOpenReconciliation={() => setShowReconciliation(true)}
         onOpenRecurring={() => setShowRecurring(true)}
         recurringDueCount={recurringHook.stats.due}
+        onOpenInvoices={() => setShowInvoicePanel(true)}
+        invoiceOverdueCount={invoiceHook.stats.overdue}
       />
 
       <div className="layout">
@@ -3292,6 +3325,17 @@ export default function App() {
             showToast?.('Check data filled from schedule')
           }}
           showToast={showToast}
+        />
+      )}
+
+      {/* Invoice Generator Panel */}
+      {showInvoicePanel && (
+        <InvoicePanel
+          invoiceHook={invoiceHook}
+          onClose={() => setShowInvoicePanel(false)}
+          showToast={showToast}
+          preferences={preferences}
+          setPreferences={setPreferences}
         />
       )}
     </div >
