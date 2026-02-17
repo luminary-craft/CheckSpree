@@ -141,36 +141,17 @@ export function PayeeAutocomplete({ value, onChange, onVendorSelect, checkHistor
       {showDropdown && (
         <div
           ref={dropdownRef}
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            marginTop: '4px',
-            backgroundColor: 'var(--surface-elevated)',
-            border: '1px solid var(--border-medium)',
-            borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-            zIndex: 1000,
-            maxHeight: '200px',
-            overflowY: 'auto'
-          }}
+          className="autocomplete-dropdown"
         >
           {suggestions.map((item, index) => (
             <div
               key={`${item.type}-${item.label}`}
+              className={`autocomplete-item ${index === highlightedIndex ? 'active' : ''}`}
               onMouseDown={(e) => {
                 e.preventDefault()
                 handleSelect(item)
               }}
               style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                backgroundColor: index === highlightedIndex ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
-                color: index === highlightedIndex ? 'var(--accent-hover)' : '#e2e8f0',
-                borderBottom: index < suggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                fontSize: '13px',
-                transition: 'background-color 0.1s',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px'

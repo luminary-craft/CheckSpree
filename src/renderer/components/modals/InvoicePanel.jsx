@@ -30,7 +30,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function InvoiceForm({ invoice, onSave, onSaveAndPrint, onCancel, invoiceHook }) {
+function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, onCancel, invoiceHook }) {
   const isNew = !invoice
   const [form, setForm] = useState(() => {
     if (invoice) return { ...invoice }
@@ -235,9 +235,16 @@ function InvoiceForm({ invoice, onSave, onSaveAndPrint, onCancel, invoiceHook })
       {/* Actions */}
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
         <button className="btn ghost" onClick={onCancel}>Cancel</button>
-        <button className="btn btn-sm" onClick={() => { handleSubmit(); onSaveAndPrint?.({ ...form, ...totals }) }} disabled={!form.clientName.trim()}>
-          Save & Print
-        </button>
+        {isNew && (
+          <>
+            <button className="btn btn-sm" onClick={() => onCreateAndSavePdf?.({ ...form, ...totals })} disabled={!form.clientName.trim()}>
+              Create & Save PDF
+            </button>
+            <button className="btn btn-sm" onClick={() => onCreateAndPrint?.({ ...form, ...totals })} disabled={!form.clientName.trim()}>
+              Create & Print
+            </button>
+          </>
+        )}
         <button className="btn primary" onClick={handleSubmit} disabled={!form.clientName.trim()}>
           {isNew ? 'Create Invoice' : 'Save Changes'}
         </button>
@@ -290,13 +297,24 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
     setEditingInvoice(null)
   }
 
-  const handleSaveAndPrint = (formData) => {
-    // Save is handled by the form's handleSubmit, so we just preview
-    // Find the just-saved invoice and preview it
-    setTimeout(() => {
-      const latest = invoiceHook.invoices[0]
-      if (latest) setPreviewInvoice(latest)
-    }, 50)
+  const handleCreateAndSavePdf = (formData) => {
+    const newInv = addInvoice(formData)
+    showToast?.('Invoice created')
+    setEditingInvoice(null)
+    setPreviewInvoice(newInv)
+  }
+
+  const handleCreateAndPrint = (formData) => {
+    const newInv = addInvoice(formData)
+    showToast?.('Invoice created')
+    setEditingInvoice(null)
+    setPreviewInvoice(newInv)
+    setTimeout(() => window.print(), 300)
+  }
+
+  const handlePrintFromList = (invoice) => {
+    setPreviewInvoice(invoice)
+    setTimeout(() => window.print(), 300)
   }
 
   /** Generate next recurring invoice from a recurring source. */
@@ -451,6 +469,12 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                             <button className="btn-icon-sm" onClick={() => setPreviewInvoice(inv)} title="Preview">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                             </button>
+                            <button className="btn-icon-sm" onClick={() => setPreviewInvoice(inv)} title="Save PDF">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            </button>
+                            <button className="btn-icon-sm" onClick={() => handlePrintFromList(inv)} title="Print">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            </button>
                             {inv.status === 'draft' && (
                               <>
                                 <button className="btn-icon-sm" onClick={() => setEditingInvoice(inv)} title="Edit">✎</button>
@@ -485,7 +509,8 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
             <InvoiceForm
               invoice={editingInvoice === 'new' ? null : editingInvoice}
               onSave={handleSave}
-              onSaveAndPrint={handleSaveAndPrint}
+              onCreateAndPrint={handleCreateAndPrint}
+              onCreateAndSavePdf={handleCreateAndSavePdf}
               onCancel={() => setEditingInvoice(null)}
               invoiceHook={invoiceHook}
             />

@@ -2495,9 +2495,13 @@ body {
   }
 
   .no-print,
-  .modal-overlay,
-  .modal-content,
   .batch-progress-container {
+    display: none !important;
+  }
+
+  /* Hide modals only when NOT printing an invoice */
+  body:not(:has(.invoice-preview-wrapper)) .modal-overlay,
+  body:not(:has(.invoice-preview-wrapper)) .modal-content {
     display: none !important;
   }
 
@@ -4971,7 +4975,6 @@ select option {
   .no-print,
   .topbar,
   .side,
-  .modal-overlay,
   .quick-check-bar {
     display: none !important;
   }
@@ -4997,5 +5000,34 @@ select option {
     border-radius: 0;
     padding: 20px 40px;
     max-width: none;
+  }
+
+  /* Hide modal chrome when printing invoices */
+  body:has(.invoice-preview-wrapper) .modal-header,
+  body:has(.invoice-preview-wrapper) .modal-footer,
+  body:has(.invoice-preview-wrapper) .panel-tabs {
+    display: none !important;
+  }
+
+  body:has(.invoice-preview-wrapper) .modal-overlay {
+    background: white !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  body:has(.invoice-preview-wrapper) .modal-content {
+    max-width: none !important;
+    max-height: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  body:has(.invoice-preview-wrapper) .modal-body {
+    padding: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 }

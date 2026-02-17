@@ -125,7 +125,6 @@ export function Sidebar({
                   {showLedgerManager && (
                     <div className="ledger-dropdown-list" style={{
                       marginTop: '8px',
-                      backgroundColor: 'var(--surface-elevated)',
                       border: '1px solid var(--border-medium)',
                       borderRadius: '6px',
                       overflow: 'hidden',
