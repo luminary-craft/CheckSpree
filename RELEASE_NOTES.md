@@ -1,5 +1,76 @@
 # CheckSpree Release Notes
 
+## v1.0.0-beta.3 - The International & Integration Release
+
+This release adds internationalization support, vendor auto-fill, digital signatures, invoice generation, and significant UX improvements across the board.
+
+---
+
+### Internationalization (i18n)
+- **5 supported regions**: US, Canada, UK, France, Philippines -- each with appropriate paper size, currency, date format, and number-to-words
+- **Locale-aware currency formatting**: All hardcoded `$` and `en-US` patterns replaced with locale-driven helpers (`formatCurrency`, `formatNumberLocale`, `getCurrencyLocale`)
+- **Dynamic canvas dimensions**: Paper background, check heights, and stub proportions auto-adjust for Letter vs A4
+- **CSS variable paper sizing**: `.paper` uses `var(--paper-w)` / `var(--paper-h)` driven by locale config
+- **Print page size**: All print/PDF handlers pass locale-appropriate `pageSize` option (Letter or A4)
+- **Export formatting**: CSV and PDF exports use locale currency symbol and number formatting
+- **Number-to-words**: Extensible language registry with English built-in; module-level locale config via `setNumberToWordsLocale()`
+
+### Setup Wizard
+- **Region step**: New step 2 between Welcome and Ledger -- grid of locale cards with flag, country, paper size, and currency
+- **6 steps total**: Welcome, Region, Ledger, Theme, Tour, Ready
+- **Dynamic currency symbol**: Ledger balance label uses selected region's currency symbol
+- **Summary card**: Final step shows selected region with flag and currency
+
+### Vendor Database
+- **Persistence fix**: Fixed critical bug where vendors (and approvals, recurring schedules, invoices) were lost on restart -- `useState` ignored async-loaded props from disk
+- **Payee auto-fill**: `PayeeAutocomplete` now shows vendor matches with a blue "vendor" badge alongside history payees
+- **Auto-fill on select**: Choosing a vendor fills address (name + street + city/state/zip) and default GL code into the check form
+- **Sync fix**: Applied same async-load fix to `useApprovals`, `useRecurringChecks`, and `useInvoices` hooks
+
+### Digital Signature
+- **Signature pad**: Freehand drawing canvas with adjustable pen width and color picker
+- **Draggable check field**: Signature renders as a positioned, resizable field on the check canvas
+- **Per-profile storage**: Each profile stores its own signature data
+- **Edit mode**: Reposition and resize like any other field
+
+### Invoice Generator
+- **Full invoice creation**: Line items, tax calculation, discounts, notes
+- **Status tracking**: Draft, Sent, Paid, Overdue, Cancelled with color-coded badges
+- **Overdue alerts**: Badge count in top bar for overdue invoices
+- **Print support**: Professional print formatting via `@media print` rules
+- **Auto-numbering**: Configurable auto-incrementing invoice numbers
+
+### Admin Button UX
+- **One-click toggle**: When locked, single click opens unlock dialog (no dropdown). When unlocked, dropdown shows Lock, Backup, Restore, Edit Layout
+- **No more unnecessary dropdown**: Eliminated two-click flow for the most common action (unlocking)
+
+### TopBar Dropdown Fix
+- **z-index stacking**: Added `position: relative; z-index: 100` to `.topbar` so dropdown menus render above the canvas area instead of being clipped
+
+### Modal Close Sensitivity Fix
+- **23 modals updated**: Changed all overlay close handlers from `onClick` to `onMouseDown` with `e.target === e.currentTarget` check
+- **Prevents accidental closes**: Dragging text selection outside modal content no longer closes the modal
+
+### Print Preview Fix
+- **Blank output resolved**: Fixed conflicting `@media print` rules where a second block set `.layout { display: none !important }`, overriding the first block's `.layout { display: block !important }` -- removed `.layout` from the invoice print hide list since `position: fixed` on the invoice preview already handles overlay
+
+### Expansion Module Persistence
+- **Async load bug fix**: All 4 expansion hooks (`useVendors`, `useApprovals`, `useRecurringChecks`, `useInvoices`) now properly sync from disk-loaded data using `useEffect` + `useRef` pattern instead of relying solely on `useState` initial value
+
+### Test Suite
+- **226 tests** across 9 test files (up from 125 tests / 5 files in beta.2)
+- Coverage includes: defaults, helpers, date formatting, parsing, number-to-words, invoice helpers, vendor helpers, positive pay export, report helpers
+
+### Bug Fixes
+- Print preview and print-to-PDF no longer produce blank pages
+- Vendors, approvals, recurring schedules, and invoices persist across app restarts
+- TopBar dropdown menus no longer hidden behind check canvas
+- Modals don't close when dragging text selection outside content area
+- Number-to-words handles null, undefined, and non-numeric input correctly
+- Locale useEffect no longer overwrites model layout on initial mount
+
+---
+
 ## v1.0.0-beta.2 - The Polish & Personalization Release
 
 This release focuses on code quality, visual refinement, theme customization, and reliability improvements across the entire application.

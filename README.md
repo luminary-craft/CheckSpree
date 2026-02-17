@@ -1,7 +1,7 @@
 # CheckSpree
 > **Note:** This is a proprietary application. Source code is provided for inspection and educational purposes only.
 
-A professional check printing application built with Electron that treats printing as a **physical-units problem** for precise, reliable output.
+A professional check printing and financial tracking application built with Electron that treats printing as a **physical-units problem** for precise, reliable output.
 
 ## Table of Contents
 - [Core Features](#core-features)
@@ -12,6 +12,8 @@ A professional check printing application built with Electron that treats printi
 - [Usage Guide](#usage-guide)
 - [Technical Architecture](#technical-architecture)
 - [Security Features](#security-features)
+- [Internationalization](#internationalization)
+- [Troubleshooting](#troubleshooting)
 
 ## Core Features
 
@@ -19,10 +21,19 @@ A professional check printing application built with Electron that treats printi
 - Paper and check dimensions defined in **inches** (not pixels)
 - Field positions/sizes stored in **inches** for print reliability
 - Dedicated print layout with optional **PDF preview**
-- Printer-specific X/Y offset calibration to ensure perfect alignment
+- Printer-specific X/Y offset calibration for perfect alignment
 - Draggable fold lines for stub positioning
 - Snap-to-grid field placement (0.125-inch grid)
 - No fragile pixel-based templates or DPI conversions
+
+### Internationalization (i18n)
+- **5 supported regions**: US, Canada, UK, France, Philippines
+- **Paper size auto-detection**: Letter (8.5x11") for US/CA/PH, A4 (8.27x11.69") for GB/FR
+- **Locale-aware currency**: $, CAD, GBP, EUR, PHP with proper formatting
+- **Dynamic canvas**: Paper dimensions, check heights, and stub proportions auto-adjust per region
+- **Number-to-words**: Locale-aware check amount conversion (extensible language registry)
+- **Date formatting**: MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD per locale
+- **Region selector**: Choose during Setup Wizard or change anytime in Settings
 
 ### Multi-Ledger System
 - Create and manage multiple ledgers (checking accounts)
@@ -47,6 +58,26 @@ A professional check printing application built with Electron that treats printi
 - Delete profiles with confirmation
 - Duplicate profiles for similar configurations
 
+### Vendor Database
+- **Contact management**: Store vendor name, address, phone, email, tax ID, and notes
+- **Auto-fill**: Type a vendor name in the payee field and select from dropdown to auto-fill address and default GL code
+- **1099 tracking**: Mark vendors as 1099-eligible for year-end tax reporting
+- **Form 1099 generation**: Automatically tallies payments per vendor per year with threshold filtering
+- **Spending insights**: Reports panel breaks down spending by vendor
+
+### Digital Signature
+- **Draw signatures**: Freehand signature pad with adjustable pen width and color
+- **Draggable field**: Signature appears as a positioned field on the check canvas
+- **Per-profile storage**: Each check profile stores its own signature
+- **Edit mode support**: Reposition and resize signature like any other field
+
+### Invoice Generator
+- **Create invoices**: Full invoice creation with line items, tax, discounts
+- **Status tracking**: Draft, Sent, Paid, Overdue, Cancelled statuses
+- **Overdue detection**: Automatic overdue badge in top bar
+- **Print support**: Print invoices with professional formatting
+- **Invoice numbering**: Auto-incrementing invoice numbers
+
 ### Smart Stub System
 - Dynamically add/remove stub sections:
   - **Payee Copy Stub** (Stub 1)
@@ -61,17 +92,14 @@ A professional check printing application built with Electron that treats printi
 
 ### Check History & Ledger Tracking
 - Every check automatically recorded with:
-  - Transaction amount (formatted with thousands separators)
-  - Previous balance
-  - New balance after check
+  - Transaction amount (formatted with locale-aware separators)
+  - Previous balance and new balance after check
   - Precise timestamp with time recorded for accurate sorting
   - Associated ledger and profile
   - GL Code and description (if configured)
 - View complete transaction history per ledger or across all ledgers
 - Restore balance by deleting checks from history
-- **Robust Ledger Integrity**: Ledger deduction and history recording only occur AFTER confirmed successful print or PDF save
-- Track spending by profile and ledger
-- Recent activity preview in sidebar (last 2 checks from current ledger)
+- **Confirmed-Print Logic**: Only commits to ledger after printer/PDF engine confirms success
 - **Income/Deposit Support**: Record deposits with green positive indicators
 - **Filter & Search**: Search history by payee, filter by GL Code
 
@@ -85,17 +113,15 @@ A professional check printing application built with Electron that treats printi
   - **CSV Template**: Downloadable template to ensure correct formatting
   - **Multi-Ledger Support**: "Ledger" column automatically assigns transactions
 
-- **Export**: Enhanced CSV reports with:
+- **Export**: Enhanced reports with locale-aware currency formatting:
   - Grand totals across selected ledgers
   - Per-ledger breakdowns (balance, total spent, check count)
   - Per-profile spending within each ledger
   - Complete check details with timestamps and balance after
-  - Check number and time recorded columns
   - GL Code and description columns
-  - Date range filtering (all time, custom range, this week, last month, etc.)
-  - Sort options (date, amount, payee, GL Code)
-  - Automatic file location reveal after export
-  - **PDF Export**: Generate PDF reports with GL Code data
+  - Date range filtering and sort options
+  - **PDF Export**: Professional styled PDF reports
+  - **CSV Export**: Accounting-ready CSV with summary sections
 
 ### Advanced Editing
 - Visual field editor with drag-and-drop positioning
@@ -105,15 +131,12 @@ A professional check printing application built with Electron that treats printi
 - Template opacity control for alignment (default 90%)
 - Check number auto-increment
 - Admin lock/unlock for settings protection
-- Field type support: text, textarea, date, amount
-- Custom field creation and deletion
 - **Multi-Select**: Hold Ctrl/Shift to select multiple fields
 - **Marquee Selection**: Drag a box on the background to select multiple fields
 - **Group Dragging**: Move multiple selected fields simultaneously
 - **Quick Delete**: Toggle fields off directly from the canvas
 - **Expandable Fields**: Text fields expand to prevent content cutoff
-- **Independent Display Toggles**: Show/Hide Check Number and Date independently in all modes, including 3-Up layout
-- **Batch Print Error Handling**: Pauses on failure with options to Skip & Continue or Stop Batch, ensuring no checks are recorded if they didn't physically print
+- **Batch Print Error Handling**: Pauses on failure with Skip & Continue or Stop Batch options
 
 ### GL Code System
 - Assign GL (General Ledger) codes to transactions for accounting categorization
@@ -133,12 +156,27 @@ A professional check printing application built with Electron that treats printi
 - Batch printing with progressive ledger deductions
 - Address and GL Code fields supported in all slots
 
+### Expansion Modules
+- **Bank Reconciliation**: Match cleared/outstanding transactions against statement balance
+- **Recurring Checks**: Schedule repeating payments with frequency, due-date alerts, and generate-to-fill
+- **Check Approvals**: Configurable threshold-based approval workflow with submit/approve/reject
+- **Reports Dashboard**: 4-tab reporting (Dashboard stats, Check Register, Spending Summaries, Void Report)
+- **Positive Pay Export**: Generate bank-compatible positive pay files for fraud prevention
+
 ### Backup & Restore
 - One-click backup of all application data
 - Export to portable JSON format
-- Includes all ledgers, profiles, check history, and settings
+- Includes all ledgers, profiles, check history, vendors, and settings
 - **Encrypted Backups**: Secure your data with a user-generated password
+- **Auto-Backup**: Debounced automatic backups with Time Machine-style retention policy
+- **Smart Pruning**: Keeps all backups for 3 days, daily for 1 year, weekly for 3 years, quarterly beyond
 - Auto-upgrade from legacy plain-text format
+
+### Auto-Updater
+- Automatic update checks on startup (production builds)
+- Download progress indicator
+- One-click install and restart
+- Non-intrusive notification banner
 
 ## Installation & Setup
 
@@ -169,24 +207,29 @@ npm run electron
 
 ## Getting Started
 
-### Initial Setup
+### First Launch
 1. Launch the application
-2. The default "Primary Ledger" will be created with a $0.00 balance
-3. Set your starting balance via the ledger manager (click ledger name in top bar)
-4. Upload a check template image for visual alignment (optional but recommended)
+2. The **Setup Wizard** guides you through:
+   - **Welcome** screen
+   - **Region** selection (US, CA, GB, FR, PH) -- sets paper size, currency, date format
+   - **Ledger** setup with name and starting balance
+   - **Theme** selection (Dark, Light, or Glass with 5 accent colors)
+   - **Tour** showing key features
+   - **Ready** confirmation with summary
+3. Upload a check template image for visual alignment (optional but recommended)
 
 ### First Check
-1. Fill in payee information
-2. Enter amount (automatically formatted with commas)
+1. Fill in payee information (vendor autocomplete suggests saved vendors)
+2. Enter amount (ATM-style input: typing "123" shows $1.23)
 3. Add memo or date as needed
-4. Click "Preview & Record" to see what will print
-5. Use "Print Check" to send to your printer
+4. Click "Preview" to see what will print
+5. Use "Print & Record" to send to your printer
 6. Check is automatically recorded in history with updated balance
 
 ## Key Features Explained
 
 ### Physical-Unit Precision
-Traditional check printing apps use pixel-based templates, which fail across different screens and printers. CheckSpree2 uses inch-based measurements that translate directly to physical printer output, eliminating DPI conversion errors and ensuring consistent results.
+Traditional check printing apps use pixel-based templates, which fail across different screens and printers. CheckSpree uses inch-based measurements that translate directly to physical printer output, eliminating DPI conversion errors and ensuring consistent results.
 
 **Benefits:**
 - Works on any screen resolution
@@ -213,12 +256,20 @@ Profiles store complete check configurations including:
 - Memo templates
 - Custom field values
 - Field positions and sizes
+- Digital signature
 
 **Use Cases:**
 - Monthly rent payments
 - Regular vendor payments
 - Different business entities
 - Recurring utility bills
+
+### Vendor Database
+The vendor database is a persistent contact book for your payees:
+- **Create vendors** in the Vendor panel (Tools menu) with name, address, tax ID, default GL code
+- **Auto-fill checks**: Typing a vendor name in the payee field triggers autocomplete -- selecting a vendor fills in address and GL code automatically
+- **1099 tracking**: Vendors marked as 1099-eligible have payments automatically tallied for year-end reporting
+- **Form 1099 generation**: View and export 1099 data with configurable threshold (default $600)
 
 ### Import Queue
 The import queue lets you:
@@ -240,7 +291,7 @@ Export generates comprehensive accounting reports:
 **Summary Section:**
 - Export date and time
 - Total checks across selected ledgers
-- Total amount spent
+- Total amount spent (locale-formatted)
 - Combined ledger balance
 
 **Ledger Breakdown:**
@@ -270,27 +321,28 @@ Stubs are optional tear-off sections below the main check:
 
 **Draggable Fold Lines:**
 - Visual blue dashed lines in edit mode
-- Drag to adjust stub heights (2.5" - 4.0" range)
+- Drag to adjust stub heights
 - Stub fields automatically move with their section
 - Non-printing guides
 
 ### Field Types
 - **Text**: Single-line input (payee, address, memo)
 - **Textarea**: Multi-line input (line items, notes)
-- **Date**: Formatted based on preferences (MM/DD/YYYY, DD/MM/YYYY, etc.)
-- **Amount**: Numeric with automatic comma formatting (1,250.00)
+- **Date**: Formatted based on locale preferences
+- **Amount**: ATM-style input with locale-aware formatting
+- **Signature**: Freehand drawn signature stored per-profile
 
 ### Date Formatting
-Choose your preferred date format in Admin Settings:
-- MM/DD/YYYY (US format)
-- DD/MM/YYYY (European format)
-- YYYY-MM-DD (ISO format)
+Date format is set automatically by region:
+- **US/PH**: MM/DD/YYYY
+- **GB/FR**: DD/MM/YYYY
+- **CA**: YYYY-MM-DD
 
 ### Number Formatting
-All amount fields automatically display with:
-- Thousands separators (commas)
+All amount fields display with:
+- Locale-appropriate thousands separators
 - Two decimal places
-- Consistent formatting on check face and stubs
+- Locale currency symbol prefix
 
 ## Calibration Workflow
 
@@ -300,24 +352,24 @@ All amount fields automatically display with:
    - Click "Select Template" in Edit Layout mode
    - Template appears as background overlay
 
-2. **Set Page Dimensions**
-   - Default: 8.5" x 11" Letter size
-   - Adjust if using custom check stock
-   - Set page margins (left/top offsets)
+2. **Region sets paper dimensions automatically**
+   - US/CA/PH: 8.5" x 11" Letter
+   - GB/FR: 8.27" x 11.69" A4
+   - Check and stub heights proportionally adjusted
 
 3. **Configure Check Layout**
-   - Check height: Distance from top to fold line (default 3.0")
+   - Check height: Distance from top to fold line
    - Stub heights: Adjust using draggable fold lines
    - Enable/disable stubs as needed
 
 4. **Position Fields**
-   - Enter Edit Layout mode
+   - Enter Edit Layout mode (Admin menu)
    - Drag fields to match template
    - Resize with corner handles
    - Use snap-to-grid for uniform spacing
 
 5. **Test Print**
-   - Use "Preview PDF" to check alignment
+   - Use "Preview" to check alignment
    - Print to regular paper first
    - Hold up to light with actual check to verify
    - Adjust X/Y offsets as needed
@@ -326,7 +378,6 @@ All amount fields automatically display with:
    - Printer X Offset: Left/right adjustment
    - Printer Y Offset: Up/down adjustment
    - Typical values: -0.25" to +0.25"
-   - Save calibration in profile
 
 7. **Save Configuration**
    - Create a profile for this check type
@@ -340,23 +391,29 @@ All amount fields automatically display with:
 #### Writing a Check
 1. Select ledger (if multiple)
 2. Select profile (if saved)
-3. Enter payee and amount
-4. Add memo, date, or other details
-5. Preview to verify
-6. Print and record
+3. Enter payee (vendor autocomplete fills address/GL)
+4. Enter amount
+5. Add memo, date, or other details
+6. Preview to verify
+7. Print and record
 
 #### Managing Ledgers
 - **Create**: Click "+" next to ledger dropdown
 - **Switch**: Select from dropdown in top bar
 - **Rename**: Click ledger name, edit, save
-- **Delete**: Ledger manager → Delete (removes all associated checks)
+- **Delete**: Ledger manager, Delete (removes all associated checks)
 - **Set Balance**: Edit directly in ledger manager
 
 #### Working with Profiles
-- **Create**: Admin Settings → Profiles → New Profile
+- **Create**: Admin Settings, Profiles, New Profile
 - **Load**: Select from "Load Profile" dropdown
 - **Update**: Make changes, click "Update Profile"
-- **Delete**: Profile manager → Delete Profile
+- **Delete**: Profile manager, Delete Profile
+
+#### Working with Vendors
+- **Create**: Tools menu, Vendors, Add Vendor
+- **Auto-fill**: Start typing vendor name in payee field, select from dropdown
+- **1099 Report**: Tools menu, Form 1099 to view annual vendor payment totals
 
 #### Import Workflow
 1. Click "Import CSV/Excel"
@@ -371,44 +428,45 @@ All amount fields automatically display with:
 1. Click "Export History"
 2. Select ledgers to include
 3. Choose date range
-4. Click "Export to CSV"
-5. File automatically opens in file browser
+4. Choose format (CSV or PDF)
+5. Click "Export"
+6. File automatically opens in file browser
 
 ### Admin Features
 
-#### Accessing Admin Settings
-- Click "Admin" in top bar
-- Enter password (default: none, set in preferences)
-- Lock when done for security
+#### Accessing Admin
+- Click the lock icon ("Admin") in top bar -- single click opens unlock dialog
+- Enter PIN to unlock
+- Click the unlocked Admin dropdown to access admin tools
+- Lock with one click when done
 
 #### Admin Capabilities
-- Create/edit/delete profiles
-- Create/edit/delete ledgers
-- Adjust global preferences
+- Edit Layout mode with field positioning
 - Backup/restore application data
-- Clear all data (with confirmation)
+- Snap-to-grid toggle
+- Reset layout to defaults
 
 #### Security Settings
-- Set admin password
-- Lock admin on startup (forced for security)
+- Set admin PIN
+- Admin auto-locks on startup
 - Encrypted storage for sensitive data
 
 ### Preferences
 
 #### Appearance
+- **Themes**: Dark, Light, Glass (frosted glass effects)
+- **Accent Colors**: Amber, Blue, Emerald, Rose, Purple
 - Template opacity (0% - 100%)
 - Font size (8pt - 24pt)
-- Date format selection
 
-#### Behavior
-- Enable/disable snap-to-grid
-- Check number auto-increment
-- Stub visibility toggles
+#### Region
+- Select locale (US, CA, GB, FR, PH)
+- Automatically configures paper size, currency, date format
 
 #### Calibration
 - Printer X/Y offsets
 - Page margins
-- Paper size
+- Paper size (auto-set by region)
 
 ## Technical Architecture
 
@@ -416,22 +474,40 @@ All amount fields automatically display with:
 - **Electron 33.x**: Cross-platform desktop framework
 - **React 19.x**: UI component library with hooks
 - **Vite 7.x**: Fast development server and bundler
+- **Vitest**: Test framework (226 tests across 9 test files)
 - **xlsx**: Excel file parsing
 
 ### Project Structure
 ```
 CheckSpree/
-├── src/
-│   ├── main/          # Electron main process
-│   │   └── index.js   # IPC handlers, file I/O, settings
-│   ├── preload/       # Secure IPC bridge
-│   │   └── index.js   # Context bridge API
-│   └── renderer/      # React UI
-│       ├── App.jsx    # Main application component
-│       ├── index.html # HTML entry point
-│       └── styles.css # Global styles
-├── package.json       # Dependencies and scripts
-└── README.md          # This file
++-- src/
+|   +-- config/            # Locale definitions
+|   |   +-- locales.js     # Region configs (paper, currency, date, i18n)
+|   +-- main/              # Electron main process
+|   |   +-- index.js       # IPC handlers, file I/O, settings, print, backup
+|   +-- preload/           # Secure IPC bridge
+|   |   +-- index.js       # Context bridge API
+|   +-- shared/            # Code shared between main & renderer
+|   |   +-- numberToWords.js  # Locale-aware number-to-words conversion
+|   +-- renderer/          # React UI
+|       +-- App.jsx        # Main application component
+|       +-- styles.css     # Global styles (~5000 lines, 3 themes)
+|       +-- components/
+|       |   +-- TopBar.jsx, Sidebar.jsx, CheckCanvas.jsx
+|       |   +-- PayeeAutocomplete.jsx, AtmCurrencyInput.jsx
+|       |   +-- ThemePicker.jsx, GlCodeInput.jsx
+|       |   +-- modals/    # 20+ modal components
+|       |   +-- vendors/   # VendorPanel, VendorForm
+|       |   +-- signature/ # SignatureCanvas, SignaturePad
+|       +-- hooks/         # Custom React hooks
+|       |   +-- useLayoutEditor, useBatchPrint, useVendors
+|       |   +-- useApprovals, useRecurringChecks, useInvoices
+|       |   +-- usePersistenceSaver, useAutoIncrement, useSignature
+|       +-- constants/     # Defaults, icons
+|       +-- utils/         # Helpers, parsing, date, reports, invoices
++-- package.json
++-- RELEASE_NOTES.md
++-- README.md
 ```
 
 ### IPC Communication
@@ -439,15 +515,17 @@ The app uses Electron's contextBridge for secure IPC:
 
 **Main Process** (Node.js environment):
 - File system operations
-- Settings encryption/decryption
-- Print dialog handling
+- Settings encryption/decryption (safeStorage)
+- Print dialog handling with locale page sizes
 - File picker dialogs
+- Auto-backup with smart pruning
+- Auto-updater
 
 **Renderer Process** (Browser environment):
 - React UI rendering
 - User interactions
-- State management
-- Print preview generation
+- State management via hooks
+- Locale-aware formatting
 
 **Preload Script** (Bridge):
 - Exposes safe APIs to renderer
@@ -460,19 +538,24 @@ Settings are stored in the user data folder:
 - **macOS**: `~/Library/Application Support/checkspree2/checkspree2.settings.json`
 - **Linux**: `~/.config/checkspree2/checkspree2.settings.json`
 
+Data is encrypted at rest using Electron's `safeStorage` API with automatic legacy migration.
+
 ### State Management
 React hooks for local state:
 - `useState` for UI state
 - `useEffect` for side effects and persistence
-- Debounced saves for non-critical data
+- `useRef` for async-loaded data synchronization
+- Debounced saves for non-critical data (250ms)
 - Immediate saves for financial data (balances, checks, queue)
 
 ### Print Architecture
-1. User clicks Print
-2. React renders print-specific view
-3. CSS `@media print` rules activate
-4. Electron's `webContents.print()` invokes native print dialog
-5. Physical measurements ensure 1:1 inch accuracy
+1. User clicks Print or Preview
+2. `isPrinting` flag set, React re-renders with print-optimized view
+3. CSS `@media print` rules hide UI chrome, show only check
+4. CSS custom properties set paper dimensions from locale (`--paper-w`, `--paper-h`)
+5. Electron's `webContents.print()` or `printToPDF()` invokes output
+6. `pageSize` option (Letter/A4) passed from locale config
+7. Physical measurements ensure 1:1 inch accuracy
 
 ## Security Features
 
@@ -484,13 +567,13 @@ React hooks for local state:
 - **Manual Backup Encryption**: User-defined passwords for portable backup files
 
 ### Admin Protection
-- Password-protected admin access
+- PIN-protected admin access (one-click lock/unlock)
 - Admin auto-locks on startup
 - All sensitive operations behind admin lock
 - Profile and ledger deletion require admin access
 
 ### Data Integrity
-- Automatic backup functionality
+- Automatic backup with Time Machine retention policy
 - Transaction history immutable once recorded
 - Balance calculations double-checked
 - Validation on all financial inputs
@@ -501,7 +584,27 @@ React hooks for local state:
 - All data stored locally
 - No cloud sync or external services
 - No telemetry or usage tracking
-- No internet connection required
+- No internet connection required (except auto-updater)
+
+## Internationalization
+
+CheckSpree supports 5 regions out of the box:
+
+| Region | Paper | Currency | Date Format |
+|--------|-------|----------|-------------|
+| US | Letter (8.5x11") | $ USD | MM/DD/YYYY |
+| Canada | Letter (8.5x11") | $ CAD | YYYY-MM-DD |
+| UK | A4 (8.27x11.69") | GBP | DD/MM/YYYY |
+| France | A4 (8.27x11.69") | EUR | DD/MM/YYYY |
+| Philippines | Letter (8.5x11") | PHP | MM/DD/YYYY |
+
+Changing region automatically updates:
+- Canvas paper background dimensions
+- Check and stub section heights (proportional to paper)
+- Currency symbol and number formatting
+- Date display format
+- Print page size (Letter vs A4)
+- Number-to-words on check face
 
 ## Troubleshooting
 
@@ -525,17 +628,24 @@ React hooks for local state:
 **Problem**: Ledger balance doesn't match bank
 **Solution**:
 - Review check history for missed transactions
+- Use Bank Reconciliation (Tools menu) to match against statements
 - Verify starting balance in ledger manager
-- Check for deleted entries that should be recorded
 - Export history to CSV for detailed audit
 
 ### PDF Preview Issues
-**Problem**: PDF preview doesn't open
+**Problem**: PDF preview doesn't open or shows blank
 **Solution**:
+- Ensure region is set correctly (Settings > Region)
 - Check system PDF viewer is installed
 - Try printing directly instead
-- Verify temp folder permissions
 - Restart application
+
+### Vendor Data Not Persisting
+**Problem**: Vendors disappear after restart
+**Solution**:
+- Ensure you click "Save" after adding a vendor
+- Check that admin is locked before closing (triggers save)
+- Verify Settings file is writable
 
 ### Performance Issues
 **Problem**: Application runs slowly
@@ -559,6 +669,6 @@ For issues or questions:
 
 ---
 
-**Version**: 1.0.0-beta.1
-**Last Updated**: January 2026
+**Version**: 1.0.0-beta.3
+**Last Updated**: February 2026
 **Built with**: Electron, React, and attention to detail
