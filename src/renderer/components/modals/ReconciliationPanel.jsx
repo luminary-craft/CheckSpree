@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { formatAmount, parseAmount } from '../../utils/helpers'
+import { AtmCurrencyInput } from '../AtmCurrencyInput'
 
 /**
  * ReconciliationPanel — Bank Reconciliation View.
@@ -13,11 +14,31 @@ import { formatAmount, parseAmount } from '../../utils/helpers'
  * @param {Array} props.checkHistory - Full check history
  * @param {Function} props.onClose - Close the panel
  * @param {Function} props.showToast - Display a toast notification
+ * @param {Object} props.preferences - App preferences (for persistence)
+ * @param {Function} props.setPreferences - Update preferences
  */
-export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
-    const [statementBalance, setStatementBalance] = useState('')
-    const [clearedIds, setClearedIds] = useState(new Set())
+export function ReconciliationPanel({ checkHistory, onClose, showToast, preferences, setPreferences }) {
+    // Restore persisted reconciliation state, or start fresh
+    const savedState = preferences?.reconciliation || {}
+    const [statementBalance, setStatementBalance] = useState(savedState.statementBalance || '')
+    const [clearedIds, setClearedIds] = useState(() => new Set(savedState.clearedIds || []))
     const [searchQuery, setSearchQuery] = useState('')
+    const saveTimer = useRef(null)
+
+    // Persist cleared checks and statement balance to preferences
+    useEffect(() => {
+        clearTimeout(saveTimer.current)
+        saveTimer.current = setTimeout(() => {
+            setPreferences(prev => ({
+                ...prev,
+                reconciliation: {
+                    statementBalance,
+                    clearedIds: [...clearedIds]
+                }
+            }))
+        }, 300)
+        return () => clearTimeout(saveTimer.current)
+    }, [statementBalance, clearedIds, setPreferences])
 
     // Active (non-voided) checks sorted newest first
     const activeChecks = useMemo(() =>
@@ -94,7 +115,7 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
             <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh' }}>
                 {/* Header */}
                 <div className="modal-header">
-                    <h2>🏦 Bank Reconciliation</h2>
+                    <h2>Bank Reconciliation</h2>
                     <button className="modal-close-btn" onClick={onClose} title="Close">✕</button>
                 </div>
 
@@ -102,13 +123,10 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
                 <div className="modal-body">
                     {/* Statement balance input */}
                     <div className="panel-field">
-                        <label className="panel-label">Bank Statement Ending Balance</label>
-                        <input
-                            type="number"
-                            className="panel-input"
+                        <label className="panel-label">Statement Balance</label>
+                        <AtmCurrencyInput
                             value={statementBalance}
-                            onChange={(e) => setStatementBalance(e.target.value)}
-                            placeholder="Enter balance from bank statement"
+                            onChange={(val) => setStatementBalance(val)}
                             style={{ maxWidth: '240px', fontWeight: 600 }}
                         />
                     </div>

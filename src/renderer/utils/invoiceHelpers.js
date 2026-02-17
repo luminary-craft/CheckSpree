@@ -155,3 +155,20 @@ export function generateInvoiceCSV(invoices) {
 
   return [header, ...rows].join('\n')
 }
+
+/**
+ * Advance a date by one recurrence period.
+ *
+ * @param {string} dateStr - Date in YYYY-MM-DD format
+ * @param {'monthly' | 'quarterly'} frequency - Recurrence frequency
+ * @returns {string} Next date in YYYY-MM-DD format
+ */
+export function getNextRecurrenceDate(dateStr, frequency) {
+  if (!dateStr || !frequency) return ''
+  const date = new Date(dateStr + 'T00:00:00')
+  if (isNaN(date.getTime())) return ''
+
+  const months = frequency === 'quarterly' ? 3 : 1
+  date.setMonth(date.getMonth() + months)
+  return date.toISOString().split('T')[0]
+}

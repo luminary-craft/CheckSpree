@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { formatAmount } from '../../utils/helpers'
-import { calculateInvoiceTotals, getPaymentTermsDueDate, getDueStatus, getTermsLabel, generateInvoiceCSV } from '../../utils/invoiceHelpers'
+import { calculateInvoiceTotals, getPaymentTermsDueDate, getDueStatus, getTermsLabel, generateInvoiceCSV, getNextRecurrenceDate } from '../../utils/invoiceHelpers'
 import { InvoicePreview } from './InvoicePreview'
 
 const STATUS_OPTIONS = ['all', 'draft', 'sent', 'paid', 'overdue', 'void']
@@ -30,7 +30,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function InvoiceForm({ invoice, onSave, onCancel, invoiceHook }) {
+function InvoiceForm({ invoice, onSave, onSaveAndPrint, onCancel, invoiceHook }) {
   const isNew = !invoice
   const [form, setForm] = useState(() => {
     if (invoice) return { ...invoice }
@@ -46,7 +46,8 @@ function InvoiceForm({ invoice, onSave, onCancel, invoiceHook }) {
       lineItems: [{ description: '', quantity: 1, rate: '', amount: '' }],
       taxRate: 0,
       notes: '',
-      memo: ''
+      memo: '',
+      recurring: 'none'
     }
   })
 
@@ -141,7 +142,7 @@ function InvoiceForm({ invoice, onSave, onCancel, invoiceHook }) {
             </select>
           </div>
         </div>
-        <div className="panel-grid-2" style={{ marginTop: '8px' }}>
+        <div className="panel-grid-3" style={{ marginTop: '8px' }}>
           <div className="panel-field">
             <label className="panel-label">Due Date</label>
             <input className="panel-input" type="date" value={form.dueDate} onChange={(e) => updateField('dueDate', e.target.value)} />
@@ -149,6 +150,14 @@ function InvoiceForm({ invoice, onSave, onCancel, invoiceHook }) {
           <div className="panel-field">
             <label className="panel-label">Tax Rate (%)</label>
             <input className="panel-input" type="number" min="0" max="100" step="0.1" value={form.taxRate} onChange={(e) => updateField('taxRate', parseFloat(e.target.value) || 0)} />
+          </div>
+          <div className="panel-field">
+            <label className="panel-label">Recurring</label>
+            <select className="panel-input" value={form.recurring || 'none'} onChange={(e) => updateField('recurring', e.target.value)}>
+              <option value="none">None</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+            </select>
           </div>
         </div>
       </div>
@@ -226,6 +235,9 @@ function InvoiceForm({ invoice, onSave, onCancel, invoiceHook }) {
       {/* Actions */}
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
         <button className="btn ghost" onClick={onCancel}>Cancel</button>
+        <button className="btn btn-sm" onClick={() => { handleSubmit(); onSaveAndPrint?.({ ...form, ...totals }) }} disabled={!form.clientName.trim()}>
+          Save & Print
+        </button>
         <button className="btn primary" onClick={handleSubmit} disabled={!form.clientName.trim()}>
           {isNew ? 'Create Invoice' : 'Save Changes'}
         </button>
@@ -276,6 +288,36 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
       showToast?.('Invoice created')
     }
     setEditingInvoice(null)
+  }
+
+  const handleSaveAndPrint = (formData) => {
+    // Save is handled by the form's handleSubmit, so we just preview
+    // Find the just-saved invoice and preview it
+    setTimeout(() => {
+      const latest = invoiceHook.invoices[0]
+      if (latest) setPreviewInvoice(latest)
+    }, 50)
+  }
+
+  /** Generate next recurring invoice from a recurring source. */
+  const generateNextRecurring = (sourceInvoice) => {
+    const nextIssue = getNextRecurrenceDate(sourceInvoice.issueDate, sourceInvoice.recurring)
+    const nextDue = sourceInvoice.dueDate
+      ? getNextRecurrenceDate(sourceInvoice.dueDate, sourceInvoice.recurring)
+      : getPaymentTermsDueDate(nextIssue, sourceInvoice.terms)
+
+    addInvoice({
+      ...sourceInvoice,
+      id: undefined,
+      invoiceNumber: undefined,
+      status: 'draft',
+      issueDate: nextIssue,
+      dueDate: nextDue || '',
+      paidDate: null,
+      paidAmount: null,
+      ledgerId: null
+    })
+    showToast?.('Next recurring invoice created')
   }
 
   const handleExportCSV = () => {
@@ -389,7 +431,22 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div className="panel-list-amount">{formatAmount(inv.total)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                            <span className="panel-list-amount">{formatAmount(inv.total)}</span>
+                            {inv.recurring && inv.recurring !== 'none' && (
+                              <span className="panel-badge" style={{
+                                backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)',
+                                color: 'var(--accent)',
+                                border: '1px solid var(--accent)',
+                                fontSize: '10px',
+                                padding: '1px 6px',
+                                borderRadius: '10px',
+                                fontWeight: 600
+                              }}>
+                                {inv.recurring === 'quarterly' ? 'QTR' : 'MTH'}
+                              </span>
+                            )}
+                          </div>
                           <div style={{ display: 'flex', gap: '4px', marginTop: '4px', justifyContent: 'flex-end' }}>
                             <button className="btn-icon-sm" onClick={() => setPreviewInvoice(inv)} title="Preview">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -402,6 +459,9 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                             )}
                             {inv.status === 'sent' && (
                               <button className="btn-icon-sm" onClick={() => { markAsPaid(inv.id); showToast?.('Marked as paid') }} title="Mark Paid">💰</button>
+                            )}
+                            {inv.recurring && inv.recurring !== 'none' && (
+                              <button className="btn-icon-sm" onClick={() => generateNextRecurring(inv)} title="Generate next recurring invoice">🔄</button>
                             )}
                             <button className="btn-icon-sm" onClick={() => { duplicateInvoice(inv.id); showToast?.('Invoice duplicated') }} title="Duplicate">📋</button>
                             {(inv.status === 'draft' || inv.status === 'void') && (
@@ -425,6 +485,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
             <InvoiceForm
               invoice={editingInvoice === 'new' ? null : editingInvoice}
               onSave={handleSave}
+              onSaveAndPrint={handleSaveAndPrint}
               onCancel={() => setEditingInvoice(null)}
               invoiceHook={invoiceHook}
             />

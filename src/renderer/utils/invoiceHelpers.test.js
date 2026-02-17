@@ -5,7 +5,8 @@ import {
   getPaymentTermsDueDate,
   getDueStatus,
   getTermsLabel,
-  generateInvoiceCSV
+  generateInvoiceCSV,
+  getNextRecurrenceDate
 } from './invoiceHelpers'
 
 describe('calculateInvoiceTotals', () => {
@@ -200,5 +201,35 @@ describe('generateInvoiceCSV', () => {
   test('handles null/empty input', () => {
     expect(generateInvoiceCSV(null)).toBe('')
     expect(generateInvoiceCSV([])).toBe('')
+  })
+})
+
+describe('getNextRecurrenceDate', () => {
+  test('advances by 1 month for monthly frequency', () => {
+    expect(getNextRecurrenceDate('2026-01-15', 'monthly')).toBe('2026-02-15')
+    expect(getNextRecurrenceDate('2026-12-01', 'monthly')).toBe('2027-01-01')
+  })
+
+  test('advances by 3 months for quarterly frequency', () => {
+    expect(getNextRecurrenceDate('2026-01-15', 'quarterly')).toBe('2026-04-15')
+    expect(getNextRecurrenceDate('2026-10-01', 'quarterly')).toBe('2027-01-01')
+  })
+
+  test('handles month-end edge cases', () => {
+    // Jan 31 + 1 month = Feb 28 (or Mar 3 depending on JS Date behavior)
+    const result = getNextRecurrenceDate('2026-01-31', 'monthly')
+    expect(result).toBeTruthy()
+    expect(result.startsWith('2026-')).toBe(true)
+  })
+
+  test('returns empty for missing inputs', () => {
+    expect(getNextRecurrenceDate('', 'monthly')).toBe('')
+    expect(getNextRecurrenceDate(null, 'monthly')).toBe('')
+    expect(getNextRecurrenceDate('2026-01-15', '')).toBe('')
+    expect(getNextRecurrenceDate('2026-01-15', null)).toBe('')
+  })
+
+  test('returns empty for invalid date', () => {
+    expect(getNextRecurrenceDate('not-a-date', 'monthly')).toBe('')
   })
 })

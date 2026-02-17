@@ -262,7 +262,7 @@ export function TopBar({
               value={data.memo || ''}
               onChange={(e) => setData(p => ({ ...p, memo: e.target.value }))}
               placeholder="Memo (optional)"
-              style={{ flex: '2 1 150px', minWidth: '100px', maxWidth: '200px' }}
+              style={{ flex: '3 1 200px', minWidth: '150px' }}
             />
           </div>
         </div>

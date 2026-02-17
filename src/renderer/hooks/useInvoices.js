@@ -17,7 +17,7 @@ export function useInvoices(initialInvoices, options = {}) {
   const loadedFromDisk = useRef(false)
 
   useEffect(() => {
-    if (!loadedFromDisk.current && initialInvoices && initialInvoices.length > 0) {
+    if (!loadedFromDisk.current && initialInvoices) {
       setInvoices(initialInvoices)
       loadedFromDisk.current = true
     }

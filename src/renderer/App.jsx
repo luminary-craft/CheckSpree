@@ -3352,6 +3352,8 @@ export default function App() {
           checkHistory={checkHistory}
           onClose={() => setShowReconciliation(false)}
           showToast={showToast}
+          preferences={preferences}
+          setPreferences={setPreferences}
         />
       )}
 
