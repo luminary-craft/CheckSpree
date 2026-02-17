@@ -253,7 +253,7 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
   )
 }
 
-export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, setPreferences }) {
+export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, setPreferences, onRecordDeposit, activeLedgerId }) {
   const { invoices, stats, addInvoice, updateInvoice, deleteInvoice, markAsSent, markAsPaid, voidInvoice, duplicateInvoice } = invoiceHook
   const [activeTab, setActiveTab] = useState('list')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -303,11 +303,17 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
         const result = await window.cs2.invoiceSavePdf({
           defaultFilename: `${invoice.invoiceNumber || 'Invoice'}.pdf`
         })
-        if (result.success) showToast?.('PDF saved')
+        if (result?.success) {
+          showToast?.('PDF saved')
+        }
+        // If !success (canceled), do nothing silently
       } catch (e) {
-        showToast?.('PDF save failed')
+        console.error('Invoice PDF save error:', e)
+        // Fallback to print dialog
+        showToast?.('Opening print dialog instead...')
+        window.print()
       }
-    }, 400)
+    }, 500)
   }
 
   const handleCreateAndSavePdf = (formData) => {
@@ -501,7 +507,19 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                               </>
                             )}
                             {inv.status === 'sent' && (
-                              <button className="btn-icon-sm" onClick={() => { markAsPaid(inv.id); showToast?.('Marked as paid') }} title="Mark Paid">💰</button>
+                              <button className="btn-icon-sm" onClick={() => {
+                                markAsPaid(inv.id, { paidAmount: inv.total })
+                                // Auto-record deposit in check history
+                                if (onRecordDeposit && activeLedgerId) {
+                                  onRecordDeposit({
+                                    date: new Date().toISOString().split('T')[0],
+                                    description: `Invoice ${inv.invoiceNumber} — ${inv.clientName}`,
+                                    amount: inv.total,
+                                    reason: `Invoice payment: ${inv.invoiceNumber}`
+                                  })
+                                }
+                                showToast?.('Marked as paid — deposit recorded')
+                              }} title="Mark Paid">💰</button>
                             )}
                             {inv.recurring && inv.recurring !== 'none' && (
                               <button className="btn-icon-sm" onClick={() => generateNextRecurring(inv)} title="Generate next recurring invoice">🔄</button>

@@ -3384,6 +3384,8 @@ export default function App() {
           showToast={showToast}
           preferences={preferences}
           setPreferences={setPreferences}
+          onRecordDeposit={recordDeposit}
+          activeLedgerId={activeLedgerId}
         />
       )}
     </div >

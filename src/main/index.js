@@ -978,11 +978,13 @@ ipcMain.handle('print:savePdfToFile', async (_evt, { folderPath, filename, pageS
 })
 
 // Save current page as invoice PDF with save dialog
-ipcMain.handle('invoice:savePdf', async (_evt, { defaultFilename, pageSize }) => {
+ipcMain.handle('invoice:savePdf', async (_evt, opts) => {
   if (!mainWindow) return { success: false, error: 'No window' }
+  const defaultFilename = opts?.defaultFilename || 'Invoice.pdf'
+  const pageSize = opts?.pageSize || 'Letter'
 
   const result = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: defaultFilename || 'Invoice.pdf',
+    defaultPath: defaultFilename,
     filters: [
       { name: 'PDF Files', extensions: ['pdf'] },
       { name: 'All Files', extensions: ['*'] }
@@ -993,16 +995,16 @@ ipcMain.handle('invoice:savePdf', async (_evt, { defaultFilename, pageSize }) =>
 
   try {
     const pdfData = await mainWindow.webContents.printToPDF({
-      pageSize: pageSize || 'Letter',
+      pageSize,
       landscape: false,
       printBackground: true,
-      preferCSSPageSize: true,
-      margins: { marginType: 'default' }
+      margins: { marginType: 'printableArea' }
     })
     fs.writeFileSync(result.filePath, pdfData)
     shell.showItemInFolder(result.filePath)
     return { success: true, path: result.filePath }
   } catch (e) {
+    console.error('Invoice PDF generation failed:', e)
     return { success: false, error: e?.message || String(e) }
   }
 })
