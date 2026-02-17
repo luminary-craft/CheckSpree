@@ -1437,9 +1437,10 @@ export default function App() {
     if (amount <= 0) return false
     if (!depositInfo.description?.trim()) return false
 
-    // Use hybridBalance for accurate balance tracking
-    const previousBalance = hybridBalance
-    const newBalance = hybridBalance + amount
+    // Allow targeting a specific ledger (e.g. invoice payments)
+    const targetLedgerId = depositInfo.ledgerId || activeLedgerId
+    const previousBalance = calculateHybridBalance(targetLedgerId)
+    const newBalance = previousBalance + amount
 
     const depositEntry = {
       id: generateId(),
@@ -1453,7 +1454,7 @@ export default function App() {
       internal_memo: '',
       line_items: [],
       line_items_text: '',
-      ledgerId: activeLedgerId,
+      ledgerId: targetLedgerId,
       profileId: activeProfileId,
       ledger_snapshot: {
         previous_balance: previousBalance,
@@ -3386,6 +3387,7 @@ export default function App() {
           setPreferences={setPreferences}
           onRecordDeposit={recordDeposit}
           activeLedgerId={activeLedgerId}
+          ledgers={ledgers}
         />
       )}
     </div >

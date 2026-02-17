@@ -30,7 +30,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, onCancel, invoiceHook }) {
+function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, onCancel, invoiceHook, ledgers = [], activeLedgerId }) {
   const isNew = !invoice
   const [form, setForm] = useState(() => {
     if (invoice) return { ...invoice }
@@ -47,7 +47,8 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
       taxRate: 0,
       notes: '',
       memo: '',
-      recurring: 'none'
+      recurring: 'none',
+      ledgerId: activeLedgerId || 'default'
     }
   })
 
@@ -142,7 +143,7 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
             </select>
           </div>
         </div>
-        <div className="panel-grid-3" style={{ marginTop: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginTop: '8px' }}>
           <div className="panel-field">
             <label className="panel-label">Due Date</label>
             <input className="panel-input" type="date" value={form.dueDate} onChange={(e) => updateField('dueDate', e.target.value)} />
@@ -157,6 +158,14 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
               <option value="none">None</option>
               <option value="monthly">Monthly</option>
               <option value="quarterly">Quarterly</option>
+            </select>
+          </div>
+          <div className="panel-field">
+            <label className="panel-label">Ledger</label>
+            <select className="panel-input" value={form.ledgerId || 'default'} onChange={(e) => updateField('ledgerId', e.target.value)}>
+              {ledgers.map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -253,7 +262,7 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
   )
 }
 
-export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, setPreferences, onRecordDeposit, activeLedgerId }) {
+export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, setPreferences, onRecordDeposit, activeLedgerId, ledgers = [] }) {
   const { invoices, stats, addInvoice, updateInvoice, deleteInvoice, markAsSent, markAsPaid, voidInvoice, duplicateInvoice } = invoiceHook
   const [activeTab, setActiveTab] = useState('list')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -510,12 +519,13 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                               <button className="btn-icon-sm" onClick={() => {
                                 markAsPaid(inv.id, { paidAmount: inv.total })
                                 // Auto-record deposit in check history
-                                if (onRecordDeposit && activeLedgerId) {
+                                if (onRecordDeposit && (inv.ledgerId || activeLedgerId)) {
                                   onRecordDeposit({
                                     date: new Date().toISOString().split('T')[0],
                                     description: `Invoice ${inv.invoiceNumber} — ${inv.clientName}`,
                                     amount: inv.total,
-                                    reason: `Invoice payment: ${inv.invoiceNumber}`
+                                    reason: `Invoice payment: ${inv.invoiceNumber}`,
+                                    ledgerId: inv.ledgerId || activeLedgerId
                                   })
                                 }
                                 showToast?.('Marked as paid — deposit recorded')
@@ -550,6 +560,8 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
               onCreateAndSavePdf={handleCreateAndSavePdf}
               onCancel={() => setEditingInvoice(null)}
               invoiceHook={invoiceHook}
+              ledgers={ledgers}
+              activeLedgerId={activeLedgerId}
             />
           )}
 
