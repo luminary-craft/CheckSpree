@@ -16,8 +16,8 @@ export function BalanceAdjustmentModal({
   const adjustment = (parseFloat(tempBalance) || 0) - hybridBalance
 
   return (
-    <div className="modal-overlay no-print" onClick={() => setShowBalanceAdjustmentModal(false)}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+    <div className="modal-overlay no-print" onMouseDown={(e) => e.target === e.currentTarget && setShowBalanceAdjustmentModal(false)}>
+      <div className="modal-content" style={{ maxWidth: '500px' }}>
         <div className="modal-header">
           <h2>Balance Adjustment</h2>
           <button className="btn-icon" onClick={() => setShowBalanceAdjustmentModal(false)}>×</button>

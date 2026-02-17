@@ -9,8 +9,8 @@ export function BatchPrintDialog({
   cancelBatchPrintConfirm, confirmBatchPrint
 }) {
   return (
-    <div className="modal-overlay no-print" onClick={cancelBatchPrintConfirm}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+    <div className="modal-overlay no-print" onMouseDown={(e) => e.target === e.currentTarget && cancelBatchPrintConfirm()}>
+      <div className="modal-content" style={{ maxWidth: '500px' }}>
         <div className="modal-header">
           <h2>Print & Record All Checks?</h2>
           <button className="btn-icon" onClick={cancelBatchPrintConfirm}>×</button>

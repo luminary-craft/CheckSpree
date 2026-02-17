@@ -2,8 +2,8 @@ import React from 'react'
 
 export function PasswordModal({ title, message, value, onChange, onSubmit, onCancel, error, confirmButtonText = 'Submit', allowEmpty = false }) {
   return (
-    <div className="modal-overlay no-print" onClick={onCancel}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+    <div className="modal-overlay no-print" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal-content" style={{ maxWidth: '400px' }}>
         <div className="modal-header">
           <h2>{title}</h2>
           <button className="btn-icon" onClick={onCancel}>×</button>

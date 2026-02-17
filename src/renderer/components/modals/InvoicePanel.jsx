@@ -294,7 +294,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
   const companyInfo = preferences?.companyInfo || {}
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-content" style={{ maxWidth: '850px', width: '95%', maxHeight: '90vh' }}>
         {/* Header */}
         <div className="modal-header">

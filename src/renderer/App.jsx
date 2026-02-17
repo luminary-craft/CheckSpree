@@ -3117,8 +3117,8 @@ export default function App() {
       {/* Generic Confirmation Modal */}
       {
         showConfirmModal && (
-          <div className="modal-overlay confirm-modal no-print" onClick={handleConfirmModalCancel}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+          <div className="modal-overlay confirm-modal no-print" onMouseDown={(e) => e.target === e.currentTarget && handleConfirmModalCancel()}>
+            <div className="modal-content" style={{ maxWidth: '450px' }}>
               <div className="modal-header">
                 <h2>{confirmConfig.title}</h2>
                 <button className="btn-icon" onClick={handleConfirmModalCancel}>×</button>

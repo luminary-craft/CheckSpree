@@ -261,6 +261,8 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--surface-elevated);
   backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 100;
 }
 
 .brand {
