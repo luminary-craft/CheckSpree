@@ -4,8 +4,8 @@ export function ManualBackupModal({ confirmManualBackup, setShowManualBackupModa
   const onClose = () => setShowManualBackupModal(false)
 
   return (
-    <div className="modal-overlay no-print" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+    <div className="modal-overlay no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content" style={{ maxWidth: '550px' }}>
         <div className="modal-header">
           <h2>Create Manual Backup</h2>
           <button className="btn-icon" onClick={onClose}>×</button>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 
 /**
  * Hook for managing recurring/scheduled check payments.
@@ -13,6 +13,14 @@ import { useState, useCallback, useMemo } from 'react'
  */
 export function useRecurringChecks(initialSchedules) {
     const [schedules, setSchedules] = useState(initialSchedules || [])
+    const loadedFromDisk = useRef(false)
+
+    useEffect(() => {
+        if (!loadedFromDisk.current && initialSchedules && initialSchedules.length > 0) {
+            setSchedules(initialSchedules)
+            loadedFromDisk.current = true
+        }
+    }, [initialSchedules])
 
     /**
      * Generate a unique schedule ID.

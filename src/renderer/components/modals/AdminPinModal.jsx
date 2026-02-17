@@ -13,8 +13,8 @@ export function AdminPinModal({
   }
 
   return (
-    <div className="modal-overlay no-print" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+    <div className="modal-overlay no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content" style={{ maxWidth: '400px' }}>
         <div className="modal-header">
           <h2>Enter Admin PIN</h2>
           <button className="btn-icon" onClick={onClose}>×</button>

@@ -1,4 +1,5 @@
 import React, { useRef } from 'react'
+import { getCurrencyLocale, formatNumberLocale } from '../utils/helpers'
 
 // ATM-style currency input - digits build from right (typing 123 shows $1.23)
 export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0.00', onBlur, onFocus: onFocusProp, onInputKeyDown, style, className }) {
@@ -13,15 +14,10 @@ export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0
     return Math.round(num * 100)
   }
 
-  // Convert cents to display string with comma formatting
+  // Convert cents to display string with locale formatting
   const centsToDisplay = (cents) => {
     if (cents === 0) return '0.00'
-    const dollars = cents / 100
-    // Format with commas and always 2 decimal places
-    return dollars.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })
+    return formatNumberLocale(cents / 100)
   }
 
   // Convert cents to external value (for onChange)
@@ -100,7 +96,7 @@ export function AtmCurrencyInput({ value, onChange, isWarning, placeholder = '$0
 
   return (
     <div className={`input-prefix ${isWarning ? 'warning' : ''} ${className || ''}`} style={style}>
-      <span>$</span>
+      <span>{getCurrencyLocale().symbol}</span>
       <input
         ref={inputRef}
         type="text"

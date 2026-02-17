@@ -261,6 +261,8 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--surface-elevated);
   backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 100;
 }
 
 .brand {
@@ -1788,8 +1790,8 @@ body {
 
 .paper {
   position: relative;
-  width: 8.5in;
-  height: 11in;
+  width: var(--paper-w, 8.5in);
+  height: var(--paper-h, 11in);
   background: white;
   border-radius: 8px;
   box-shadow:
@@ -3539,6 +3541,73 @@ textarea.input-textarea:focus {
 }
 
 /* ── Step 3: Theme Picker ───────────────────────────── */
+/* ─── Region Picker (Step 2) ──────────────────────────── */
+.setup-region-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.setup-region-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px 12px;
+  border: 2px solid var(--border-medium);
+  border-radius: 12px;
+  background: var(--surface-elevated);
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.setup-region-card:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: var(--surface-hover);
+}
+
+.setup-region-card.active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.06);
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.15);
+}
+
+.setup-region-flag {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.setup-region-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.setup-region-detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.setup-region-check {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .setup-theme-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -4882,11 +4951,12 @@ select option {
     display: none !important;
   }
 
-  /* Invoice print styles */
+  /* Invoice print styles — hide UI chrome but NOT .layout (check canvas)
+     since the first @media print block already manages .layout visibility
+     and the invoice-preview-wrapper uses position:fixed to overlay it */
   .no-print,
   .topbar,
   .side,
-  .layout,
   .modal-overlay,
   .quick-check-bar {
     display: none !important;

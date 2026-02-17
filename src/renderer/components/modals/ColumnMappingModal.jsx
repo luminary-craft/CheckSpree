@@ -1,5 +1,6 @@
 import React from 'react'
 import { getPreviewRow } from '../../utils/parsing'
+import { formatCurrency } from '../../utils/helpers'
 
 export function ColumnMappingModal({
   columnMapping, setColumnMapping,
@@ -76,7 +77,7 @@ export function ColumnMappingModal({
                 {previewRow.date && <div><strong>Date:</strong> {previewRow.date}</div>}
                 {previewRow.payee && <div><strong>Payee:</strong> {previewRow.payee}</div>}
                 {previewRow.address && <div><strong>Address:</strong> {previewRow.address}</div>}
-                {previewRow.amount && <div><strong>Amount:</strong> ${previewRow.amount}</div>}
+                {previewRow.amount && <div><strong>Amount:</strong> {formatCurrency(parseFloat(previewRow.amount))}</div>}
                 {previewRow.memo && <div><strong>Memo:</strong> {previewRow.memo}</div>}
                 {previewRow.external_memo && <div><strong>External Memo:</strong> {previewRow.external_memo}</div>}
                 {previewRow.internal_memo && <div><strong>Internal Memo:</strong> {previewRow.internal_memo}</div>}

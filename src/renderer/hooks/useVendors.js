@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 
 /**
  * Hook for managing the vendor/payee database.
@@ -14,6 +14,15 @@ import { useState, useCallback, useMemo } from 'react'
  */
 export function useVendors(initialVendors, checkHistory = []) {
     const [vendors, setVendors] = useState(initialVendors || [])
+    const loadedFromDisk = useRef(false)
+
+    // Sync from props when persisted data arrives from disk (async load)
+    useEffect(() => {
+        if (!loadedFromDisk.current && initialVendors && initialVendors.length > 0) {
+            setVendors(initialVendors)
+            loadedFromDisk.current = true
+        }
+    }, [initialVendors])
 
     /**
      * Generate a unique vendor ID.

@@ -5,8 +5,8 @@ export function DeleteConfirmModal({
   deleteTarget, cancelDeleteHistoryEntry, confirmDeleteHistoryEntry
 }) {
   return (
-    <div className="modal-overlay confirm-modal no-print" onClick={cancelDeleteHistoryEntry}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+    <div className="modal-overlay confirm-modal no-print" onMouseDown={(e) => e.target === e.currentTarget && cancelDeleteHistoryEntry()}>
+      <div className="modal-content" style={{ maxWidth: '500px' }}>
         <div className="modal-header">
           <h2>Delete {deleteTarget.type === 'deposit' ? 'Deposit' : 'Check'}?</h2>
           <button className="btn-icon" onClick={cancelDeleteHistoryEntry}>×</button>

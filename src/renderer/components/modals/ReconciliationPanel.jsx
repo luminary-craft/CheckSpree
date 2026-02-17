@@ -90,7 +90,7 @@ export function ReconciliationPanel({ checkHistory, onClose, showToast }) {
     }
 
     return (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
             <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh' }}>
                 {/* Header */}
                 <div className="modal-header">

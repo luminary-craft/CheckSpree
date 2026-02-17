@@ -1,14 +1,17 @@
 import React, { useState, useCallback } from 'react'
+import { formatCurrency, getCurrencyLocale } from '../../utils/helpers'
+import { LOCALES } from '../../../config/locales'
 
 /**
  * SetupWizard — First-launch onboarding modal
  *
- * 5-step wizard that guides new users through initial configuration:
+ * 6-step wizard that guides new users through initial configuration:
  *   Step 1: Welcome (logo + tagline)
- *   Step 2: Ledger setup (name + starting balance)
- *   Step 3: Theme & accent color picker (live preview)
- *   Step 4: Feature tour (4-panel visual explainer)
- *   Step 5: All set! (summary + quick-start actions)
+ *   Step 2: Region (locale / currency / paper size)
+ *   Step 3: Ledger setup (name + starting balance)
+ *   Step 4: Theme & accent color picker (live preview)
+ *   Step 5: Feature tour (4-panel visual explainer)
+ *   Step 6: All set! (summary + quick-start actions)
  *
  * The wizard cannot be dismissed without completing it.
  * On completion it sets preferences.setupCompleted = true so it
@@ -19,6 +22,15 @@ import React, { useState, useCallback } from 'react'
  * @param {Object}   props.preferences - Current preferences (for live theme preview)
  * @param {Function} props.setPreferences - Setter to update preferences live
  */
+
+// ─── Region/Locale Choices ───────────────────────────────────────────
+const REGION_OPTIONS = Object.values(LOCALES).map(loc => ({
+    id: loc.id,
+    label: loc.label,
+    flag: { US: '🇺🇸', CA: '🇨🇦', GB: '🇬🇧', FR: '🇫🇷', PH: '🇵🇭' }[loc.id] || '🌍',
+    currency: `${loc.currency.symbol} ${loc.currency.code}`,
+    paper: loc.paper.name
+}))
 
 // ─── Accent Colors ────────────────────────────────────────────────
 const ACCENT_COLORS = [
@@ -82,7 +94,7 @@ const TOUR_PANELS = [
     }
 ]
 
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 6
 
 export function SetupWizard({ onComplete, preferences, setPreferences }) {
     // ─── Wizard State ─────────────────────────────────────────
@@ -151,7 +163,7 @@ export function SetupWizard({ onComplete, preferences, setPreferences }) {
 
     // ─── Validate current step (controls Next button enabled) ─
     const isNextDisabled = () => {
-        if (currentStep === 1) {
+        if (currentStep === 2) {
             // Ledger name must not be blank
             return !ledgerName.trim()
         }
@@ -199,7 +211,37 @@ export function SetupWizard({ onComplete, preferences, setPreferences }) {
     )
 
     /**
-     * Step 2: Ledger Setup — Name your first checking account & set balance
+     * Step 2: Region — Choose locale for currency, paper size, date format
+     */
+    const renderRegionPicker = () => (
+        <div className="setup-step-content setup-region">
+            <h2 className="setup-step-title">Select Your Region</h2>
+            <p className="setup-step-description">
+                This sets your currency, paper size, and date format. You can change it later in Settings.
+            </p>
+
+            <div className="setup-region-grid">
+                {REGION_OPTIONS.map(region => (
+                    <button
+                        key={region.id}
+                        className={`setup-region-card ${(preferences.locale || 'US') === region.id ? 'active' : ''}`}
+                        onClick={() => setPreferences(p => ({ ...p, locale: region.id }))}
+                    >
+                        <span className="setup-region-flag">{region.flag}</span>
+                        <span className="setup-region-name">{region.label}</span>
+                        <span className="setup-region-detail">{region.currency}</span>
+                        <span className="setup-region-detail">{region.paper} paper</span>
+                        {(preferences.locale || 'US') === region.id && (
+                            <div className="setup-region-check">✓</div>
+                        )}
+                    </button>
+                ))}
+            </div>
+        </div>
+    )
+
+    /**
+     * Step 3: Ledger Setup — Name your first checking account & set balance
      */
     const renderLedgerSetup = () => (
         <div className="setup-step-content setup-ledger">
@@ -238,7 +280,7 @@ export function SetupWizard({ onComplete, preferences, setPreferences }) {
                 </div>
 
                 <div className="setup-field">
-                    <label htmlFor="setup-balance">Starting Balance ($)</label>
+                    <label htmlFor="setup-balance">Starting Balance ({getCurrencyLocale().symbol})</label>
                     <input
                         id="setup-balance"
                         type="text"
@@ -385,11 +427,22 @@ export function SetupWizard({ onComplete, preferences, setPreferences }) {
             {/* Summary Cards */}
             <div className="setup-summary-grid">
                 <div className="setup-summary-card">
+                    <span className="setup-summary-icon">
+                        {REGION_OPTIONS.find(r => r.id === (preferences.locale || 'US'))?.flag || '🌍'}
+                    </span>
+                    <div>
+                        <strong>{REGION_OPTIONS.find(r => r.id === (preferences.locale || 'US'))?.label || 'United States'}</strong>
+                        <span className="setup-summary-detail">
+                            {REGION_OPTIONS.find(r => r.id === (preferences.locale || 'US'))?.currency}
+                        </span>
+                    </div>
+                </div>
+                <div className="setup-summary-card">
                     <span className="setup-summary-icon">📒</span>
                     <div>
                         <strong>{ledgerName.trim() || 'Primary Ledger'}</strong>
                         <span className="setup-summary-detail">
-                            Balance: ${startingBalance ? parseFloat(startingBalance.replace(/[^0-9.-]/g, '')).toFixed(2) : '0.00'}
+                            Balance: {formatCurrency(startingBalance ? parseFloat(startingBalance.replace(/[^0-9.-]/g, '')) : 0)}
                         </span>
                     </div>
                 </div>
@@ -420,13 +473,14 @@ export function SetupWizard({ onComplete, preferences, setPreferences }) {
     // ─── Step Mapping ─────────────────────────────────────────
     const STEP_RENDERERS = [
         renderWelcome,
+        renderRegionPicker,
         renderLedgerSetup,
         renderThemePicker,
         renderFeatureTour,
         renderComplete
     ]
 
-    const STEP_LABELS = ['Welcome', 'Ledger', 'Theme', 'Tour', 'Ready']
+    const STEP_LABELS = ['Welcome', 'Region', 'Ledger', 'Theme', 'Tour', 'Ready']
 
     // ─── Button Labels ────────────────────────────────────────
     const getNextLabel = () => {

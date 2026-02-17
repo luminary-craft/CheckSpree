@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { numberToWords } from '../shared/numberToWords'
+import { numberToWords, setNumberToWordsLocale } from '../shared/numberToWords'
 import { getLocalDateString } from './utils/date'
-import { generateId, sanitizeCurrencyInput } from './utils/helpers'
+import { generateId, sanitizeCurrencyInput, setCurrencyLocale, formatCurrency } from './utils/helpers'
+import { getLocale } from '../config/locales'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useAutoIncrement } from './hooks/useAutoIncrement'
 import { usePersistenceSaver } from './hooks/usePersistenceSaver'
@@ -12,7 +13,7 @@ import {
   APP_VERSION, PX_PER_IN, AVAILABLE_FONTS,
   DEFAULT_LAYOUT, DEFAULT_FIELDS, DEFAULT_PROFILE, DEFAULT_PREFERENCES, DEFAULT_MODEL,
   formatLineItems, formatLedgerSnapshot, getDateRangeForFilter,
-  normalizeModel
+  normalizeModel, getLocaleLayout
 } from './constants/defaults'
 
 // Parsing utilities
@@ -501,6 +502,35 @@ export default function App() {
       setEditMode(false)
     }
   }, [preferences.adminLocked, editMode])
+
+  // Track previous locale to only update layout on actual locale changes
+  const prevLocaleRef = useRef(preferences.locale)
+
+  // Apply locale settings to formatters (runs on every locale value, including initial)
+  useEffect(() => {
+    const locale = getLocale(preferences.locale)
+    setCurrencyLocale(locale.currency)
+    setNumberToWordsLocale(locale.numberToWords)
+
+    // Only update model page/layout when the locale actually changes (not on mount)
+    if (prevLocaleRef.current !== preferences.locale) {
+      prevLocaleRef.current = preferences.locale
+      const localeLayout = getLocaleLayout(preferences.locale)
+      setModel(prev => ({
+        ...prev,
+        page: { size: locale.paper.name, widthIn: locale.paper.width, heightIn: locale.paper.height },
+        layout: {
+          ...prev.layout,
+          widthIn: localeLayout.widthIn,
+          checkHeightIn: localeLayout.checkHeightIn,
+          stub1HeightIn: localeLayout.stub1HeightIn,
+          stub2HeightIn: localeLayout.stub2HeightIn,
+          cutLine1In: localeLayout.cutLine1In,
+          cutLine2In: localeLayout.cutLine2In
+        }
+      }))
+    }
+  }, [preferences.locale])
 
   // Apply theme and accent color to document root
   useEffect(() => {
@@ -1073,7 +1103,7 @@ export default function App() {
       // Generate line items text (for the stub)
       const lineItemsText = lineItems
         .filter(item => item.description || item.amount)
-        .map(item => `${item.description} - $${parseFloat(item.amount || 0).toFixed(2)}`)
+        .map(item => `${item.description} - ${formatCurrency(parseFloat(item.amount || 0))}`)
         .join('\n')
 
       // Update current check data with calculated values
@@ -2026,12 +2056,16 @@ export default function App() {
         }
       })
 
+    const locale = getLocale(preferences.locale)
     const res = await window.cs2.exportHistory({
       checks: enrichedChecks,
       ledgerTotals,
       grandTotal,
       exportDate: new Date().toISOString(),
-      format: exportFormat
+      format: exportFormat,
+      pageSize: locale.paper.code,
+      currencySymbol: locale.currency.symbol,
+      currencyLocale: locale.currency.locale
     })
 
     if (res?.success) {
@@ -2283,7 +2317,7 @@ export default function App() {
   })
 
   const {
-    paperRef, dragRef, paperStyle, stageVars, stageHeightIn,
+    paperRef, dragRef, paperStyle, paperVars, stageVars, stageHeightIn,
     getSectionHeight, getSectionY, setField, ensureStub, reorderSections,
     onPointerDownField, onPointerDownHandle, onPointerDownCutLine,
     onPointerDownStage, onPointerMove, onPointerUp
@@ -2294,7 +2328,7 @@ export default function App() {
   const handlePreviewPdf = async () => {
     setIsPrinting(true)
     setTimeout(async () => {
-      const res = await window.cs2.previewPdf()
+      const res = await window.cs2.previewPdf({ pageSize: getLocale(preferences.locale).paper.code })
       if (res?.success === false) showToast(`Preview failed: ${res.error || 'Unknown error'}`, 'error')
       setIsPrinting(false)
     }, 250)
@@ -2313,7 +2347,7 @@ export default function App() {
 
     setTimeout(async () => {
       const filename = generatePrintFilename(data)
-      const res = await window.cs2.printDialog(filename)
+      const res = await window.cs2.printDialog(filename, { pageSize: getLocale(preferences.locale).paper.code })
 
       // Restore original title and edit mode
       document.title = originalTitle
@@ -2399,7 +2433,7 @@ export default function App() {
 
         // Open print dialog and wait for it to close
         const filename = generatePrintFilename(checkDataSnapshot)
-        const res = await window.cs2.printDialog(filename)
+        const res = await window.cs2.printDialog(filename, { pageSize: getLocale(preferences.locale).paper.code })
 
         // Restore original title
         document.title = originalTitle
@@ -2561,7 +2595,7 @@ export default function App() {
 
         // Open print dialog and wait for it to close
         const filename = generatePrintFilename(filledSlots[0].data)
-        const res = await window.cs2.printDialog(filename)
+        const res = await window.cs2.printDialog(filename, { pageSize: getLocale(preferences.locale).paper.code })
 
         // Restore original title
         document.title = originalTitle
@@ -2953,6 +2987,7 @@ export default function App() {
           handleUnlockRequest={handleUnlockRequest}
           showToast={showToast}
           signature={signature}
+          vendors={vendorHook.vendors}
         />
 
         <CheckCanvas
@@ -2962,7 +2997,7 @@ export default function App() {
           templateDataUrl={templateDataUrl} isFullPageTemplate={isFullPageTemplate} onTemplateImageError={onTemplateImageError}
           autoIncrementCheckNumbers={autoIncrementCheckNumbers} isPrinting={isPrinting}
           stageVars={stageVars} threeUpYOffset={threeUpYOffset} hybridBalance={hybridBalance} activeLedger={activeLedger}
-          activeFontFamily={activeFontFamily} paperStyle={paperStyle} paperRef={paperRef} dragRef={dragRef}
+          activeFontFamily={activeFontFamily} paperStyle={paperStyle} paperVars={paperVars} paperRef={paperRef} dragRef={dragRef}
           onPointerDownStage={onPointerDownStage} onPointerDownCutLine={onPointerDownCutLine}
           onPointerDownField={onPointerDownField} onPointerDownHandle={onPointerDownHandle}
           updateCurrentCheckData={updateCurrentCheckData} getSectionHeight={getSectionHeight} getSectionY={getSectionY} setField={setField}
@@ -3082,8 +3117,8 @@ export default function App() {
       {/* Generic Confirmation Modal */}
       {
         showConfirmModal && (
-          <div className="modal-overlay confirm-modal no-print" onClick={handleConfirmModalCancel}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+          <div className="modal-overlay confirm-modal no-print" onMouseDown={(e) => e.target === e.currentTarget && handleConfirmModalCancel()}>
+            <div className="modal-content" style={{ maxWidth: '450px' }}>
               <div className="modal-header">
                 <h2>{confirmConfig.title}</h2>
                 <button className="btn-icon" onClick={handleConfirmModalCancel}>×</button>

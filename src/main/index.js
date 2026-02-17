@@ -468,6 +468,9 @@ ipcMain.handle('export:history', async (_evt, exportData) => {
   const ledgerTotals = isLegacyFormat ? null : exportData.ledgerTotals
   const grandTotal = isLegacyFormat ? null : exportData.grandTotal
   const format = exportData.format || 'csv' // Default to CSV for backward compatibility
+  const csym = exportData.currencySymbol || '$'
+  const cloc = exportData.currencyLocale || 'en-US'
+  const fmtCur = (n) => csym + parseFloat(n).toLocaleString(cloc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   // Determine file extension and filters based on format
   const fileExt = format === 'pdf' ? 'pdf' : 'csv'
@@ -509,22 +512,22 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
     csvContent += '=== CHECKSPREE EXPORT SUMMARY ===\n'
     csvContent += `Export Date,${new Date().toLocaleString()}\n`
     csvContent += `Total Checks,${grandTotal.totalChecks}\n`
-    csvContent += `Total Amount Spent,"$${grandTotal.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
-    csvContent += `Combined Ledger Balance,"$${grandTotal.totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
+    csvContent += `Total Amount Spent,"${fmtCur(grandTotal.totalSpent)}"\n`
+    csvContent += `Combined Ledger Balance,"${fmtCur(grandTotal.totalBalance)}"\n`
     csvContent += '\n'
 
     // Ledger breakdowns
     csvContent += '=== LEDGER BREAKDOWN ===\n'
     Object.entries(ledgerTotals).forEach(([ledgerId, ledger]) => {
       csvContent += `\nLedger: ${ledger.name}\n`
-      csvContent += `Current Balance,"$${ledger.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
-      csvContent += `Total Spent,"$${ledger.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
+      csvContent += `Current Balance,"${fmtCur(ledger.balance)}"\n`
+      csvContent += `Total Spent,"${fmtCur(ledger.totalSpent)}"\n`
       csvContent += `Check Count,${ledger.checkCount}\n`
 
       if (Object.keys(ledger.profileBreakdown).length > 0) {
         csvContent += '\nProfile Breakdown:\n'
         Object.entries(ledger.profileBreakdown).forEach(([profileId, profile]) => {
-          csvContent += `"  ${profile.name}",Checks: ${profile.checkCount},"Amount: $${profile.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"\n`
+          csvContent += `"  ${profile.name}",Checks: ${profile.checkCount},"Amount: ${fmtCur(profile.totalSpent)}"\n`
         })
       }
     })
@@ -539,7 +542,7 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
     const entryType = entry.type === 'note' ? 'Note' : (entry.type === 'deposit' ? 'Deposit' : 'Check')
     const amountDisplay = entry.type === 'note'
       ? '"N/A"'
-      : `"${entry.type === 'deposit' ? '+' : '-'}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`
+      : `"${entry.type === 'deposit' ? '+' : '-'}${fmtCur(Math.abs(amount))}"`
 
     return [
       entryType,
@@ -554,7 +557,7 @@ async function generateCsvExport(filePath, checks, ledgerTotals, grandTotal) {
       `"${(entry.address || '').replace(/\n/g, ', ').replace(/"/g, '""')}"`,
       entry.ledgerName || '',
       entry.profileName || '',
-      entry.balanceAfter != null ? `"$${parseFloat(entry.balanceAfter).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"` : ''
+      entry.balanceAfter != null ? `"${fmtCur(entry.balanceAfter)}"` : ''
     ]
   })
 
@@ -743,11 +746,11 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
         </div>
         <div class="summary-card green">
           <div class="label">Total Amount Spent</div>
-          <div class="value">$${grandTotal.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="value">${fmtCur(grandTotal.totalSpent)}</div>
         </div>
         <div class="summary-card blue">
           <div class="label">Combined Balance</div>
-          <div class="value">$${grandTotal.totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div class="value">${fmtCur(grandTotal.totalBalance)}</div>
         </div>
         <div class="summary-card orange">
           <div class="label">Ledgers</div>
@@ -762,8 +765,8 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
         <div class="ledger-section">
           <strong>${ledger.name}</strong>
           <div class="stats">
-            <span>Balance: $${ledger.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span>Spent: $${ledger.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span>Balance: ${fmtCur(ledger.balance)}</span>
+            <span>Spent: ${fmtCur(ledger.totalSpent)}</span>
             <span>Checks: ${ledger.checkCount}</span>
           </div>
       `
@@ -772,7 +775,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
         html += '<div class="profile-breakdown"><em>Profile Breakdown:</em> '
         const profileEntries = Object.entries(ledger.profileBreakdown)
         profileEntries.forEach(([profileId, profile], idx) => {
-          html += `${profile.name} (${profile.checkCount} checks, $${profile.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+          html += `${profile.name} (${profile.checkCount} checks, ${fmtCur(profile.totalSpent)})`
           if (idx < profileEntries.length - 1) html += ' • '
         })
         html += '</div>'
@@ -810,7 +813,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
     const entryType = entry.type === 'note' ? 'Note' : (entry.type === 'deposit' ? 'Deposit' : 'Check')
     const amountDisplay = entry.type === 'note'
       ? 'N/A'
-      : `${entry.type === 'deposit' ? '+' : '-'}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `${entry.type === 'deposit' ? '+' : '-'}${fmtCur(Math.abs(amount))}`
     const amountClass = entry.type === 'note' ? '' : (entry.type === 'deposit' ? 'style="color: #38a169;"' : '')
 
     html += `
@@ -823,7 +826,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
         <td class="gl-code">${glDisplay}</td>
         <td>${entry.memo || ''}</td>
         <td>${entry.ledgerName || ''}</td>
-        <td class="balance">${entry.balanceAfter != null ? '$' + parseFloat(entry.balanceAfter).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}</td>
+        <td class="balance">${entry.balanceAfter != null ? fmtCur(entry.balanceAfter) : ''}</td>
       </tr>
     `
   })
@@ -854,7 +857,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
   const pdfData = await pdfWindow.webContents.printToPDF({
     printBackground: true,
     marginsType: 1, // Default margins
-    pageSize: 'Letter'
+    pageSize: exportData?.pageSize || 'Letter'
   })
 
   // Write PDF to file
@@ -870,7 +873,7 @@ async function generatePdfExport(filePath, checks, ledgerTotals, grandTotal) {
 }
 
 
-ipcMain.handle('print:dialog', async (_evt, filename) => {
+ipcMain.handle('print:dialog', async (_evt, filename, options) => {
   if (!mainWindow) return { success: false, error: 'No window' }
   try {
     await mainWindow.webContents.print({
@@ -884,7 +887,7 @@ ipcMain.handle('print:dialog', async (_evt, filename) => {
         left: 0,
         right: 0
       },
-      pageSize: 'Letter'
+      pageSize: options?.pageSize || 'Letter'
     })
     return { success: true }
   } catch (e) {
@@ -892,12 +895,12 @@ ipcMain.handle('print:dialog', async (_evt, filename) => {
   }
 })
 
-ipcMain.handle('print:previewPdf', async () => {
+ipcMain.handle('print:previewPdf', async (_evt, options) => {
   if (!mainWindow) return { success: false, error: 'No window' }
 
   try {
     const pdfData = await mainWindow.webContents.printToPDF({
-      pageSize: 'Letter',
+      pageSize: options?.pageSize || 'Letter',
       landscape: false,
       printBackground: false,
       preferCSSPageSize: true,
@@ -932,7 +935,7 @@ ipcMain.handle('print:getPrinters', async () => {
 })
 
 // Silent print to specified printer
-ipcMain.handle('print:silent', async (_evt, { deviceName }) => {
+ipcMain.handle('print:silent', async (_evt, { deviceName, pageSize }) => {
   if (!mainWindow) return { success: false, error: 'No window' }
   try {
     await mainWindow.webContents.print({
@@ -947,7 +950,7 @@ ipcMain.handle('print:silent', async (_evt, { deviceName }) => {
         left: 0,
         right: 0
       },
-      pageSize: 'Letter'
+      pageSize: pageSize || 'Letter'
     })
     return { success: true }
   } catch (e) {
@@ -956,12 +959,12 @@ ipcMain.handle('print:silent', async (_evt, { deviceName }) => {
 })
 
 // Save current page as PDF to specified file path
-ipcMain.handle('print:savePdfToFile', async (_evt, { folderPath, filename }) => {
+ipcMain.handle('print:savePdfToFile', async (_evt, { folderPath, filename, pageSize }) => {
   if (!mainWindow) return { success: false, error: 'No window' }
   try {
     const filepath = path.join(folderPath, `${filename}.pdf`)
     const pdfData = await mainWindow.webContents.printToPDF({
-      pageSize: 'Letter',
+      pageSize: pageSize || 'Letter',
       landscape: false,
       printBackground: true,
       preferCSSPageSize: true,

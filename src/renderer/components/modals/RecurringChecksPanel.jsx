@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { formatCurrency } from '../../utils/helpers'
 
 /**
  * RecurringChecksPanel — Scheduled/Recurring Payments Modal.
@@ -91,7 +92,7 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
     }
 
     return (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
             <div className="modal-content" style={{ maxWidth: '650px', width: '95%', maxHeight: '80vh' }}>
 
                 {/* Header */}
@@ -182,7 +183,7 @@ export function RecurringChecksPanel({ recurringHook, onClose, onGenerateCheck, 
                                                     </div>
                                                     <div className="panel-list-secondary">
                                                         {frequencyLabels[schedule.frequency]} · Next: {new Date(schedule.nextDue).toLocaleDateString()}
-                                                        {schedule.amount && ` · $${schedule.amount}`}
+                                                        {schedule.amount && ` · ${formatCurrency(parseFloat(schedule.amount))}`}
                                                         {schedule.memo && ` · ${schedule.memo}`}
                                                     </div>
                                                 </div>

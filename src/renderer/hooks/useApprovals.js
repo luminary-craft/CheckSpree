@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 
 /**
  * Hook for managing check approval workflow.
@@ -17,6 +17,14 @@ import { useState, useCallback, useMemo } from 'react'
  */
 export function useApprovals(initialApprovals, options = {}) {
     const [approvals, setApprovals] = useState(initialApprovals || [])
+    const loadedFromDisk = useRef(false)
+
+    useEffect(() => {
+        if (!loadedFromDisk.current && initialApprovals && initialApprovals.length > 0) {
+            setApprovals(initialApprovals)
+            loadedFromDisk.current = true
+        }
+    }, [initialApprovals])
     const [settings, setSettings] = useState({
         enabled: options.enabled ?? false,
         threshold: options.threshold ?? 1000,

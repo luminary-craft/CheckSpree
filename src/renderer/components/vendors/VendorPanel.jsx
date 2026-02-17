@@ -70,7 +70,7 @@ export function VendorPanel({ vendorHook, compiledGlCodes, onClose, onOpen1099, 
     }
 
     return (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
             <div className="modal-content" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh' }}>
 
                 {/* Header */}

@@ -62,8 +62,8 @@ export function HistoryModal({
   const uniqueGlCodes = [...new Set(filteredHistory.map(c => c.glCode).filter(Boolean))].sort()
 
   return (
-    <div className="modal-overlay history-modal-overlay" onClick={onClose}>
-      <div className="history-modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay history-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="history-modal-content">
         <div className="history-modal-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>

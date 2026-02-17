@@ -16,8 +16,8 @@ export function ExportDialog({
   const onClose = () => setShowExportDialog(false)
 
   return (
-    <div className="modal-overlay no-print" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content">
         <div className="modal-header">
           <h2>Export Check History</h2>
           <button className="btn-icon" onClick={onClose}>×</button>
