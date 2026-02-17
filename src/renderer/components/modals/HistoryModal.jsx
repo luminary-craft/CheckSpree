@@ -2,12 +2,14 @@ import React from 'react'
 import { formatCurrency } from '../../utils/helpers'
 import { formatDate } from '../../constants/defaults'
 import { TrashIcon } from '../../constants/icons'
+import { filterHistoryByLedger, filterAndSortHistory, getUniqueFilterValues } from '../../utils/historyHelpers'
 
 export function HistoryModal({
   historyViewMode, activeLedger, activeLedgerId,
   checkHistory, ledgers, profiles, glCodes,
   historySearchTerm, setHistorySearchTerm,
   historyGlCodeFilter, setHistoryGlCodeFilter,
+  historyVendorFilter, setHistoryVendorFilter,
   historySortOrder, setHistorySortOrder,
   selectedHistoryItem, setSelectedHistoryItem,
   deleteHistoryEntry, fillFromHistoryEntry,
@@ -15,51 +17,28 @@ export function HistoryModal({
 }) {
   const onClose = () => { setShowHistory(false); setSelectedHistoryItem(null) }
 
-  const filteredHistory = historyViewMode === 'all'
-    ? checkHistory
-    : checkHistory.filter(c => c.ledgerId === activeLedgerId)
+  const filteredHistory = filterHistoryByLedger(checkHistory, historyViewMode, activeLedgerId)
 
-  const filteredAndSorted = filteredHistory
-    .filter(entry => {
-      if (historyGlCodeFilter !== 'all' && entry.glCode !== historyGlCodeFilter) return false
-      if (!historySearchTerm) return true
-      const term = historySearchTerm.toLowerCase()
-      return (
-        (entry.payee && entry.payee.toLowerCase().includes(term)) ||
-        (entry.memo && entry.memo.toLowerCase().includes(term)) ||
-        (entry.amount && entry.amount.toString().includes(term)) ||
-        (entry.checkNumber && entry.checkNumber.toString().includes(term)) ||
-        (entry.glCode && entry.glCode.toLowerCase().includes(term)) ||
-        (entry.glDescription && entry.glDescription.toLowerCase().includes(term))
-      )
-    })
-    .sort((a, b) => {
-      let result = 0
-      switch (historySortOrder) {
-        case 'date-asc':
-          result = new Date(a.date) - new Date(b.date)
-          if (result === 0) result = (a.timestamp || 0) - (b.timestamp || 0)
-          break
-        case 'date-desc':
-          result = new Date(b.date) - new Date(a.date)
-          if (result === 0) result = (b.timestamp || 0) - (a.timestamp || 0)
-          break
-        case 'amount-asc':
-          result = parseFloat(a.amount) - parseFloat(b.amount)
-          break
-        case 'amount-desc':
-          result = parseFloat(b.amount) - parseFloat(a.amount)
-          break
-        case 'payee-asc':
-          result = (a.payee || '').localeCompare(b.payee || '')
-          break
-        default:
-          result = (b.timestamp || 0) - (a.timestamp || 0)
-      }
-      return result
-    })
+  const filteredAndSorted = filterAndSortHistory(filteredHistory, {
+    searchTerm: historySearchTerm,
+    glCodeFilter: historyGlCodeFilter,
+    vendorFilter: historyVendorFilter,
+    sortOrder: historySortOrder
+  })
 
-  const uniqueGlCodes = [...new Set(filteredHistory.map(c => c.glCode).filter(Boolean))].sort()
+  const uniqueGlCodes = getUniqueFilterValues(filteredHistory, 'glCode')
+  const uniqueVendors = getUniqueFilterValues(filteredHistory, 'payee')
+
+  const dropdownStyle = {
+    width: '100%',
+    background: 'var(--surface-elevated)',
+    color: 'var(--text)',
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    padding: '8px 12px',
+    fontSize: '13px',
+    cursor: 'pointer'
+  }
 
   return (
     <div className="modal-overlay history-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -75,8 +54,8 @@ export function HistoryModal({
             <button className="btn-icon" onClick={onClose}>×</button>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <div className="field" style={{ flex: 1, minWidth: '150px', marginBottom: 0 }}>
               <input
                 type="text"
                 placeholder="Search payee, memo, amount..."
@@ -88,18 +67,22 @@ export function HistoryModal({
             </div>
             <div className="field" style={{ width: '175px', marginBottom: 0 }}>
               <select
+                value={historyVendorFilter}
+                onChange={(e) => setHistoryVendorFilter(e.target.value)}
+                style={dropdownStyle}
+                title="Filter by Vendor"
+              >
+                <option value="all">All Vendors</option>
+                {uniqueVendors.map(vendor => (
+                  <option key={vendor} value={vendor}>{vendor}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ width: '175px', marginBottom: 0 }}>
+              <select
                 value={historyGlCodeFilter}
                 onChange={(e) => setHistoryGlCodeFilter(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'var(--surface-elevated)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
+                style={dropdownStyle}
                 title="Filter by GL Code"
               >
                 <option value="all">All GL Codes</option>
@@ -112,16 +95,7 @@ export function HistoryModal({
               <select
                 value={historySortOrder}
                 onChange={(e) => setHistorySortOrder(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'var(--surface-elevated)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
+                style={dropdownStyle}
               >
                 <option value="date-desc">Date (Newest First)</option>
                 <option value="date-asc">Date (Oldest First)</option>

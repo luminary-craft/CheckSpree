@@ -21,6 +21,7 @@ export function Sidebar({
   setDepositData, setShowDepositModal, setShowBalanceAdjustmentModal,
   // History
   checkHistory, setCheckHistory, setHistoryViewMode, setShowHistory, setShowLedger,
+  setHistorySearchTerm, setHistoryGlCodeFilter, setHistoryVendorFilter,
   fillFromHistoryEntry, deleteHistoryEntry,
   // Import Queue
   importQueue, setImportQueue, selectedQueueItems, setSelectedQueueItems,
@@ -363,6 +364,7 @@ export function Sidebar({
                         <div
                           onClick={() => {
                             setHistoryViewMode('current')
+                            setHistorySearchTerm(''); setHistoryGlCodeFilter('all'); setHistoryVendorFilter('all')
                             setShowHistory(true)
                             setShowLedger(false)
                           }}
@@ -517,7 +519,7 @@ export function Sidebar({
                   {checkHistory.filter(c => c.ledgerId === activeLedgerId).length > 0 && (
                     <button
                       className="btn btn-sm full-width"
-                      onClick={() => { setHistoryViewMode('current'); setShowHistory(true); setShowLedger(false); }}
+                      onClick={() => { setHistoryViewMode('current'); setHistorySearchTerm(''); setHistoryGlCodeFilter('all'); setHistoryVendorFilter('all'); setShowHistory(true); setShowLedger(false); }}
                     >
                       View Ledger History ({checkHistory.filter(c => c.ledgerId === activeLedgerId).length})
                     </button>

@@ -60,6 +60,7 @@ export function TopBar({
   showLedger, setShowLedger,
   showHistory, setShowHistory,
   setHistoryViewMode,
+  setHistorySearchTerm, setHistoryGlCodeFilter, setHistoryVendorFilter,
   downloadTemplate, handleImport, handleExport,
   preferences, setPreferences,
   handleUnlockRequest, handleLock,
@@ -107,7 +108,7 @@ export function TopBar({
           </button>
           <button
             className={`tab-button ${showHistory ? 'active' : ''}`}
-            onClick={() => { setHistoryViewMode('all'); setShowHistory(true); setShowLedger(false); }}
+            onClick={() => { setHistoryViewMode('all'); setHistorySearchTerm(''); setHistoryGlCodeFilter('all'); setHistoryVendorFilter('all'); setShowHistory(true); setShowLedger(false); }}
           >
             <span className="tab-label">All History</span>
             <span className="tab-value">{checkHistory.length}</span>

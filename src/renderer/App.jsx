@@ -127,6 +127,7 @@ export default function App() {
   const [historySearchTerm, setHistorySearchTerm] = useState('')
   const [historySortOrder, setHistorySortOrder] = useState('date-desc')
   const [historyGlCodeFilter, setHistoryGlCodeFilter] = useState('all') // 'all' or specific GL Code
+  const [historyVendorFilter, setHistoryVendorFilter] = useState('all') // 'all' or specific payee
   const [selectedHistoryItem, setSelectedHistoryItem] = useState(null)
 
   // GL Codes state
@@ -465,7 +466,13 @@ export default function App() {
           setActiveLedgerId('default')
         }
 
-        if (persisted?.checkHistory) setCheckHistory(persisted.checkHistory)
+        if (persisted?.checkHistory) {
+          // Migrate legacy entries that lack ledgerId (pre-multi-ledger versions)
+          const migratedHistory = persisted.checkHistory.map(entry =>
+            entry.ledgerId ? entry : { ...entry, ledgerId: 'default' }
+          )
+          setCheckHistory(migratedHistory)
+        }
         if (persisted?.glCodes) setGlCodes(persisted.glCodes)
         if (persisted?.preferences) {
           // Always force admin to be locked on startup for security
@@ -2937,6 +2944,7 @@ export default function App() {
         showLedger={showLedger} setShowLedger={setShowLedger}
         showHistory={showHistory} setShowHistory={setShowHistory}
         setHistoryViewMode={setHistoryViewMode}
+        setHistorySearchTerm={setHistorySearchTerm} setHistoryGlCodeFilter={setHistoryGlCodeFilter} setHistoryVendorFilter={setHistoryVendorFilter}
         downloadTemplate={downloadTemplate} handleImport={handleImport} handleExport={handleExport}
         preferences={preferences} setPreferences={setPreferences}
         handleUnlockRequest={handleUnlockRequest} handleLock={handleLock}
@@ -2965,6 +2973,7 @@ export default function App() {
           deleteLedger={deleteLedger} renameLedger={renameLedger} createNewLedger={createNewLedger} updateBalance={updateBalance}
           setDepositData={setDepositData} setShowDepositModal={setShowDepositModal} setShowBalanceAdjustmentModal={setShowBalanceAdjustmentModal}
           checkHistory={checkHistory} setCheckHistory={setCheckHistory} setHistoryViewMode={setHistoryViewMode} setShowHistory={setShowHistory} setShowLedger={setShowLedger}
+        setHistorySearchTerm={setHistorySearchTerm} setHistoryGlCodeFilter={setHistoryGlCodeFilter} setHistoryVendorFilter={setHistoryVendorFilter}
           fillFromHistoryEntry={fillFromHistoryEntry} deleteHistoryEntry={deleteHistoryEntry}
           importQueue={importQueue} setImportQueue={setImportQueue} selectedQueueItems={selectedQueueItems} setSelectedQueueItems={setSelectedQueueItems}
           showImportQueue={showImportQueue} setShowImportQueue={setShowImportQueue} handleBatchPrintAndRecord={handleBatchPrintAndRecord} processAllQueue={processAllQueue} clearQueue={clearQueue} loadFromQueue={loadFromQueue}
@@ -3209,6 +3218,8 @@ export default function App() {
           setHistorySearchTerm={setHistorySearchTerm}
           historyGlCodeFilter={historyGlCodeFilter}
           setHistoryGlCodeFilter={setHistoryGlCodeFilter}
+          historyVendorFilter={historyVendorFilter}
+          setHistoryVendorFilter={setHistoryVendorFilter}
           historySortOrder={historySortOrder}
           setHistorySortOrder={setHistorySortOrder}
           selectedHistoryItem={selectedHistoryItem}
