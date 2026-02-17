@@ -1,5 +1,6 @@
 import { useMemo, useRef, useCallback } from 'react'
 import { PX_PER_IN, clamp, roundTo, calculateBaseYForSection } from '../constants/defaults'
+import { getLocale } from '../../config/locales'
 
 export function useLayoutEditor(model, setModel, setData, preferences, editMode, selected, setSelected, selectionBox, setSelectionBox, isPrinting, activeProfile, activeSlot) {
   const paperRef = useRef(null)
@@ -26,6 +27,14 @@ export function useLayoutEditor(model, setModel, setData, preferences, editMode,
       '--stage-h': `${stageHeightIn}in`
     }
   }, [model.layout.widthIn, stageHeightIn])
+
+  const paperVars = useMemo(() => {
+    const paper = getLocale(preferences.locale).paper
+    return {
+      '--paper-w': `${paper.width}in`,
+      '--paper-h': `${paper.height}in`
+    }
+  }, [preferences.locale])
 
   const checkPlacementStyle = useMemo(() => {
     return {
@@ -520,7 +529,7 @@ export function useLayoutEditor(model, setModel, setData, preferences, editMode,
 
   return {
     paperRef, dragRef,
-    paperStyle, stageVars, stageHeightIn,
+    paperStyle, paperVars, stageVars, stageHeightIn,
     getSectionHeight, getSectionY,
     setField, ensureStub, reorderSections,
     onPointerDownField, onPointerDownHandle, onPointerDownCutLine,

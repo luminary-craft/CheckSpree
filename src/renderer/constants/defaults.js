@@ -1,5 +1,6 @@
 import { sanitizeCurrencyInput, formatCurrency } from '../utils/helpers'
 import { getLocalDateString } from '../utils/date'
+import { getLocale, DEFAULT_LOCALE_ID } from '../../config/locales'
 
 // App version from package.json (injected by Vite)
 export const APP_VERSION = __APP_VERSION__ || '0.0.0'
@@ -31,6 +32,25 @@ export const DEFAULT_LAYOUT = {
   cutLine2In: 7.34,
   // Order of sections: 'check', 'stub1', 'stub2'
   sectionOrder: ['check', 'stub1', 'stub2']
+}
+
+/**
+ * Return layout dimensions sized for the given locale's paper.
+ * Letter (8.5×11") and A4 (8.27×11.69") both split into perfect thirds.
+ */
+export function getLocaleLayout(localeId) {
+  const paper = getLocale(localeId).paper
+  const r2 = (n) => Math.round(n * 100) / 100
+  const third = r2(paper.height / 3)
+  const remainder = r2(paper.height - third * 2)
+  return {
+    widthIn: paper.width,
+    checkHeightIn: third,
+    stub1HeightIn: third,
+    stub2HeightIn: remainder,
+    cutLine1In: third,
+    cutLine2In: r2(third * 2)
+  }
 }
 
 export const DEFAULT_FIELDS = {
@@ -65,6 +85,7 @@ export const DEFAULT_PROFILE = {
 }
 
 export const DEFAULT_PREFERENCES = {
+  locale: DEFAULT_LOCALE_ID,
   fontScale: 1.0,
   checkFontScale: 1.0,
   stubFontScale: 1.0,
@@ -167,10 +188,11 @@ export function formatAmountForDisplay(value) {
   return num.toFixed(2)
 }
 
-export function formatDate(dateStr) {
+export function formatDate(dateStr, localeId) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const locale = getLocale(localeId)
+  return d.toLocaleDateString(locale.dateFormat.locale, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 // Format date based on user preference using date builder
@@ -195,7 +217,8 @@ export function formatDateByPreference(dateStr, prefs) {
 
   // If long date is enabled, use full written format
   if (prefs.useLongDate) {
-    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const locale = getLocale(prefs.locale)
+    return d.toLocaleDateString(locale.dateFormat.locale, { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
   // Build date using slots and separator

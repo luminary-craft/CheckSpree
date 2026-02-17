@@ -136,45 +136,44 @@ export function TopBar({
             <MenuItem icon="📄" label="Invoices" onClick={onOpenInvoices} badge={invoiceOverdueCount} />
           </TopBarMenu>
 
-          {/* Admin Menu */}
-          <TopBarMenu label="Admin" icon={preferences.adminLocked ? '🔒' : '🔓'}>
-            <MenuItem
-              icon={preferences.adminLocked ? '🔓' : '🔒'}
-              label={preferences.adminLocked ? 'Unlock Admin' : 'Lock Admin'}
-              onClick={preferences.adminLocked ? handleUnlockRequest : handleLock}
-            />
-            {!preferences.adminLocked && (
-              <>
-                <MenuDivider />
-                <MenuItem icon="💾" label="Backup Data" onClick={handleBackupData} />
-                <MenuItem icon="📥" label="Restore Backup" onClick={handleRestoreBackup} />
-                <MenuDivider />
-                <MenuItem
-                  icon={<span className={`status-dot ${editMode ? 'active' : ''}`} />}
-                  label="Edit Layout"
-                  onClick={setEditMode}
-                />
-                {editMode && (
-                  <>
-                    <MenuItem
-                      icon={preferences.enableSnapping ? '✓' : ' '}
-                      label="Snap to Grid"
-                      onClick={() => setPreferences(p => ({ ...p, enableSnapping: !p.enableSnapping }))}
-                    />
-                    <MenuItem
-                      icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M1.5 2.5V5.5H4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M2.1 8.5A5 5 0 104.05 3.05L1.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>}
-                      label="Reset Layout"
-                      onClick={resetModel}
-                      danger
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </TopBarMenu>
+          {/* Admin — simple toggle when locked, dropdown when unlocked */}
+          {preferences.adminLocked ? (
+            <button className="topbar-menu-trigger" onClick={handleUnlockRequest}>
+              <span className="topbar-menu-icon">🔒</span>
+              <span>Admin</span>
+            </button>
+          ) : (
+            <TopBarMenu label="Admin" icon="🔓">
+              <MenuItem icon="🔒" label="Lock Admin" onClick={handleLock} />
+              <MenuDivider />
+              <MenuItem icon="💾" label="Backup Data" onClick={handleBackupData} />
+              <MenuItem icon="📥" label="Restore Backup" onClick={handleRestoreBackup} />
+              <MenuDivider />
+              <MenuItem
+                icon={<span className={`status-dot ${editMode ? 'active' : ''}`} />}
+                label="Edit Layout"
+                onClick={setEditMode}
+              />
+              {editMode && (
+                <>
+                  <MenuItem
+                    icon={preferences.enableSnapping ? '✓' : ' '}
+                    label="Snap to Grid"
+                    onClick={() => setPreferences(p => ({ ...p, enableSnapping: !p.enableSnapping }))}
+                  />
+                  <MenuItem
+                    icon={<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M1.5 2.5V5.5H4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M2.1 8.5A5 5 0 104.05 3.05L1.5 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>}
+                    label="Reset Layout"
+                    onClick={resetModel}
+                    danger
+                  />
+                </>
+              )}
+            </TopBarMenu>
+          )}
 
           <button className="btn secondary" onClick={handlePreviewPdf}>Preview</button>
           {/* Print & Record dropdown button */}

@@ -3,6 +3,7 @@ import { formatCurrency, sanitizeCurrencyInput, generateId } from '../utils/help
 import { formatDate, clamp } from '../constants/defaults'
 import { getLocalDateString } from '../utils/date'
 import { AVAILABLE_FONTS } from '../constants/defaults'
+import { LOCALES } from '../../config/locales'
 import { ChevronIcon, PencilIcon, TrashIcon, PlusIcon, CheckIcon } from '../constants/icons'
 import { AtmCurrencyInput } from './AtmCurrencyInput'
 import { PayeeAutocomplete } from './PayeeAutocomplete'
@@ -1898,6 +1899,29 @@ export function Sidebar({
           <>
             {!preferences.adminLocked ? (
               <>
+                {/* Region / Locale */}
+                <section className="section">
+                  <h3>Region</h3>
+                  <div className="card">
+                    <div className="field">
+                      <label>Locale</label>
+                      <select
+                        value={preferences.locale || 'US'}
+                        onChange={(e) => setPreferences(prev => ({ ...prev, locale: e.target.value }))}
+                      >
+                        {Object.values(LOCALES).map(loc => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.label} — {loc.currency.symbol} {loc.currency.code}, {loc.paper.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="hint">
+                      Sets currency ({LOCALES[preferences.locale || 'US']?.currency.code}), paper size ({LOCALES[preferences.locale || 'US']?.paper.name}), and date format.
+                    </p>
+                  </div>
+                </section>
+
                 {/* Calibration */}
                 <section className="section">
                   <h3>Printer Calibration</h3>

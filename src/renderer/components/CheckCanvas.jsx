@@ -1,5 +1,5 @@
 import React from 'react'
-import { formatCurrency, sanitizeCurrencyInput } from '../utils/helpers'
+import { formatCurrency, sanitizeCurrencyInput, formatNumberLocale } from '../utils/helpers'
 import { formatDateByPreference, formatLedgerSnapshot, DEFAULT_LAYOUT, DEFAULT_FIELDS } from '../constants/defaults'
 
 export function CheckCanvas({
@@ -9,7 +9,7 @@ export function CheckCanvas({
   templateDataUrl, isFullPageTemplate, onTemplateImageError,
   autoIncrementCheckNumbers, isPrinting,
   stageVars, threeUpYOffset, hybridBalance, activeLedger,
-  activeFontFamily, paperStyle, paperRef, dragRef,
+  activeFontFamily, paperStyle, paperVars, paperRef, dragRef,
   onPointerDownStage, onPointerDownCutLine, onPointerDownField, onPointerDownHandle,
   updateCurrentCheckData, getSectionHeight, getSectionY, setField,
   handleUnlockRequest, isSlotEmpty,
@@ -51,7 +51,7 @@ export function CheckCanvas({
         </div>
       ) : (
         <div className="paperWrap" onPointerDown={onPointerDownStage}>
-          <div className="paper" style={paperStyle} ref={paperRef}>
+          <div className="paper" style={{ ...paperStyle, ...paperVars }} ref={paperRef}>
             {/* Full-page template overlay */}
             {templateDataUrl && isFullPageTemplate && (
               <img
@@ -626,7 +626,7 @@ export function CheckCanvas({
                       if ((key === 'amount' || key === 'stub1_amount' || key === 'stub2_amount') && value) {
                         const numValue = parseFloat(value)
                         if (!isNaN(numValue)) {
-                          value = numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          value = formatNumberLocale(numValue)
                         }
                       }
 

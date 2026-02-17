@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { formatCurrency } from '../../utils/helpers'
 
 /**
  * ApprovalPanel — Check Approval Queue Modal.
@@ -140,7 +141,7 @@ export function ApprovalPanel({ approvalHook, onClose, showToast }) {
                                                 #{approval.checkNumber} — {approval.payee || 'No payee'}
                                             </div>
                                             <div className="panel-list-secondary">
-                                                ${approval.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                                {formatCurrency(approval.amount)}
                                                 {approval.memo && ` · ${approval.memo}`}
                                             </div>
                                             <div className="panel-list-secondary" style={{ fontSize: '11px', marginTop: '4px' }}>

@@ -3,6 +3,7 @@ import { getLocalDateString } from '../utils/date'
 import { generateId, sanitizeCurrencyInput } from '../utils/helpers'
 import { numberToWords } from '../../shared/numberToWords'
 import { convertExcelDate } from '../utils/parsing'
+import { getLocale } from '../../config/locales'
 
 export function useBatchPrint({
   model, preferences, setPreferences, activeProfile, importQueue, setImportQueue,
@@ -202,13 +203,13 @@ export function useBatchPrint({
 
         if (preferences.batchPrintMode === 'pdf') {
           // PDF Export Mode - auto-save to folder
-          res = await window.cs2.savePdfToFile(preferences.batchPdfExportPath, filename)
+          res = await window.cs2.savePdfToFile(preferences.batchPdfExportPath, filename, { pageSize: getLocale(preferences.locale).paper.code })
         } else if (preferences.batchPrintMode === 'silent' && preferences.batchPrinterDeviceName) {
           // Silent Mode - print to saved printer
-          res = await window.cs2.printSilent({ deviceName: preferences.batchPrinterDeviceName })
+          res = await window.cs2.printSilent({ deviceName: preferences.batchPrinterDeviceName, pageSize: getLocale(preferences.locale).paper.code })
         } else {
           // Interactive Mode - show dialog (current behavior)
-          res = await window.cs2.printDialog(filename)
+          res = await window.cs2.printDialog(filename, { pageSize: getLocale(preferences.locale).paper.code })
         }
 
         // Restore original title
@@ -504,13 +505,13 @@ export function useBatchPrint({
 
         if (preferences.batchPrintMode === 'pdf') {
           // PDF Export Mode - auto-save to folder
-          res = await window.cs2.savePdfToFile(preferences.batchPdfExportPath, filename)
+          res = await window.cs2.savePdfToFile(preferences.batchPdfExportPath, filename, { pageSize: getLocale(preferences.locale).paper.code })
         } else if (preferences.batchPrintMode === 'silent' && preferences.batchPrinterDeviceName) {
           // Silent Mode - print to saved printer
-          res = await window.cs2.printSilent({ deviceName: preferences.batchPrinterDeviceName })
+          res = await window.cs2.printSilent({ deviceName: preferences.batchPrinterDeviceName, pageSize: getLocale(preferences.locale).paper.code })
         } else {
           // Interactive Mode - show dialog (current behavior)
-          res = await window.cs2.printDialog(filename)
+          res = await window.cs2.printDialog(filename, { pageSize: getLocale(preferences.locale).paper.code })
         }
 
         // Restore original title
