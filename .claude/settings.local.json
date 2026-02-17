@@ -44,7 +44,10 @@
       "Bash(npm test:*)",
       "Bash(git merge refactor/modularize-app --no-ff -m \"$\\(cat <<''EOF''\nMerge refactor/modularize-app: modularization, warm theme, UX improvements\n\n- Refactor App.jsx from 10,703-line monolith into 68 modular files \\(72% reduction\\)\n- Warm amber/charcoal theme redesign \\(CSS tokens + 150+ hardcoded color replacements\\)\n- Replace all alert\\(\\) calls with in-app toast notifications\n- Standardize all money inputs to ATM-style cents-first currency input\n- Refactor GL Code & Description with proper CSS classes\n- Fix CSS nesting bug trapping autocomplete/slider styles\n- Fix stub labels causing scrollbar on canvas fields\n- Add Vitest test suite \\(109 tests\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(cd:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(gh issue list:*)",
+      "Bash(where gh:*)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }
