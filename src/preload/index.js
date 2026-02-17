@@ -12,11 +12,11 @@ contextBridge.exposeInMainWorld('cs2', {
   importRead: (filePath) => ipcRenderer.invoke('import:read', filePath),
   exportHistory: (historyData) => ipcRenderer.invoke('export:history', historyData),
 
-  printDialog: (filename) => ipcRenderer.invoke('print:dialog', filename),
-  previewPdf: () => ipcRenderer.invoke('print:previewPdf'),
+  printDialog: (filename, options) => ipcRenderer.invoke('print:dialog', filename, options),
+  previewPdf: (options) => ipcRenderer.invoke('print:previewPdf', options),
   getPrinters: () => ipcRenderer.invoke('print:getPrinters'),
   printSilent: (options) => ipcRenderer.invoke('print:silent', options),
-  savePdfToFile: (folderPath, filename) => ipcRenderer.invoke('print:savePdfToFile', { folderPath, filename }),
+  savePdfToFile: (folderPath, filename, options) => ipcRenderer.invoke('print:savePdfToFile', { folderPath, filename, ...options }),
   selectPdfFolder: () => ipcRenderer.invoke('print:selectPdfFolder'),
 
   // Backup
