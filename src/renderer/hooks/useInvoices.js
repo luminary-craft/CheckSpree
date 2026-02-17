@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { calculateInvoiceTotals, formatInvoiceNumber, getDueStatus } from '../utils/invoiceHelpers'
 
 /**
@@ -14,6 +14,14 @@ import { calculateInvoiceTotals, formatInvoiceNumber, getDueStatus } from '../ut
  */
 export function useInvoices(initialInvoices, options = {}) {
   const [invoices, setInvoices] = useState(initialInvoices || [])
+  const loadedFromDisk = useRef(false)
+
+  useEffect(() => {
+    if (!loadedFromDisk.current && initialInvoices && initialInvoices.length > 0) {
+      setInvoices(initialInvoices)
+      loadedFromDisk.current = true
+    }
+  }, [initialInvoices])
   const [nextNumber, setNextNumber] = useState(options.nextNumber || 1)
 
   const generateId = useCallback(() => {

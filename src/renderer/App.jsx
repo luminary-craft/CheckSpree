@@ -2987,6 +2987,7 @@ export default function App() {
           handleUnlockRequest={handleUnlockRequest}
           showToast={showToast}
           signature={signature}
+          vendors={vendorHook.vendors}
         />
 
         <CheckCanvas

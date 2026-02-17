@@ -1,35 +1,58 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 
-// Payee autocomplete - suggests previously used payees from history
-export function PayeeAutocomplete({ value, onChange, checkHistory = [], placeholder = 'Recipient name' }) {
+// Payee autocomplete - suggests vendors and previously used payees from history
+// When a vendor is selected, onVendorSelect fires with the vendor object for auto-fill
+export function PayeeAutocomplete({ value, onChange, onVendorSelect, checkHistory = [], vendors = [], placeholder = 'Recipient name' }) {
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
 
-  // Get unique payees from check history (only checks, not deposits)
-  const uniquePayees = useMemo(() => {
-    if (!checkHistory || !Array.isArray(checkHistory)) return []
-    const payees = new Set()
-    checkHistory
-      .filter(entry => entry.type === 'check' || !entry.type) // Include legacy entries
-      .forEach(entry => {
-        if (entry.payee?.trim()) {
-          payees.add(entry.payee.trim())
-        }
-      })
-    return Array.from(payees).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-  }, [checkHistory])
-
-  // Filter suggestions based on current input
+  // Build unified suggestion list: vendors first (with full data), then history-only payees
   const suggestions = useMemo(() => {
-    if (!value || value.trim() === '') return uniquePayees.slice(0, 50) // Show top 50 if empty
-    const searchTerm = value.toLowerCase().trim()
-    return uniquePayees.filter(payee =>
-      payee.toLowerCase().includes(searchTerm) &&
-      payee.toLowerCase() !== searchTerm // Don't show if exact match
-    ).slice(0, 8) // Limit to 8 suggestions
-  }, [value, uniquePayees])
+    const searchTerm = (value || '').toLowerCase().trim()
+
+    // Vendor matches
+    const vendorMatches = (vendors || [])
+      .filter(v => {
+        if (!searchTerm) return true
+        return v.name.toLowerCase().includes(searchTerm) &&
+          v.name.toLowerCase() !== searchTerm
+      })
+      .sort((a, b) => {
+        if (!searchTerm) return a.name.localeCompare(b.name)
+        const aStarts = a.name.toLowerCase().startsWith(searchTerm) ? 0 : 1
+        const bStarts = b.name.toLowerCase().startsWith(searchTerm) ? 0 : 1
+        return aStarts - bStarts || a.name.localeCompare(b.name)
+      })
+      .slice(0, 5)
+      .map(v => ({ label: v.name, type: 'vendor', vendor: v }))
+
+    // History payee names (excluding any that already appear as vendors)
+    const vendorNames = new Set((vendors || []).map(v => v.name.toLowerCase()))
+    const historyPayees = new Set()
+    if (checkHistory && Array.isArray(checkHistory)) {
+      checkHistory
+        .filter(entry => entry.type === 'check' || !entry.type)
+        .forEach(entry => {
+          if (entry.payee?.trim() && !vendorNames.has(entry.payee.trim().toLowerCase())) {
+            historyPayees.add(entry.payee.trim())
+          }
+        })
+    }
+
+    const historyMatches = Array.from(historyPayees)
+      .filter(p => {
+        if (!searchTerm) return true
+        return p.toLowerCase().includes(searchTerm) &&
+          p.toLowerCase() !== searchTerm
+      })
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .slice(0, 5)
+      .map(p => ({ label: p, type: 'history' }))
+
+    return [...vendorMatches, ...historyMatches]
+  }, [value, vendors, checkHistory])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -49,15 +72,18 @@ export function PayeeAutocomplete({ value, onChange, checkHistory = [], placehol
     setHighlightedIndex(-1)
   }
 
-  const handleSelect = (payee) => {
-    onChange(payee)
+  const handleSelect = (item) => {
+    onChange(item.label)
+    if (item.type === 'vendor' && item.vendor && onVendorSelect) {
+      onVendorSelect(item.vendor)
+    }
     setIsOpen(false)
     setHighlightedIndex(-1)
     inputRef.current?.focus()
   }
 
   const handleKeyDown = (e) => {
-    if (!isOpen) { // Removed empty check to allow opening on arrow down even if empty
+    if (!isOpen) {
       if (e.key === 'ArrowDown') {
         setIsOpen(true)
         setHighlightedIndex(0)
@@ -107,8 +133,8 @@ export function PayeeAutocomplete({ value, onChange, checkHistory = [], placehol
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={() => setIsOpen(true)} // Open on focus
-        onClick={() => setIsOpen(true)} // Open on click
+        onFocus={() => setIsOpen(true)}
+        onClick={() => setIsOpen(true)}
         placeholder={placeholder}
         autoComplete="off"
       />
@@ -130,12 +156,12 @@ export function PayeeAutocomplete({ value, onChange, checkHistory = [], placehol
             overflowY: 'auto'
           }}
         >
-          {suggestions.map((payee, index) => (
+          {suggestions.map((item, index) => (
             <div
-              key={payee}
+              key={`${item.type}-${item.label}`}
               onMouseDown={(e) => {
-                e.preventDefault() // Prevent blur
-                handleSelect(payee)
+                e.preventDefault()
+                handleSelect(item)
               }}
               style={{
                 padding: '8px 12px',
@@ -144,11 +170,24 @@ export function PayeeAutocomplete({ value, onChange, checkHistory = [], placehol
                 color: index === highlightedIndex ? 'var(--accent-hover)' : '#e2e8f0',
                 borderBottom: index < suggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                 fontSize: '13px',
-                transition: 'background-color 0.1s'
+                transition: 'background-color 0.1s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
               }}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
-              {payee}
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.type === 'vendor' && (
+                <span style={{
+                  fontSize: '10px',
+                  padding: '1px 6px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(99, 179, 237, 0.15)',
+                  color: '#63b3ed',
+                  fontWeight: 500
+                }}>vendor</span>
+              )}
             </div>
           ))}
         </div>

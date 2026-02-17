@@ -52,7 +52,9 @@ export function Sidebar({
   // Toast
   showToast,
   // Digital Signature
-  signature
+  signature,
+  // Vendors
+  vendors
 }) {
   const [sidebarMode, setSidebarMode] = useState('check')
   const originalBalanceRef = useRef(0)
@@ -729,7 +731,18 @@ export function Sidebar({
                         updateCurrentCheckData({ payee: newPayee, address: lines.join('\n') })
                       }
                     }}
+                    onVendorSelect={(vendor) => {
+                      // Auto-fill address and GL code from vendor
+                      const addrParts = [vendor.name]
+                      if (vendor.address) addrParts.push(vendor.address)
+                      const cityStateZip = [vendor.city, vendor.state].filter(Boolean).join(', ')
+                      if (cityStateZip || vendor.zip) addrParts.push([cityStateZip, vendor.zip].filter(Boolean).join(' '))
+                      const updates = { address: addrParts.join('\n') }
+                      if (vendor.defaultGlCode) updates.glCode = vendor.defaultGlCode
+                      updateCurrentCheckData(updates)
+                    }}
                     checkHistory={checkHistory}
+                    vendors={vendors}
                     placeholder="Recipient name"
                   />
                 </div>
