@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('cs2', {
   printSilent: (options) => ipcRenderer.invoke('print:silent', options),
   savePdfToFile: (folderPath, filename, options) => ipcRenderer.invoke('print:savePdfToFile', { folderPath, filename, ...options }),
   selectPdfFolder: () => ipcRenderer.invoke('print:selectPdfFolder'),
+  invoiceSavePdf: (options) => ipcRenderer.invoke('invoice:savePdf', options),
 
   // Backup
   backupSave: (password) => ipcRenderer.invoke('backup:save', password),

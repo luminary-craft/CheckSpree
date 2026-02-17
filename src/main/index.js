@@ -977,6 +977,36 @@ ipcMain.handle('print:savePdfToFile', async (_evt, { folderPath, filename, pageS
   }
 })
 
+// Save current page as invoice PDF with save dialog
+ipcMain.handle('invoice:savePdf', async (_evt, { defaultFilename, pageSize }) => {
+  if (!mainWindow) return { success: false, error: 'No window' }
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: defaultFilename || 'Invoice.pdf',
+    filters: [
+      { name: 'PDF Files', extensions: ['pdf'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  })
+
+  if (result.canceled || !result.filePath) return { success: false }
+
+  try {
+    const pdfData = await mainWindow.webContents.printToPDF({
+      pageSize: pageSize || 'Letter',
+      landscape: false,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margins: { marginType: 'default' }
+    })
+    fs.writeFileSync(result.filePath, pdfData)
+    shell.showItemInFolder(result.filePath)
+    return { success: true, path: result.filePath }
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) }
+  }
+})
+
 // Select folder for batch PDF export
 ipcMain.handle('print:selectPdfFolder', async () => {
   if (!mainWindow) return { success: false, error: 'No window' }
