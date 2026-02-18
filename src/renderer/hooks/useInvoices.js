@@ -59,9 +59,11 @@ export function useInvoices(initialInvoices, options = {}) {
       taxRate: invoiceData.taxRate || 0,
       notes: invoiceData.notes || '',
       memo: invoiceData.memo || '',
+      recurring: invoiceData.recurring || 'none',
+      businessProfileId: invoiceData.businessProfileId || null,
       paidDate: null,
       paidAmount: null,
-      ledgerId: null,
+      ledgerId: invoiceData.ledgerId || null,
       createdAt: now,
       updatedAt: now
     }
@@ -140,8 +142,8 @@ export function useInvoices(initialInvoices, options = {}) {
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       paidDate: null,
-      paidAmount: null,
-      ledgerId: null
+      paidAmount: null
+      // ledgerId and recurring are preserved from source via spread
     })
   }, [invoices, addInvoice])
 

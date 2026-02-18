@@ -1476,6 +1476,44 @@ export default function App() {
     return true
   }
 
+  const reverseInvoiceDeposit = (invoice) => {
+    const amount = parseFloat(invoice.paidAmount || invoice.total) || 0
+    if (amount <= 0) return false
+    const targetLedgerId = invoice.ledgerId || activeLedgerId
+    const previousBalance = calculateHybridBalance(targetLedgerId)
+    const newBalance = previousBalance - amount
+
+    const reversalEntry = {
+      id: generateId(),
+      type: 'check',
+      date: getLocalDateString(),
+      payee: `Reversed: Invoice ${invoice.invoiceNumber} — ${invoice.clientName}`,
+      amount: amount,
+      memo: `Deleted paid invoice reversal`,
+      reason: `Invoice ${invoice.invoiceNumber} deleted — deposit reversed`,
+      external_memo: '',
+      internal_memo: '',
+      line_items: [],
+      line_items_text: '',
+      ledgerId: targetLedgerId,
+      profileId: activeProfileId,
+      ledger_snapshot: {
+        previous_balance: previousBalance,
+        transaction_amount: -amount,
+        new_balance: newBalance
+      },
+      timestamp: Date.now(),
+      balanceAfter: newBalance,
+      isManualAdjustment: true
+    }
+
+    setCheckHistory(prev => [reversalEntry, ...prev])
+    window.cs2.backupTriggerAuto().catch(err => {
+      console.error('Auto-backup trigger failed:', err)
+    })
+    return true
+  }
+
   const deleteHistoryEntry = (entryId) => {
     const entry = checkHistory.find(e => e.id === entryId)
     if (!entry) return
@@ -3386,6 +3424,7 @@ export default function App() {
           preferences={preferences}
           setPreferences={setPreferences}
           onRecordDeposit={recordDeposit}
+          onReverseDeposit={reverseInvoiceDeposit}
           activeLedgerId={activeLedgerId}
           ledgers={ledgers}
         />

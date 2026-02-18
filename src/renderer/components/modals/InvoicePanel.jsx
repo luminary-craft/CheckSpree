@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { formatAmount } from '../../utils/helpers'
+import { formatAmount, generateId } from '../../utils/helpers'
 import { calculateInvoiceTotals, getPaymentTermsDueDate, getDueStatus, getTermsLabel, generateInvoiceCSV, getNextRecurrenceDate } from '../../utils/invoiceHelpers'
 import { InvoicePreview } from './InvoicePreview'
 
@@ -30,7 +30,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, onCancel, invoiceHook, ledgers = [], activeLedgerId }) {
+function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, onCancel, invoiceHook, ledgers = [], activeLedgerId, businessProfiles = [] }) {
   const isNew = !invoice
   const [form, setForm] = useState(() => {
     if (invoice) return { ...invoice }
@@ -48,7 +48,8 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
       notes: '',
       memo: '',
       recurring: 'none',
-      ledgerId: activeLedgerId || 'default'
+      ledgerId: activeLedgerId || 'default',
+      businessProfileId: businessProfiles.length > 0 ? businessProfiles[0].id : null
     }
   })
 
@@ -169,6 +170,19 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
             </select>
           </div>
         </div>
+        {businessProfiles.length > 0 && (
+          <div style={{ marginTop: '8px' }}>
+            <div className="panel-field">
+              <label className="panel-label">From (Business)</label>
+              <select className="panel-input" value={form.businessProfileId || ''} onChange={(e) => updateField('businessProfileId', e.target.value || null)}>
+                <option value="">Default Company Info</option>
+                {businessProfiles.map(bp => (
+                  <option key={bp.id} value={bp.id}>{bp.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Line Items */}
@@ -262,13 +276,14 @@ function InvoiceForm({ invoice, onSave, onCreateAndPrint, onCreateAndSavePdf, on
   )
 }
 
-export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, setPreferences, onRecordDeposit, activeLedgerId, ledgers = [] }) {
+export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, setPreferences, onRecordDeposit, onReverseDeposit, activeLedgerId, ledgers = [] }) {
   const { invoices, stats, addInvoice, updateInvoice, deleteInvoice, markAsSent, markAsPaid, voidInvoice, duplicateInvoice } = invoiceHook
   const [activeTab, setActiveTab] = useState('list')
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingInvoice, setEditingInvoice] = useState(null) // null | 'new' | invoice object
   const [previewInvoice, setPreviewInvoice] = useState(null)
+  const [confirmDeleteInvoice, setConfirmDeleteInvoice] = useState(null)
 
   const filteredInvoices = useMemo(() => {
     let list = [...invoices]
@@ -366,8 +381,8 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
       issueDate: nextIssue,
       dueDate: nextDue || '',
       paidDate: null,
-      paidAmount: null,
-      ledgerId: null
+      paidAmount: null
+      // ledgerId, recurring, and businessProfileId preserved from source via spread
     })
     showToast?.('Next recurring invoice created')
   }
@@ -386,6 +401,45 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
   }
 
   const companyInfo = preferences?.companyInfo || {}
+  const businessProfiles = preferences?.businessProfiles || []
+
+  const resolveCompanyInfo = (invoice) => {
+    if (invoice?.businessProfileId) {
+      const profile = businessProfiles.find(p => p.id === invoice.businessProfileId)
+      if (profile) return profile
+    }
+    return companyInfo
+  }
+
+  const addBusinessProfile = () => {
+    const newProfile = {
+      id: generateId(),
+      name: '',
+      address: '',
+      phone: '',
+      email: ''
+    }
+    setPreferences(prev => ({
+      ...prev,
+      businessProfiles: [...(prev.businessProfiles || []), newProfile]
+    }))
+  }
+
+  const updateBusinessProfile = (profileId, field, value) => {
+    setPreferences(prev => ({
+      ...prev,
+      businessProfiles: (prev.businessProfiles || []).map(p =>
+        p.id === profileId ? { ...p, [field]: value } : p
+      )
+    }))
+  }
+
+  const deleteBusinessProfile = (profileId) => {
+    setPreferences(prev => ({
+      ...prev,
+      businessProfiles: (prev.businessProfiles || []).filter(p => p.id !== profileId)
+    }))
+  }
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -406,7 +460,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
           {[
             { id: 'list', label: 'All Invoices' },
             { id: 'dashboard', label: 'Dashboard' },
-            { id: 'settings', label: 'Company Info' }
+            { id: 'settings', label: 'Business Profiles' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -425,7 +479,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
           {previewInvoice && (
             <InvoicePreview
               invoice={previewInvoice}
-              companyInfo={companyInfo}
+              companyInfo={resolveCompanyInfo(previewInvoice)}
               onClose={() => setPreviewInvoice(null)}
             />
           )}
@@ -517,7 +571,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                             )}
                             {inv.status === 'sent' && (
                               <button className="btn-icon-sm" onClick={() => {
-                                markAsPaid(inv.id, { paidAmount: inv.total })
+                                markAsPaid(inv.id, { paidAmount: inv.total, ledgerId: inv.ledgerId || activeLedgerId })
                                 // Auto-record deposit in check history
                                 if (onRecordDeposit && (inv.ledgerId || activeLedgerId)) {
                                   onRecordDeposit({
@@ -535,9 +589,14 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                               <button className="btn-icon-sm" onClick={() => generateNextRecurring(inv)} title="Generate next recurring invoice">🔄</button>
                             )}
                             <button className="btn-icon-sm" onClick={() => { duplicateInvoice(inv.id); showToast?.('Invoice duplicated') }} title="Duplicate">📋</button>
-                            {(inv.status === 'draft' || inv.status === 'void') && (
-                              <button className="btn-icon-sm danger" onClick={() => { deleteInvoice(inv.id); showToast?.('Invoice deleted') }} title="Delete">×</button>
-                            )}
+                            <button className="btn-icon-sm danger" onClick={() => {
+                              if (inv.status === 'paid') {
+                                setConfirmDeleteInvoice(inv)
+                              } else {
+                                deleteInvoice(inv.id)
+                                showToast?.('Invoice deleted')
+                              }
+                            }} title="Delete">×</button>
                             {inv.status !== 'void' && inv.status !== 'paid' && (
                               <button className="btn-icon-sm danger" onClick={() => { voidInvoice(inv.id); showToast?.('Invoice voided') }} title="Void">⊘</button>
                             )}
@@ -562,6 +621,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
               invoiceHook={invoiceHook}
               ledgers={ledgers}
               activeLedgerId={activeLedgerId}
+              businessProfiles={preferences?.businessProfiles || []}
             />
           )}
 
@@ -601,9 +661,11 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
 
           {/* === COMPANY INFO TAB === */}
           {activeTab === 'settings' && !previewInvoice && (
-            <div style={{ maxWidth: '500px' }}>
-              <p className="hint" style={{ marginBottom: '16px' }}>
-                This information appears on your printed invoices.
+            <div style={{ maxWidth: '600px' }}>
+              {/* Default company info */}
+              <h4 style={{ margin: '0 0 8px', fontSize: '12px', color: 'var(--text-label)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Default Business</h4>
+              <p className="hint" style={{ marginBottom: '12px' }}>
+                Used when no specific business profile is selected on an invoice.
               </p>
               <div className="panel-field">
                 <label className="panel-label">Company / Business Name</label>
@@ -611,7 +673,7 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
               </div>
               <div className="panel-field" style={{ marginTop: '8px' }}>
                 <label className="panel-label">Address</label>
-                <textarea className="panel-textarea" rows="3" value={companyInfo.address || ''} onChange={(e) => setPreferences(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, address: e.target.value } }))} placeholder="Street, City, State ZIP" />
+                <textarea className="panel-textarea" rows="2" value={companyInfo.address || ''} onChange={(e) => setPreferences(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, address: e.target.value } }))} placeholder="Street, City, State ZIP" />
               </div>
               <div className="panel-grid-2" style={{ marginTop: '8px' }}>
                 <div className="panel-field">
@@ -623,6 +685,51 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
                   <input className="panel-input" value={companyInfo.email || ''} onChange={(e) => setPreferences(prev => ({ ...prev, companyInfo: { ...prev.companyInfo, email: e.target.value } }))} placeholder="billing@company.com" />
                 </div>
               </div>
+
+              {/* Additional business profiles */}
+              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '12px', color: 'var(--text-label)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Additional Business Profiles</h4>
+                  <button className="btn btn-sm" onClick={addBusinessProfile}>+ Add Profile</button>
+                </div>
+                <p className="hint" style={{ marginBottom: '12px' }}>
+                  Create profiles for other businesses or individuals you invoice on behalf of.
+                </p>
+                {businessProfiles.length === 0 ? (
+                  <div className="panel-empty" style={{ padding: '16px' }}>No additional profiles yet.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {businessProfiles.map(bp => (
+                      <div key={bp.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', position: 'relative' }}>
+                        <button
+                          className="btn-icon-sm danger"
+                          style={{ position: 'absolute', top: '8px', right: '8px' }}
+                          onClick={() => deleteBusinessProfile(bp.id)}
+                          title="Remove profile"
+                        >×</button>
+                        <div className="panel-field">
+                          <label className="panel-label">Business Name</label>
+                          <input className="panel-input" value={bp.name || ''} onChange={(e) => updateBusinessProfile(bp.id, 'name', e.target.value)} placeholder="Business Name" />
+                        </div>
+                        <div className="panel-field" style={{ marginTop: '6px' }}>
+                          <label className="panel-label">Address</label>
+                          <textarea className="panel-textarea" rows="2" value={bp.address || ''} onChange={(e) => updateBusinessProfile(bp.id, 'address', e.target.value)} placeholder="Street, City, State ZIP" />
+                        </div>
+                        <div className="panel-grid-2" style={{ marginTop: '6px' }}>
+                          <div className="panel-field">
+                            <label className="panel-label">Phone</label>
+                            <input className="panel-input" value={bp.phone || ''} onChange={(e) => updateBusinessProfile(bp.id, 'phone', e.target.value)} placeholder="(555) 123-4567" />
+                          </div>
+                          <div className="panel-field">
+                            <label className="panel-label">Email</label>
+                            <input className="panel-input" value={bp.email || ''} onChange={(e) => updateBusinessProfile(bp.id, 'email', e.target.value)} placeholder="billing@company.com" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -632,6 +739,36 @@ export function InvoicePanel({ invoiceHook, onClose, showToast, preferences, set
           <button className="btn ghost" onClick={onClose}>Close</button>
         </div>
       </div>
+
+      {/* Confirm delete paid invoice */}
+      {confirmDeleteInvoice && (
+        <div className="modal-overlay" style={{ zIndex: 10100 }} onMouseDown={(e) => e.target === e.currentTarget && setConfirmDeleteInvoice(null)}>
+          <div className="modal-content" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h2>Delete Paid Invoice?</h2>
+              <button className="modal-close-btn" onClick={() => setConfirmDeleteInvoice(null)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ padding: '16px' }}>
+              <p style={{ margin: '0 0 12px' }}>
+                <strong>{confirmDeleteInvoice.invoiceNumber}</strong> — {confirmDeleteInvoice.clientName}
+              </p>
+              <p style={{ margin: '0 0 12px', color: 'var(--warning)' }}>
+                This invoice was marked as paid ({formatAmount(confirmDeleteInvoice.paidAmount || confirmDeleteInvoice.total)}).
+                Deleting it will reverse the deposit from the associated ledger.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn ghost" onClick={() => setConfirmDeleteInvoice(null)}>Cancel</button>
+              <button className="btn danger" onClick={() => {
+                onReverseDeposit?.(confirmDeleteInvoice)
+                deleteInvoice(confirmDeleteInvoice.id)
+                setConfirmDeleteInvoice(null)
+                showToast?.('Paid invoice deleted — deposit reversed')
+              }}>Delete & Reverse Deposit</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

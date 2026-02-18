@@ -134,6 +134,7 @@ export const DEFAULT_PREFERENCES = {
   invoices: [],
   nextInvoiceNumber: 1,
   companyInfo: { name: '', address: '', phone: '', email: '' },
+  businessProfiles: [],
   invoiceDefaults: { terms: 'net30', taxRate: 0, notes: 'Thank you for your business!' }
 }
 
