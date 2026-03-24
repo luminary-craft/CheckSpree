@@ -16,13 +16,23 @@ export function useInvoices(initialInvoices, options = {}) {
   const [invoices, setInvoices] = useState(initialInvoices || [])
   const loadedFromDisk = useRef(false)
 
+  const loadedNextNumber = useRef(false)
+
   useEffect(() => {
-    if (!loadedFromDisk.current && initialInvoices) {
+    if (!loadedFromDisk.current && initialInvoices && initialInvoices.length > 0) {
       setInvoices(initialInvoices)
       loadedFromDisk.current = true
     }
   }, [initialInvoices])
   const [nextNumber, setNextNumber] = useState(options.nextNumber || 1)
+
+  // Sync nextNumber from disk-loaded preferences (same async-load pattern)
+  useEffect(() => {
+    if (!loadedNextNumber.current && options.nextNumber && options.nextNumber > 1) {
+      setNextNumber(options.nextNumber)
+      loadedNextNumber.current = true
+    }
+  }, [options.nextNumber])
 
   const generateId = useCallback(() => {
     return `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`

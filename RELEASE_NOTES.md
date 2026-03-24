@@ -1,5 +1,17 @@
 # CheckSpree Release Notes
 
+## v1.0.0-beta.4 - The Persistence Fix Release
+
+This release fixes a critical bug where invoices were lost between sessions due to a race condition in the async disk-load pattern.
+
+---
+
+### Bug Fixes
+- **Invoice persistence fix**: Invoices are now properly restored from disk on app restart. A missing `length > 0` guard in the `useInvoices` hook caused the `loadedFromDisk` flag to trigger on the empty default array, preventing real disk data from loading — then the sync-back useEffect would overwrite saved invoices with an empty array. (Fixes [#13](https://github.com/luminary-craft/CheckSpree/issues/13))
+- **Invoice number counter preserved**: The `nextInvoiceNumber` counter no longer resets to 1 on restart. Added a dedicated sync effect to pick up the persisted counter value from disk.
+
+---
+
 ## v1.0.0-beta.3 - The International & Integration Release
 
 This release adds internationalization support, vendor auto-fill, digital signatures, invoice generation, and significant UX improvements across the board.
